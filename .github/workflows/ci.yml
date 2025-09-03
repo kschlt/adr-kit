@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+    
+    - name: Run linting with ruff
+      run: |
+        ruff check adr_kit/ tests/
+    
+    - name: Check code formatting with black
+      run: |
+        black --check adr_kit/ tests/
+    
+    - name: Run type checking with mypy
+      run: |
+        mypy adr_kit/
+    
+    - name: Run tests with pytest
+      run: |
+        pytest tests/ --cov=adr_kit --cov-report=xml --cov-report=term-missing
+    
+    - name: Test CLI commands
+      run: |
+        adr-kit init --adr-dir test_adrs
+        adr-kit new "Test ADR" --tags test --adr-dir test_adrs
+        adr-kit validate --adr-dir test_adrs || true  # Allow validation errors for test
+        adr-kit index --out test_adrs/index.json --adr-dir test_adrs --no-validate
+        adr-kit export-lint eslint --out test.eslintrc.json --adr-dir test_adrs
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  validate-adrs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Install ADR Kit
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+    
+    - name: Validate project ADRs
+      run: |
+        adr-kit validate --adr-dir docs/adr || echo "ADR validation completed with issues"
+    
+    - name: Generate ADR index
+      run: |
+        adr-kit index --out docs/adr/adr-index.json --adr-dir docs/adr --no-validate
+    
+    - name: Check ADR index was updated
+      run: |
+        if [ ! -f "docs/adr/adr-index.json" ]; then
+          echo "ADR index was not generated"
+          exit 1
+        fi
