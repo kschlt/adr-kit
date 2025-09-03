@@ -222,7 +222,7 @@ your-project/
 ### Setup
 
 ```bash
-git clone https://github.com/your-org/adr-kit.git
+git clone https://github.com/kschlt/adr-kit.git
 cd adr-kit
 pip install -e ".[dev]"
 ```
@@ -231,14 +231,6 @@ pip install -e ".[dev]"
 
 ```bash
 pytest tests/
-```
-
-### Code quality
-
-```bash
-black adr_kit/
-ruff check adr_kit/
-mypy adr_kit/
 ```
 
 ## 🔗 Integration
@@ -310,15 +302,6 @@ See the `docs/adr/` directory for example ADRs:
 
 - [ADR-0001: Use Python and FastAPI for the ADR Kit backend](docs/adr/ADR-0001-sample.md)
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes and add tests
-4. Run the test suite (`pytest`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
 
 ## 📄 License
 
@@ -334,8 +317,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 - 📚 [Documentation](docs/)
-- 🐛 [Issue Tracker](https://github.com/your-org/adr-kit/issues)
-- 💬 [Discussions](https://github.com/your-org/adr-kit/discussions)
+- 🐛 [Issue Tracker](https://github.com/kschlt/adr-kit/issues)
 
 ---
 
