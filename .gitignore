@@ -69,6 +69,7 @@ dmypy.json
 # ADR Kit specific
 .project-index/
 .log4brains/
+CLAUDE.md
 
 # OS
 .DS_Store
