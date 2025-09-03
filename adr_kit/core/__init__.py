@@ -1,0 +1,1 @@
+"""Core ADR Kit functionality."""

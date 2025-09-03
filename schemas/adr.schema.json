@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ADR Front Matter",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "status",
+    "date"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^ADR-\\d{4}$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "accepted",
+        "superseded",
+        "deprecated"
+      ]
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "deciders": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "supersedes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "superseded_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "generated_at": "2025-09-03T15:25:18.907904",
+    "total_adrs": 2,
+    "adr_directory": "docs/adr",
+    "validation_errors": null,
+    "status_counts": {
+      "accepted": 1,
+      "proposed": 1
+    },
+    "tag_counts": {
+      "backend": 1,
+      "architecture": 1,
+      "python": 1,
+      "api": 1,
+      "frontend": 1,
+      "typescript": 1
+    }
+  },
+  "adrs": [
+    {
+      "id": "ADR-0001",
+      "title": "Use Python and FastAPI for the ADR Kit backend",
+      "status": "accepted",
+      "date": "2025-09-03",
+      "deciders": [
+        "adr-kit-team"
+      ],
+      "tags": [
+        "backend",
+        "architecture",
+        "python",
+        "api"
+      ],
+      "supersedes": [],
+      "superseded_by": [],
+      "file_path": "docs/adr/ADR-0001-sample.md",
+      "content_preview": "We need to build a toolkit for managing Architectural Decision Records (ADRs) that includes: - A Python library for parsing and validating ADRs - A CLI tool for common ADR operations - An MCP server..."
+    },
+    {
+      "id": "ADR-0002",
+      "title": "Use TypeScript for frontend development",
+      "status": "proposed",
+      "date": "2025-09-03",
+      "deciders": [
+        "frontend-team"
+      ],
+      "tags": [
+        "frontend",
+        "typescript"
+      ],
+      "supersedes": [],
+      "superseded_by": [],
+      "file_path": "docs/adr/ADR-0002-use-typescript-for-frontend-development.md",
+      "content_preview": "What is the context of this decision? What problem are we trying to solve? What is the change that we're proposing or doing? What are the positive and negative consequences of this decision? - - What..."
+    }
+  ]
+}
