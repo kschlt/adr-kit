@@ -27,7 +27,7 @@ from .index.sqlite_index import generate_sqlite_index
 
 app = typer.Typer(
     name="adr-kit",
-    help="A toolkit for managing Architectural Decision Records (ADRs) in MADR format",
+    help="A toolkit for managing Architectural Decision Records (ADRs) in MADR format. Most functionality is available via MCP server for AI agents.",
     add_completion=False
 )
 console = Console()
@@ -89,87 +89,26 @@ def init(
 
 
 @app.command()
-def new(
-    title: str = typer.Argument(..., help="Title of the new ADR"),
-    tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
-    deciders: Optional[str] = typer.Option(None, "--deciders", help="Comma-separated deciders"),
-    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
-    status: ADRStatus = typer.Option(ADRStatus.PROPOSED, "--status", help="Initial status")
-):
-    """Create a new ADR."""
+def mcp_server():
+    """Start the MCP server for AI agent integration.
+    
+    This is the primary interface for ADR Kit. The MCP server provides
+    rich contextual tools for AI agents to create, manage, and validate ADRs.
+    """
+    console.print("🚀 Starting ADR Kit MCP Server...")
+    console.print("📡 AI agents can now access ADR management tools")
+    console.print("💡 Use MCP tools: adr_create, adr_query_related, adr_approve, etc.")
+    
     try:
-        # Ensure ADR directory exists
-        adr_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Get next ADR ID
-        adr_id = get_next_adr_id(adr_dir)
-        
-        # Parse tags and deciders
-        tag_list = [tag.strip() for tag in tags.split(",")] if tags else None
-        decider_list = [decider.strip() for decider in deciders.split(",")] if deciders else None
-        
-        # Create front matter
-        front_matter = ADRFrontMatter(
-            id=adr_id,
-            title=title,
-            status=status,
-            date=date.today(),
-            tags=tag_list,
-            deciders=decider_list
-        )
-        
-        # Create ADR content template
-        content = f"""# Context
-
-What is the context of this decision? What problem are we trying to solve?
-
-# Decision
-
-What is the change that we're proposing or doing?
-
-# Consequences
-
-What are the positive and negative consequences of this decision?
-
-## Positive
-
-- 
-
-## Negative
-
-- 
-
-# Alternatives
-
-What other alternatives have been considered? What are the trade-offs?
-
-- Alternative 1: 
-- Alternative 2: """
-        
-        # Create ADR object
-        adr = ADR(front_matter=front_matter, content=content)
-        
-        # Generate filename and write file
-        filename = f"{adr_id}-{title.lower().replace(' ', '-').replace('_', '-')}.md"
-        file_path = adr_dir / filename
-        
-        file_path.write_text(adr.to_markdown(), encoding='utf-8')
-        
-        console.print(f"✅ Created ADR: {file_path}")
-        console.print(f"   📋 ID: {adr_id}")
-        console.print(f"   📝 Title: {title}")
-        console.print(f"   🏷️  Status: {status.value}")
-        
-        if tag_list:
-            console.print(f"   🏷️  Tags: {', '.join(tag_list)}")
-        if decider_list:
-            console.print(f"   👥 Deciders: {', '.join(decider_list)}")
-        
+        from .mcp.server import run_server
+        run_server()
+    except ImportError as e:
+        console.print(f"❌ MCP server dependencies not available: {e}")
+        console.print("💡 Install with: pip install 'adr-kit[mcp]'")
+        raise typer.Exit(code=1)
+    except KeyboardInterrupt:
+        console.print("\n👋 MCP server stopped")
         raise typer.Exit(code=0)
-        
-    except Exception as e:
-        console.print(f"❌ Failed to create ADR: {e}")
-        raise typer.Exit(code=3)
 
 
 @app.command()
@@ -289,196 +228,58 @@ def index(
 
 
 @app.command()
-def supersede(
-    old_id: str = typer.Argument(..., help="ID of the ADR to supersede"),
-    title: str = typer.Option(..., "--title", help="Title of the new ADR"),
-    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
-    tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
-    deciders: Optional[str] = typer.Option(None, "--deciders", help="Comma-separated deciders")
-):
-    """Create a new ADR that supersedes an existing one."""
-    try:
-        # Find the old ADR file
-        adr_files = find_adr_files(adr_dir)
-        old_adr = None
-        old_file_path = None
-        
-        for file_path in adr_files:
-            try:
-                adr = parse_adr_file(file_path, strict=False)
-                if adr and adr.front_matter.id == old_id:
-                    old_adr = adr
-                    old_file_path = file_path
-                    break
-            except ParseError:
-                continue
-        
-        if not old_adr:
-            console.print(f"❌ ADR with ID {old_id} not found")
-            raise typer.Exit(code=3)
-        
-        # Get next ADR ID for new ADR
-        new_id = get_next_adr_id(adr_dir)
-        
-        # Parse tags and deciders
-        tag_list = [tag.strip() for tag in tags.split(",")] if tags else old_adr.front_matter.tags
-        decider_list = [decider.strip() for decider in deciders.split(",")] if deciders else old_adr.front_matter.deciders
-        
-        # Create new ADR that supersedes the old one
-        new_front_matter = ADRFrontMatter(
-            id=new_id,
-            title=title,
-            status=ADRStatus.PROPOSED,
-            date=date.today(),
-            tags=tag_list,
-            deciders=decider_list,
-            supersedes=[old_id]
-        )
-        
-        new_content = f"""# Context
-
-This ADR supersedes {old_id}: {old_adr.front_matter.title}
-
-# Decision
-
-What is the new decision that replaces the previous one?
-
-# Consequences
-
-What are the positive and negative consequences of this decision?
-
-## Positive
-
-- 
-
-## Negative
-
-- 
-
-# Alternatives
-
-What other alternatives have been considered?
-
-- Alternative 1: 
-- Alternative 2: """
-        
-        new_adr = ADR(front_matter=new_front_matter, content=new_content)
-        
-        # Update old ADR to mark it as superseded
-        old_adr.front_matter.status = ADRStatus.SUPERSEDED
-        old_adr.front_matter.superseded_by = [new_id]
-        
-        # Write new ADR file
-        new_filename = f"{new_id}-{title.lower().replace(' ', '-').replace('_', '-')}.md"
-        new_file_path = adr_dir / new_filename
-        new_file_path.write_text(new_adr.to_markdown(), encoding='utf-8')
-        
-        # Update old ADR file
-        old_file_path.write_text(old_adr.to_markdown(), encoding='utf-8')
-        
-        console.print(f"✅ Created superseding ADR: {new_file_path}")
-        console.print(f"   📋 New ID: {new_id}")
-        console.print(f"   📝 Title: {title}")
-        console.print(f"   ⚡ Supersedes: {old_id}")
-        console.print(f"✅ Updated superseded ADR: {old_file_path}")
-        console.print(f"   📋 Status changed to: superseded")
-        
-        raise typer.Exit(code=0)
-        
-    except typer.Exit:
-        raise
-    except Exception as e:
-        console.print(f"❌ Failed to create superseding ADR: {e}")
-        raise typer.Exit(code=3)
+def info():
+    """Show ADR Kit information and MCP usage.
+    
+    Displays information about ADR Kit's AI-first approach and MCP integration.
+    """
+    console.print("\n🤖 [bold]ADR Kit - AI-First Architecture Decision Records[/bold]")
+    console.print("\nADR Kit is designed for AI agents like Claude Code to autonomously manage")
+    console.print("Architectural Decision Records with rich contextual understanding.")
+    
+    console.print("\n📡 [bold]MCP Server Tools Available:[/bold]")
+    tools = [
+        ("adr_init()", "Initialize ADR system in repository"),
+        ("adr_query_related()", "Find related ADRs before making decisions"),
+        ("adr_create()", "Create new ADRs with rich content"),
+        ("adr_approve()", "Approve proposed ADRs and handle relationships"),
+        ("adr_validate()", "Validate ADRs for compliance"),
+        ("adr_index()", "Generate comprehensive ADR index"),
+        ("adr_supersede()", "Replace existing decisions"),
+    ]
+    
+    for tool, desc in tools:
+        console.print(f"  • [cyan]{tool}[/cyan] - {desc}")
+    
+    console.print(f"\n🚀 [bold]Start MCP Server:[/bold]")
+    console.print("   adr-kit mcp-server")
+    
+    console.print(f"\n💡 [bold]For AI agents:[/bold] Each MCP tool includes detailed")
+    console.print("   contextual guidance on when and how to use it.")
+    
+    console.print(f"\n📚 [bold]Learn more:[/bold] https://github.com/kschlt/adr-kit")
+    console.print()
 
 
+# Keep only essential manual commands
 @app.command()
-def export_lint(
-    framework: str = typer.Argument(..., help="Lint framework (eslint, ruff, import-linter)"),
-    out: Optional[Path] = typer.Option(None, "--out", help="Output file path"),
-    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory")
-):
-    """Export lint configurations from ADRs."""
-    try:
-        # Import the enforcement modules
-        if framework == "eslint":
-            from .enforce.eslint import generate_eslint_config
-            config = generate_eslint_config(adr_dir)
-            default_out = ".eslintrc.adrs.json"
-        elif framework == "ruff":
-            from .enforce.ruff import generate_ruff_config
-            config = generate_ruff_config(adr_dir)
-            default_out = "ruff.adrs.toml"
-        elif framework == "import-linter":
-            from .enforce.ruff import generate_import_linter_config
-            config = generate_import_linter_config(adr_dir)
-            default_out = ".import-linter.adrs.ini"
-        else:
-            console.print(f"❌ Unsupported framework: {framework}")
-            console.print("Supported frameworks: eslint, ruff, import-linter")
-            raise typer.Exit(code=2)
-        
-        # Use provided output path or default
-        output_path = out or Path(default_out)
-        
-        # Write config file
-        output_path.write_text(config, encoding='utf-8')
-        
-        console.print(f"✅ Generated {framework} configuration: {output_path}")
-        
-        raise typer.Exit(code=0)
-        
-    except typer.Exit:
-        raise
-    except ImportError as e:
-        console.print(f"❌ Could not import enforcement module: {e}")
-        raise typer.Exit(code=2)
-    except Exception as e:
-        console.print(f"❌ Failed to export lint configuration: {e}")
-        raise typer.Exit(code=3)
-
-
-@app.command()
-def render_site(
-    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
-    out_dir: Path = typer.Option(Path(".log4brains/out"), "--out-dir", help="Output directory for site")
-):
-    """Render static site via Log4brains."""
-    try:
-        import subprocess
-        
-        # Check if log4brains is available
-        try:
-            subprocess.run(["log4brains", "--version"], capture_output=True, check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            console.print("❌ log4brains not found. Please install it first:")
-            console.print("   npm install -g log4brains")
-            raise typer.Exit(code=3)
-        
-        # Run log4brains build
-        console.print("🏗️  Building ADR site with Log4brains...")
-        
-        result = subprocess.run([
-            "log4brains", "build",
-            "--adrDir", str(adr_dir),
-            "--outDir", str(out_dir)
-        ], capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            console.print(f"❌ Log4brains build failed:")
-            console.print(result.stderr)
-            raise typer.Exit(code=3)
-        
-        console.print(f"✅ ADR site generated: {out_dir}")
-        console.print("   🌐 Open index.html in a web browser to view")
-        
-        raise typer.Exit(code=0)
-        
-    except typer.Exit:
-        raise
-    except Exception as e:
-        console.print(f"❌ Site rendering failed: {e}")
-        raise typer.Exit(code=3)
+def legacy():
+    """Show legacy CLI commands (use MCP server instead).
+    
+    Most ADR Kit functionality is now available through the MCP server
+    for better AI agent integration. Manual CLI commands are minimal.
+    """
+    console.print("⚠️  [yellow]Legacy CLI Mode[/yellow]")
+    console.print("\nADR Kit is designed for AI agents. Consider using:")
+    console.print("• [cyan]adr-kit mcp-server[/cyan] - Start MCP server for AI agents")
+    console.print("• [cyan]adr-kit info[/cyan] - Show available MCP tools")
+    
+    console.print(f"\nMinimal CLI commands still available:")
+    console.print("• [dim]adr-kit init[/dim] - Initialize ADR structure")
+    console.print("• [dim]adr-kit validate[/dim] - Validate existing ADRs")
+    
+    console.print(f"\n💡 Use MCP tools for rich, contextual ADR management!")
+    console.print()
 
 
 if __name__ == "__main__":
