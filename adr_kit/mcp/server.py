@@ -32,6 +32,7 @@ from ..enforce.ruff import generate_ruff_config, generate_import_linter_config
 from ..contract import ConstraintsContractBuilder, ContractBuildError
 from ..gate import PolicyGate, GateDecision, TechnicalChoice, create_technical_choice
 from ..context import PlanningContext, PlanningConfig, TaskHint
+from ..guardrail import GuardrailManager, GuardrailConfig, FragmentTarget, FragmentType
 
 
 # Pydantic models for MCP tool parameters
@@ -143,6 +144,19 @@ class ADRPlanningBulkRequest(BaseModel):
     """Request for bulk planning context generation."""
     tasks: List[Dict[str, Any]] = Field(..., description="List of task descriptions and metadata")
     adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
+
+
+class ADRGuardrailRequest(BaseModel):
+    """Request model for guardrail operations."""
+    adr_dir: str = Field(default="docs/adr", description="Path to ADR directory")
+    force: bool = Field(default=False, description="Force rebuild/reapply guardrails")
+
+
+class ADRGuardrailConfigRequest(BaseModel):
+    """Request model for guardrail configuration."""
+    adr_dir: str = Field(default="docs/adr", description="Path to ADR directory")
+    action: str = Field(..., description="Action to perform: get, update, status")
+    config_updates: Optional[Dict[str, Any]] = Field(None, description="Configuration updates to apply")
 
 
 def load_adr_template() -> str:
@@ -2422,6 +2436,388 @@ def adr_planning_status(request: ADRPlanningContextRequest) -> Dict[str, Any]:
                 "Check ADR directory path and permissions",
                 "Ensure ADR directory contains valid ADR files",
                 "Verify planning context service dependencies are available"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_guardrail_apply(request: ADRGuardrailRequest) -> Dict[str, Any]:
+    """Apply automatic guardrails based on current ADR policies.
+    
+    🎯 THE AUTOMATION LAYER: Automatically generates and applies configuration
+    fragments (ESLint, Ruff, import-linter rules) based on structured policies
+    from accepted ADRs. This completes the policy → enforcement loop.
+    
+    💡 WHEN TO USE:
+    - After approving ADRs with policy sections (adr_approve())
+    - When ADR policies change or are superseded  
+    - During CI/CD to ensure configurations match current policies
+    - Initial project setup to establish automated enforcement
+    - When debugging why lint rules aren't matching ADR decisions
+    
+    ⚡ AUTOMATICALLY HANDLES:
+    - Reads constraints contract (constraints_accepted.json)
+    - Generates ESLint rules for import restrictions
+    - Creates Ruff/import-linter configs for Python boundaries
+    - Applies configurations using sentinel blocks (tool-owned sections)
+    - Creates backups before modifying configuration files
+    - Handles errors gracefully with rollback capability
+    
+    🔧 CONFIGURATION TARGETS:
+    - .eslintrc.adrs.json: JavaScript/TypeScript import restrictions
+    - pyproject.toml: Ruff banned-api rules for Python
+    - .import-linter.adrs.ini: Import boundary enforcement
+    - Custom configurations based on guardrail setup
+    
+    📊 RETURNS:
+    - Application results for each target configuration
+    - Success/failure status with detailed error information
+    - Backup locations for manual rollback if needed
+    - Statistics on rules applied and configurations updated
+    
+    Args:
+        request: Configuration for guardrail application
+        
+    Returns:
+        Detailed results of guardrail application with success/failure status
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        manager = GuardrailManager(adr_dir)
+        
+        # Apply guardrails
+        results = manager.apply_guardrails(force=request.force)
+        
+        # Calculate summary statistics
+        success_count = len([r for r in results if r.status.value == "success"])
+        total_fragments = sum(r.fragments_applied for r in results)
+        
+        return {
+            "success": True,
+            "applied": success_count > 0,
+            "results": [
+                {
+                    "target_file": str(result.target.file_path),
+                    "fragment_type": result.target.fragment_type.value,
+                    "status": result.status.value,
+                    "message": result.message,
+                    "fragments_applied": result.fragments_applied,
+                    "backup_created": str(result.backup_created) if result.backup_created else None,
+                    "errors": result.errors,
+                    "warnings": result.warnings
+                }
+                for result in results
+            ],
+            "statistics": {
+                "targets_processed": len(results),
+                "successful_applications": success_count,
+                "total_fragments_applied": total_fragments,
+                "configurations_updated": len([r for r in results if r.fragments_applied > 0])
+            },
+            "message": f"✅ Applied guardrails to {success_count}/{len(results)} targets with {total_fragments} total rules",
+            "guidance": [
+                "Guardrail configurations are now in sync with ADR policies",
+                "Lint tools will enforce the architectural decisions automatically", 
+                "Run your linting tools to validate current codebase compliance",
+                "Backup files created for safe rollback if needed"
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to apply automatic guardrails",
+            "guidance": [
+                "Ensure ADR directory exists with accepted ADRs containing policies",
+                "Check that target configuration files exist and are writable", 
+                "Verify constraints contract can be built (run adr_contract_build())",
+                "Review file permissions for configuration directories"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_guardrail_status(request: ADRGuardrailRequest) -> Dict[str, Any]:
+    """Get status of the automatic guardrail management system.
+    
+    🎯 SYSTEM VISIBILITY: Understand the current state of automatic guardrail
+    application, which configuration files are managed, and enforcement status.
+    
+    💡 WHEN TO USE:
+    - Debugging guardrail application issues
+    - Understanding which configurations are automatically managed
+    - Checking if guardrails are up to date with ADR policies
+    - Validating system setup before using automated enforcement
+    
+    📊 RETURNS:
+    - System configuration and enabled status
+    - Target file status and managed section detection
+    - Active constraint counts from current policies
+    - Contract synchronization status
+    
+    Args:
+        request: Configuration for status check
+        
+    Returns:
+        Comprehensive guardrail system status and configuration
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        manager = GuardrailManager(adr_dir)
+        
+        # Get comprehensive status
+        status = manager.get_status()
+        
+        # Add more detailed information
+        detailed_status = {
+            **status,
+            "system_info": {
+                "adr_directory": str(adr_dir),
+                "guardrail_manager_ready": True,
+                "contract_integration": status["contract_valid"],
+                "auto_application_enabled": status["auto_apply"]
+            },
+            "target_analysis": {
+                "total_targets": status["target_count"],
+                "existing_files": len([t for t in status["targets"].values() if t["exists"]]),
+                "managed_sections": len([t for t in status["targets"].values() if t.get("has_managed_section", False)])
+            }
+        }
+        
+        # Generate guidance based on status
+        guidance = []
+        if not status["enabled"]:
+            guidance.append("⚠️ Guardrail system is disabled - enable in configuration")
+        if not status["contract_valid"]:
+            guidance.append("❌ Constraints contract invalid - run adr_contract_build()")
+        if status["active_constraints"] == 0:
+            guidance.append("ℹ️ No active constraints found - add policies to accepted ADRs")
+        else:
+            guidance.append(f"✅ {status['active_constraints']} active constraints ready for enforcement")
+        
+        return {
+            "success": True,
+            "status": detailed_status,
+            "message": f"📊 Guardrail system managing {status['target_count']} configuration targets",
+            "guidance": guidance
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to get guardrail system status",
+            "guidance": [
+                "Check ADR directory path and permissions",
+                "Ensure guardrail system is properly initialized",
+                "Verify configuration files can be accessed"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_guardrail_config(request: ADRGuardrailConfigRequest) -> Dict[str, Any]:
+    """Manage guardrail system configuration.
+    
+    🎯 SYSTEM CONFIGURATION: Control how the automatic guardrail system
+    behaves, which files it manages, and how it applies policy enforcement.
+    
+    💡 WHEN TO USE:
+    - Initial project setup: configure which files to manage
+    - Adding new configuration types or target files
+    - Enabling/disabling automatic application
+    - Customizing backup behavior and notification settings
+    
+    🔧 CONFIGURATION OPTIONS:
+    - Target files: which configuration files to manage
+    - Fragment types: ESLint, Ruff, import-linter, custom
+    - Auto-apply settings: immediate vs manual application
+    - Backup configuration: enabled, directory location
+    - Notification preferences: success/error reporting
+    
+    Args:
+        request: Configuration action and optional updates
+        
+    Returns:
+        Current configuration state and update results
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        manager = GuardrailManager(adr_dir)
+        
+        if request.action == "get":
+            # Return current configuration
+            return {
+                "success": True,
+                "action": "get", 
+                "configuration": {
+                    "enabled": manager.config.enabled,
+                    "auto_apply": manager.config.auto_apply,
+                    "backup_enabled": manager.config.backup_enabled,
+                    "backup_dir": str(manager.config.backup_dir) if manager.config.backup_dir else None,
+                    "targets": [
+                        {
+                            "file_path": str(target.file_path),
+                            "fragment_type": target.fragment_type.value,
+                            "section_name": target.section_name,
+                            "backup_enabled": target.backup_enabled
+                        }
+                        for target in manager.config.targets
+                    ],
+                    "notify_on_apply": manager.config.notify_on_apply,
+                    "notify_on_error": manager.config.notify_on_error
+                },
+                "message": "Current guardrail configuration retrieved",
+                "guidance": [
+                    "Use 'update' action to modify configuration settings",
+                    "Target files will be automatically managed when enabled",
+                    "Backup directory will be created automatically when needed"
+                ]
+            }
+        
+        elif request.action == "status":
+            # Get status information
+            status = manager.get_status()
+            return {
+                "success": True,
+                "action": "status",
+                "status": status,
+                "message": f"Guardrail system status: {'enabled' if status['enabled'] else 'disabled'}",
+                "guidance": [
+                    f"Managing {status['target_count']} configuration targets",
+                    f"Active constraints: {status['active_constraints']}",
+                    "Use adr_guardrail_apply() to sync configurations with policies"
+                ]
+            }
+        
+        elif request.action == "update":
+            # Configuration updates would require extending GuardrailManager
+            # For now, return information about manual configuration
+            return {
+                "success": False,
+                "error": "Configuration updates not yet implemented",
+                "message": "Guardrail configuration updates not available in this version",
+                "guidance": [
+                    "Modify GuardrailConfig programmatically for now",
+                    "Default targets include .eslintrc.adrs.json and pyproject.toml",
+                    "Contact development team for advanced configuration needs"
+                ]
+            }
+        
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown action: {request.action}",
+                "message": "Valid actions are: get, status, update"
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Guardrail configuration operation failed",
+            "guidance": [
+                "Ensure ADR directory exists and is accessible",
+                "Check that action parameter is correct",
+                "Verify guardrail system is properly initialized"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_guardrail_watch(request: ADRGuardrailRequest) -> Dict[str, Any]:
+    """Watch for ADR changes and apply guardrails automatically.
+    
+    🎯 CONTINUOUS MONITORING: Detect when ADR policies change and
+    automatically update configuration files to maintain sync between
+    architectural decisions and enforcement rules.
+    
+    💡 WHEN TO USE:
+    - In development workflows to automatically sync policies
+    - During CI/CD to ensure configurations stay current
+    - When working with multiple team members making ADR changes
+    - For maintaining policy consistency across project evolution
+    
+    ⚡ AUTOMATICALLY HANDLES:
+    - Monitors ADR directory for file changes
+    - Detects ADR status changes (proposed → accepted → superseded)
+    - Identifies policy changes within ADRs
+    - Triggers guardrail application when policy-relevant changes occur
+    - Reports what changed and what actions were taken
+    
+    📊 RETURNS:
+    - Change detection results
+    - Policy-relevant changes identified
+    - Guardrail application results if changes were found
+    - Monitoring statistics and performance information
+    
+    Args:
+        request: Configuration for change monitoring
+        
+    Returns:
+        Results of change detection and any guardrail updates applied
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        manager = GuardrailManager(adr_dir)
+        
+        # Watch for changes and apply if needed
+        results = manager.watch_and_apply()
+        
+        if results:
+            # Changes were detected and guardrails applied
+            success_count = len([r for r in results if r.status.value == "success"])
+            total_fragments = sum(r.fragments_applied for r in results)
+            
+            return {
+                "success": True,
+                "changes_detected": True,
+                "guardrails_applied": True,
+                "results": [
+                    {
+                        "target_file": str(result.target.file_path),
+                        "fragment_type": result.target.fragment_type.value,
+                        "status": result.status.value,
+                        "message": result.message,
+                        "fragments_applied": result.fragments_applied
+                    }
+                    for result in results
+                ],
+                "statistics": {
+                    "targets_updated": success_count,
+                    "total_fragments_applied": total_fragments
+                },
+                "message": f"🔄 Detected policy changes, updated {success_count} configuration files",
+                "guidance": [
+                    "Configuration files are now in sync with current ADR policies",
+                    "Changes were automatically applied based on detected policy updates",
+                    "Review updated configurations to understand new enforcement rules"
+                ]
+            }
+        else:
+            # No changes detected
+            return {
+                "success": True,
+                "changes_detected": False,
+                "guardrails_applied": False,
+                "message": "👀 No policy-relevant changes detected in ADRs",
+                "guidance": [
+                    "Configuration files remain in sync with current policies",
+                    "Monitor will continue watching for ADR changes",
+                    "Use adr_guardrail_apply() to force configuration sync if needed"
+                ]
+            }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Guardrail watching failed",
+            "guidance": [
+                "Ensure ADR directory is accessible for monitoring",
+                "Check that file system permissions allow change detection",
+                "Verify target configuration files can be modified"
             ]
         }
 

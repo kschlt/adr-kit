@@ -658,6 +658,81 @@ def gate_status(
 
 
 @app.command()
+def guardrail_apply(
+    adr_dir: Annotated[str, typer.Option(help="ADR directory path")] = "docs/adr",
+    force: Annotated[bool, typer.Option("--force", help="Force reapply guardrails")] = False
+):
+    """Apply automatic guardrails based on ADR policies."""
+    
+    try:
+        from .guardrail import GuardrailManager
+        
+        adr_path = Path(adr_dir)
+        manager = GuardrailManager(adr_path)
+        
+        console.print("🔧 [cyan]Applying automatic guardrails...[/cyan]")
+        
+        results = manager.apply_guardrails(force=force)
+        
+        if not results:
+            console.print("ℹ️  No guardrail targets configured or no policies found")
+            return
+        
+        success_count = len([r for r in results if r.status.value == "success"])
+        total_fragments = sum(r.fragments_applied for r in results)
+        
+        console.print(f"\n📊 Results: {success_count}/{len(results)} targets updated with {total_fragments} rules")
+        
+        for result in results:
+            status_icon = "✅" if result.status.value == "success" else "❌"
+            console.print(f"{status_icon} {result.target.file_path}: {result.message}")
+            
+            if result.errors:
+                for error in result.errors:
+                    console.print(f"   ⚠️  Error: {error}", style="red")
+        
+        console.print("\n💡 Lint tools will now enforce ADR policies automatically")
+        
+    except Exception as e:
+        console.print(f"❌ Failed to apply guardrails: {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def guardrail_status(
+    adr_dir: Annotated[str, typer.Option(help="ADR directory path")] = "docs/adr"
+):
+    """Show status of the automatic guardrail system."""
+    
+    try:
+        from .guardrail import GuardrailManager
+        
+        adr_path = Path(adr_dir)
+        manager = GuardrailManager(adr_path)
+        
+        status = manager.get_status()
+        
+        console.print("🛡️  [cyan]Guardrail System Status[/cyan]")
+        console.print(f"   Enabled: {'✅' if status['enabled'] else '❌'}")
+        console.print(f"   Auto-apply: {'✅' if status['auto_apply'] else '❌'}")
+        console.print(f"   Contract valid: {'✅' if status['contract_valid'] else '❌'}")
+        console.print(f"   Active constraints: {status['active_constraints']}")
+        console.print(f"   Target count: {status['target_count']}")
+        
+        console.print("\n📁 Configuration Targets:")
+        for file_path, target_info in status['targets'].items():
+            exists_icon = "✅" if target_info['exists'] else "❌"
+            managed_icon = "🔧" if target_info.get('has_managed_section', False) else "⭕"
+            console.print(f"   {exists_icon}{managed_icon} {file_path} ({target_info['fragment_type']})")
+        
+        console.print(f"\n💡 Use [cyan]adr-kit guardrail-apply[/cyan] to sync configurations")
+        
+    except Exception as e:
+        console.print(f"❌ Failed to get guardrail status: {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def legacy():
     """Show legacy CLI commands (use MCP server instead).
     
