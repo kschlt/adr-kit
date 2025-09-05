@@ -22,6 +22,61 @@ class ADRStatus(str, Enum):
     ACCEPTED = "accepted"
     SUPERSEDED = "superseded"
     DEPRECATED = "deprecated"
+    REJECTED = "rejected"
+
+
+class ImportPolicy(BaseModel):
+    """Policy for import restrictions and preferences."""
+    
+    disallow: Optional[List[str]] = Field(None, description="List of disallowed imports/libraries")
+    prefer: Optional[List[str]] = Field(None, description="List of preferred imports/libraries")
+
+
+class BoundaryLayer(BaseModel):
+    """Definition of an architectural layer."""
+    
+    name: str = Field(..., description="Name of the layer")
+    path: Optional[str] = Field(None, description="Path pattern for the layer")
+
+
+class BoundaryRule(BaseModel):
+    """Rule for architectural boundaries."""
+    
+    forbid: str = Field(..., description="Forbidden dependency pattern (e.g., 'ui -> database')")
+
+
+class BoundaryPolicy(BaseModel):
+    """Policy for architectural boundaries."""
+    
+    layers: Optional[List[BoundaryLayer]] = Field(None, description="Architectural layers")
+    rules: Optional[List[BoundaryRule]] = Field(None, description="Boundary rules")
+
+
+class PythonPolicy(BaseModel):
+    """Python-specific policy rules."""
+    
+    disallow_imports: Optional[List[str]] = Field(None, description="Disallowed Python imports")
+
+
+class PolicyModel(BaseModel):
+    """Structured policy model for ADR enforcement.
+    
+    This model defines extractable policies that can be automatically
+    enforced through lint rules and code validation.
+    """
+    
+    imports: Optional[ImportPolicy] = Field(None, description="Import/library policies")
+    boundaries: Optional[BoundaryPolicy] = Field(None, description="Architectural boundary policies") 
+    python: Optional[PythonPolicy] = Field(None, description="Python-specific policies")
+    rationales: Optional[List[str]] = Field(None, description="Rationales for the policies")
+
+    @field_validator('rationales', mode='before')
+    @classmethod
+    def ensure_rationales_list_or_none(cls, v):
+        """Ensure rationales is a list or None, not empty list."""
+        if v == []:
+            return None
+        return v
 
 
 class ADRFrontMatter(BaseModel):
@@ -39,6 +94,7 @@ class ADRFrontMatter(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorization")
     supersedes: Optional[List[str]] = Field(None, description="List of ADR IDs this supersedes")
     superseded_by: Optional[List[str]] = Field(None, description="List of ADR IDs that supersede this one")
+    policy: Optional[PolicyModel] = Field(None, description="Structured policy for enforcement")
 
     @field_validator('deciders', 'tags', 'supersedes', 'superseded_by', mode='before')
     @classmethod

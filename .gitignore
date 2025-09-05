@@ -70,6 +70,23 @@ dmypy.json
 .project-index/
 .log4brains/
 CLAUDE.md
+PHASE5_SUMMARY.md
+PROJECT_STATUS_REPORT.md
+
+# Python virtual environments
+.venv-3.11/
+
+# IDE integration files
+.claude/
+.cursor/
+
+# Generated lint config examples (keep actual configs)
+.eslintrc.adrs.json
+
+# Test artifacts
+test_*.py
+test_*.txt
+*_test_diff.txt
 
 # OS
 .DS_Store

@@ -1,70 +1,85 @@
 ---
 id: ADR-0001
-title: Use Python and FastAPI for the ADR Kit backend
+title: Use FastAPI with FastMCP for ADR Kit backend and MCP server
 status: accepted
-date: 2025-09-03
+date: 2025-09-05
 deciders: [adr-kit-team]
-tags: [backend, architecture, python, api]
+tags: [backend, api, fastapi, fastmcp, python, mcp]
 supersedes: []
 superseded_by: []
+policy:
+  imports:
+    disallow: [flask, django, tornado, bottle]
+    prefer: [fastapi, fastmcp, pydantic, uvicorn]
+  boundaries:
+    layers:
+      - name: mcp
+      - name: core
+      - name: storage
+    rules:
+      - forbid: "mcp -> storage"
+      - forbid: "storage -> mcp"
+  python:
+    disallow_imports: [flask, django, tornado, bottle]
+  rationales: ["Enforce FastAPI-only web framework", "Use FastMCP for MCP server implementation", "Maintain clean architecture layers"]
 ---
 
-# Context
+## Context
 
-We need to build a toolkit for managing Architectural Decision Records (ADRs) that includes:
-- A Python library for parsing and validating ADRs
-- A CLI tool for common ADR operations
-- An MCP server for integration with coding agents
-- Support for generating lint configurations from ADR decisions
+We need to build a backend API and MCP server for the ADR Kit that will serve as the foundation for:
+- MCP server integration with coding agents
+- REST API endpoints for ADR management
+- Real-time validation and processing services
+- Integration with various development tools
 
-The solution needs to be:
+The API needs to be:
 - Fast and reliable for processing hundreds of ADRs
 - Easy to integrate with existing development workflows
 - Extensible for future requirements
 - Well-typed and maintainable
+- Support async operations for better performance
 
-# Decision
+## Decision
 
-We will use **Python 3.12** with **FastAPI** for the ADR Kit implementation:
+We will use **FastAPI** as the web framework for the ADR Kit backend API.
 
-1. **Core library** in Python using Pydantic for data modeling
-2. **CLI interface** using Typer for modern command-line experience  
-3. **MCP server** using FastMCP for agent integration
-4. **Validation** using JSON Schema and custom semantic rules
-5. **Indexing** supporting both JSON and SQLite outputs
-6. **Enforcement** generating ESLint, Ruff, and import-linter configurations
+FastAPI provides:
+- Automatic API documentation with OpenAPI/Swagger
+- Built-in data validation using Pydantic
+- High performance with async/await support
+- Type hints throughout the codebase
+- Easy integration with modern Python tooling
 
-# Consequences
+## Consequences
 
-## Positive
+### Positive
 
-- ✅ **Strong typing**: Pydantic provides excellent data validation and typing
-- ✅ **Performance**: Python 3.12 offers good performance for file processing tasks
-- ✅ **Ecosystem**: Rich ecosystem of libraries for YAML, JSON Schema, SQLite
-- ✅ **Developer experience**: Typer and Rich provide excellent CLI UX
-- ✅ **Agent integration**: FastMCP enables seamless integration with coding agents
-- ✅ **Maintainability**: Clear module structure and comprehensive test suite
-- ✅ **Extensibility**: Plugin architecture allows for custom lint rule generators
+- ✅ **Automatic documentation**: OpenAPI/Swagger docs generated from code
+- ✅ **Type safety**: Pydantic models provide runtime validation and IDE support
+- ✅ **Performance**: FastAPI is one of the fastest Python web frameworks
+- ✅ **Async support**: Native async/await for better concurrency
+- ✅ **Modern Python**: Leverages Python 3.12+ features and type hints
+- ✅ **Ecosystem**: Excellent integration with uvicorn, pytest, and other tools
 
-## Negative
+### Negative
 
-- ❌ **Runtime dependency**: Requires Python runtime in target environments
-- ❌ **Package management**: Need to manage Python dependencies for distribution
-- ❌ **Performance ceiling**: May need optimization for very large ADR repositories (>1000s)
+- ❌ **Learning curve**: Team needs to understand FastAPI patterns
+- ❌ **Dependency**: Adds FastAPI and uvicorn to project dependencies
+- ❌ **Python requirement**: Ties the backend to Python runtime
 
-# Alternatives
+## Alternatives
 
-## Alternative 1: TypeScript/Node.js
-- **Pros**: Excellent JSON/YAML handling, good performance, npm distribution
-- **Cons**: Less mature ecosystem for CLI tools, complex async model for file operations
-- **Decision**: Python chosen for better data validation and CLI library ecosystem
+### Alternative 1: Flask
+- **Pros**: Simple, lightweight, mature ecosystem
+- **Cons**: No built-in async support, manual API documentation, less type safety
+- **Decision**: FastAPI chosen for better performance and automatic documentation
 
-## Alternative 2: Go
-- **Pros**: Single binary distribution, excellent performance, good CLI libraries
-- **Cons**: Less flexible data modeling, smaller ecosystem for schema validation
-- **Decision**: Python chosen for rapid development and rich validation libraries
+### Alternative 2: Django REST Framework
+- **Pros**: Mature, feature-rich, excellent admin interface
+- **Cons**: Heavy framework, slower performance, overkill for our use case
+- **Decision**: FastAPI chosen for lighter weight and better performance
 
-## Alternative 3: Rust
-- **Pros**: Maximum performance, excellent error handling, single binary
-- **Cons**: Steeper learning curve, longer development time, smaller ecosystem
-- **Decision**: Python chosen for faster time-to-market and easier maintenance
+### Alternative 3: Starlette
+- **Pros**: Lightweight, fast, async-first
+- **Cons**: Less features out-of-the-box, more manual setup required
+- **Decision**: FastAPI chosen for better developer experience and built-in features

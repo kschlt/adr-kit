@@ -17,6 +17,8 @@ from jsonschema.exceptions import ValidationError as JsonSchemaError
 
 from .model import ADR, ADRStatus
 from .parse import parse_adr_file, ParseError, find_adr_files
+from .policy_extractor import PolicyExtractor
+from .immutability import ImmutabilityManager
 
 
 @dataclass
@@ -67,15 +69,18 @@ class ValidationResult:
 class ADRValidator:
     """ADR validator with JSON Schema and semantic rule support."""
     
-    def __init__(self, schema_path: Optional[Path] = None):
-        """Initialize validator with JSON schema.
+    def __init__(self, schema_path: Optional[Path] = None, project_root: Optional[Path] = None):
+        """Initialize validator with JSON schema and immutability manager.
         
         Args:
             schema_path: Path to ADR JSON schema. If None, uses bundled schema.
+            project_root: Project root directory for immutability manager.
         """
         self.schema_path = schema_path or self._get_default_schema_path()
         self.schema = self._load_schema()
         self.validator = jsonschema.Draft202012Validator(self.schema)
+        self.policy_extractor = PolicyExtractor()
+        self.immutability_manager = ImmutabilityManager(project_root)
     
     def _get_default_schema_path(self) -> Path:
         """Get path to the bundled ADR schema."""
@@ -176,6 +181,124 @@ class ADRValidator:
         
         return issues
     
+    def validate_policy_requirements(self, adr: ADR) -> List[ValidationIssue]:
+        """Validate policy requirements for ADRs.
+        
+        V3 spec requirements:
+        - Accepted ADRs must have extractable policy information
+        - Policy structure should be valid if present
+        - Provide actionable guidance for missing policies
+        
+        Args:
+            adr: The ADR to validate
+            
+        Returns:
+            List of validation issues found
+        """
+        issues = []
+        
+        # Use policy extractor to validate completeness
+        policy_errors = self.policy_extractor.validate_policy_completeness(adr)
+        for error_msg in policy_errors:
+            issues.append(ValidationIssue(
+                level='error',
+                message=error_msg,
+                rule='policy_required_for_accepted',
+                file_path=adr.file_path
+            ))
+        
+        # Validate structured policy format if present
+        if adr.front_matter.policy:
+            issues.extend(self._validate_policy_structure(adr))
+        
+        # Check if accepted ADR has policy but it's incomplete
+        if adr.front_matter.status == ADRStatus.ACCEPTED and adr.front_matter.policy:
+            extracted_policy = self.policy_extractor.extract_policy(adr)
+            if not self._is_policy_actionable(extracted_policy):
+                issues.append(ValidationIssue(
+                    level='warning',
+                    message=f"ADR {adr.front_matter.id} has policy block but no actionable enforcement rules. "
+                           "Consider adding imports.disallow, boundaries.rules, or python.disallow_imports.",
+                    rule='policy_actionability_check',
+                    file_path=adr.file_path
+                ))
+        
+        return issues
+    
+    def _validate_policy_structure(self, adr: ADR) -> List[ValidationIssue]:
+        """Validate the structure of the policy block."""
+        issues = []
+        policy = adr.front_matter.policy
+        
+        if not policy:
+            return issues
+            
+        # Check that at least one policy type is specified
+        has_policy_content = any([
+            policy.imports and (policy.imports.disallow or policy.imports.prefer),
+            policy.boundaries and (policy.boundaries.layers or policy.boundaries.rules),
+            policy.python and policy.python.disallow_imports,
+            policy.rationales
+        ])
+        
+        if not has_policy_content:
+            issues.append(ValidationIssue(
+                level='warning',
+                message="Policy block is present but empty. Consider removing it or adding policy content.",
+                field='policy',
+                rule='non_empty_policy',
+                file_path=adr.file_path
+            ))
+        
+        return issues
+    
+    def validate_immutability_requirements(self, adr: ADR) -> List[ValidationIssue]:
+        """Validate ADR immutability requirements (V3 feature).
+        
+        Args:
+            adr: The ADR to validate
+            
+        Returns:
+            List of immutability violation issues
+        """
+        issues = []
+        
+        # Check for integrity violations (tamper detection)
+        violations = self.immutability_manager.validate_adr_integrity(adr)
+        for violation in violations:
+            issues.append(ValidationIssue(
+                level='error',
+                message=violation,
+                rule='immutability_integrity',
+                file_path=adr.file_path
+            ))
+        
+        # Check if locked ADR has invalid status transitions
+        if self.immutability_manager.is_adr_locked(adr.front_matter.id):
+            lock = self.immutability_manager.get_adr_lock(adr.front_matter.id)
+            if lock:
+                # Only certain status transitions are allowed for locked ADRs
+                current_status = adr.front_matter.status
+                if current_status not in [ADRStatus.ACCEPTED, ADRStatus.SUPERSEDED, ADRStatus.DEPRECATED]:
+                    issues.append(ValidationIssue(
+                        level='error',
+                        message=f"Invalid status '{current_status}' for locked ADR {adr.front_matter.id}. "
+                               f"Locked ADRs can only have status: accepted, superseded, or deprecated.",
+                        field='status',
+                        rule='immutability_status_transition',
+                        file_path=adr.file_path
+                    ))
+        
+        return issues
+    
+    def _is_policy_actionable(self, policy) -> bool:
+        """Check if policy has actionable enforcement rules."""
+        return any([
+            policy.imports and policy.imports.disallow,
+            policy.boundaries and policy.boundaries.rules,
+            policy.python and policy.python.disallow_imports
+        ])
+    
     def validate_adr(self, adr: ADR) -> ValidationResult:
         """Validate a single ADR.
         
@@ -188,11 +311,17 @@ class ADRValidator:
         issues = []
         
         # Schema validation on front-matter
-        front_matter_dict = adr.front_matter.dict(exclude_none=True)
+        front_matter_dict = adr.front_matter.model_dump(exclude_none=True)
         issues.extend(self.validate_schema(front_matter_dict, adr.file_path))
         
         # Semantic rule validation
         issues.extend(self.validate_semantic_rules(adr))
+        
+        # Policy validation (V3 spec requirement)
+        issues.extend(self.validate_policy_requirements(adr))
+        
+        # Immutability validation (V3 feature - Phase 3)
+        issues.extend(self.validate_immutability_requirements(adr))
         
         # Determine if validation passed (no errors, warnings OK)
         has_errors = any(issue.level == 'error' for issue in issues)
@@ -246,31 +375,42 @@ class ADRValidator:
 
 # Convenience functions for common validation tasks
 
-def validate_adr(adr: ADR, schema_path: Optional[Path] = None) -> ValidationResult:
+def validate_adr(adr: ADR, schema_path: Optional[Path] = None, project_root: Optional[Path] = None) -> ValidationResult:
     """Validate a single ADR object.
     
     Args:
         adr: The ADR to validate
         schema_path: Optional path to JSON schema file
+        project_root: Optional project root for immutability validation
         
     Returns:
         ValidationResult
     """
-    validator = ADRValidator(schema_path)
+    validator = ADRValidator(schema_path, project_root)
     return validator.validate_adr(adr)
 
 
-def validate_adr_file(file_path: Union[Path, str], schema_path: Optional[Path] = None) -> ValidationResult:
+def validate_adr_file(file_path: Union[Path, str], schema_path: Optional[Path] = None, project_root: Optional[Path] = None) -> ValidationResult:
     """Validate an ADR file.
     
     Args:
         file_path: Path to ADR file
         schema_path: Optional path to JSON schema file
+        project_root: Optional project root for immutability validation
         
     Returns:
         ValidationResult
     """
-    validator = ADRValidator(schema_path)
+    # Auto-detect project root from file path if not provided
+    if project_root is None:
+        file_path_obj = Path(file_path)
+        # Look for common project indicators (docs/adr suggests project root is 2 levels up)
+        if "docs/adr" in str(file_path_obj):
+            project_root = file_path_obj.parent.parent.parent
+        else:
+            project_root = file_path_obj.parent.parent
+    
+    validator = ADRValidator(schema_path, project_root)
     return validator.validate_file(file_path)
 
 

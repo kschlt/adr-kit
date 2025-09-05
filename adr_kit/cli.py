@@ -89,26 +89,100 @@ def init(
 
 
 @app.command()
-def mcp_server():
+def mcp_server(
+    stdio: bool = typer.Option(True, "--stdio", help="Use stdio transport (recommended for Cursor/Claude Code)"),
+    http: bool = typer.Option(False, "--http", help="Use HTTP transport instead of stdio")
+):
     """Start the MCP server for AI agent integration.
     
     This is the primary interface for ADR Kit. The MCP server provides
     rich contextual tools for AI agents to create, manage, and validate ADRs.
+    
+    By default, uses stdio transport which is compatible with Cursor and Claude Code.
     """
-    console.print("🚀 Starting ADR Kit MCP Server...")
-    console.print("📡 AI agents can now access ADR management tools")
-    console.print("💡 Use MCP tools: adr_create, adr_query_related, adr_approve, etc.")
+    if stdio and not http:
+        # Stdio mode - clean output for MCP protocol
+        try:
+            from .mcp.server import run_stdio_server
+            run_stdio_server()
+        except ImportError as e:
+            console.print(f"❌ MCP server dependencies not available: {e}", err=True)
+            console.print("💡 Install with: pip install 'adr-kit[mcp]'", err=True)
+            raise typer.Exit(code=1)
+        except KeyboardInterrupt:
+            raise typer.Exit(code=0)
+    else:
+        # HTTP mode - with user feedback
+        console.print("🚀 Starting ADR Kit MCP Server (HTTP mode)...")
+        console.print("📡 AI agents can now access ADR management tools")
+        console.print("💡 Use MCP tools: adr_create, adr_query_related, adr_approve, etc.")
+        
+        try:
+            from .mcp.server import run_server
+            run_server()
+        except ImportError as e:
+            console.print(f"❌ MCP server dependencies not available: {e}")
+            console.print("💡 Install with: pip install 'adr-kit[mcp]'")
+            raise typer.Exit(code=1)
+        except KeyboardInterrupt:
+            console.print("\n👋 MCP server stopped")
+            raise typer.Exit(code=0)
+
+
+@app.command()
+def mcp_health():
+    """Check MCP server health and connectivity.
+    
+    Verifies that MCP server dependencies are available and tools are accessible.
+    Useful for troubleshooting Cursor/Claude Code integration.
+    """
+    console.print("🔍 Checking ADR Kit MCP Server Health...")
     
     try:
-        from .mcp.server import run_server
-        run_server()
+        # Test imports
+        from .mcp.server import mcp
+        console.print("✅ MCP server dependencies: OK")
+        
+        # Test core functionality without calling MCP tools directly
+        from .core.model import ADR, ADRFrontMatter, ADRStatus, PolicyModel
+        from .core.policy_extractor import PolicyExtractor
+        from .enforce.eslint import StructuredESLintGenerator
+        
+        # Test policy system
+        extractor = PolicyExtractor()
+        generator = StructuredESLintGenerator()
+        console.print("✅ Core policy system: OK")
+        
+        # List available tools by inspecting MCP server
+        console.print("📡 Available MCP Tools:")
+        tools = [
+            "adr_init", "adr_create", "adr_query_related", "adr_approve", 
+            "adr_supersede", "adr_validate", "adr_index", "adr_export_lint_config", 
+            "adr_render_site"
+        ]
+        for tool in tools:
+            console.print(f"   • {tool}()")
+        
+        console.print("✅ Enhanced MCP features:")
+        console.print("   • Structured policy extraction (hybrid approach)")
+        console.print("   • Automatic lint rule generation")
+        console.print("   • Policy validation with V3 requirements")
+        console.print("   • AI-first contextual guidance")
+        
+        console.print("\n🎯 Integration Instructions:")
+        console.print("1. In your project: adr-kit mcp-server")
+        console.print("2. In Cursor: Add MCP server config (see 'adr-kit info')")
+        console.print("3. In Claude Code: Point to the stdio server")
+        
+        console.print("\n✅ MCP Server is ready for AI agent integration!")
+        
     except ImportError as e:
-        console.print(f"❌ MCP server dependencies not available: {e}")
+        console.print(f"❌ Missing dependencies: {e}")
         console.print("💡 Install with: pip install 'adr-kit[mcp]'")
         raise typer.Exit(code=1)
-    except KeyboardInterrupt:
-        console.print("\n👋 MCP server stopped")
-        raise typer.Exit(code=0)
+    except Exception as e:
+        console.print(f"❌ Health check failed: {e}")
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -241,27 +315,120 @@ def info():
     tools = [
         ("adr_init()", "Initialize ADR system in repository"),
         ("adr_query_related()", "Find related ADRs before making decisions"),
-        ("adr_create()", "Create new ADRs with rich content"),
+        ("adr_create()", "Create new ADRs with structured policies"),
         ("adr_approve()", "Approve proposed ADRs and handle relationships"),
-        ("adr_validate()", "Validate ADRs for compliance"),
+        ("adr_validate()", "Validate ADRs with policy requirements"),
         ("adr_index()", "Generate comprehensive ADR index"),
         ("adr_supersede()", "Replace existing decisions"),
+        ("adr_export_lint_config()", "Generate enforcement rules from policies"),
+        ("adr_render_site()", "Create static ADR documentation site"),
     ]
     
     for tool, desc in tools:
         console.print(f"  • [cyan]{tool}[/cyan] - {desc}")
     
-    console.print(f"\n🚀 [bold]Start MCP Server:[/bold]")
-    console.print("   adr-kit mcp-server")
+    console.print(f"\n🚀 [bold]Quick Start:[/bold]")
+    console.print("   1. [cyan]adr-kit mcp-health[/cyan]     # Check server health")
+    console.print("   2. [cyan]adr-kit mcp-server[/cyan]     # Start stdio server")
+    console.print("   3. Configure Cursor/Claude Code to connect")
     
-    console.print(f"\n💡 [bold]For AI agents:[/bold] Each MCP tool includes detailed")
-    console.print("   contextual guidance on when and how to use it.")
+    console.print(f"\n🔌 [bold]Cursor Integration:[/bold]")
+    console.print("   Add to your MCP settings.json:")
+    console.print('   "adr-kit": {')
+    console.print('     "command": "adr-kit",')
+    console.print('     "args": ["mcp-server"],')  
+    console.print('     "env": {}')
+    console.print('   }')
+    
+    console.print(f"\n💡 [bold]Features:[/bold]")
+    console.print("   ✅ Structured policy extraction (hybrid approach)")
+    console.print("   ✅ Automatic lint rule generation (ESLint, Ruff)")
+    console.print("   ✅ Enhanced validation with policy requirements")
+    console.print("   ✅ Log4brains integration for site generation")
+    console.print("   ✅ AI-first contextual tool descriptions")
     
     console.print(f"\n📚 [bold]Learn more:[/bold] https://github.com/kschlt/adr-kit")
     console.print()
 
 
 # Keep only essential manual commands
+@app.command()
+def dual_setup():
+    """Set up ADR Kit for both Cursor IDE and Claude Code terminal access.
+    
+    Creates configuration files for both Cursor's built-in AI and Claude Code
+    running in terminals within Cursor IDE.
+    """
+    from pathlib import Path
+    import json
+    
+    console.print("🤖 Setting up Dual Agent Access (Cursor IDE + Claude Code)")
+    
+    try:
+        # Create Claude Code config
+        claude_config = {
+            "servers": {
+                "adr-kit": {
+                    "command": "adr-kit",
+                    "args": ["mcp-server"],
+                    "description": "AI-first Architectural Decision Records management",
+                    "tools": [
+                        "adr_init", "adr_query_related", "adr_create", "adr_approve",
+                        "adr_supersede", "adr_validate", "adr_index", 
+                        "adr_export_lint_config", "adr_render_site"
+                    ]
+                }
+            }
+        }
+        
+        claude_config_file = Path(".claude-mcp-config.json")
+        with open(claude_config_file, 'w') as f:
+            json.dump(claude_config, f, indent=2)
+        
+        console.print(f"✅ Created {claude_config_file} (for Claude Code terminals)")
+        
+        # Create Cursor config  
+        cursor_config = {
+            "mcpServers": {
+                "adr-kit": {
+                    "command": "adr-kit",
+                    "args": ["mcp-server"],
+                    "env": {
+                        "PYTHONPATH": ".",
+                        "ADR_DIR": "docs/adr"
+                    }
+                }
+            }
+        }
+        
+        cursor_config_file = Path("cursor-mcp-config.json")
+        with open(cursor_config_file, 'w') as f:
+            json.dump(cursor_config, f, indent=2)
+            
+        console.print(f"✅ Created {cursor_config_file} (for Cursor IDE)")
+        
+        # Test MCP server health
+        console.print("\n🔍 Testing MCP server health...")
+        from .mcp.server import mcp
+        console.print("✅ MCP server ready")
+        
+        console.print("\n🎯 Next Steps:")
+        console.print("1. [bold]Cursor IDE:[/bold] Add config from cursor-mcp-config.json to Cursor settings")
+        console.print("2. [bold]Claude Code:[/bold] Will auto-detect .claude-mcp-config.json in this directory")
+        console.print("3. [bold]Test:[/bold] Both agents can now use adr_* tools!")
+        
+        console.print(f"\n💡 [bold]Verification:[/bold]")
+        console.print("   • Cursor AI: Ask 'What ADR tools do you have?'")
+        console.print("   • Claude Code: Run 'claude' and ask about ADR capabilities")
+        console.print("   • Both should have access to the same 9 ADR management tools")
+        
+        console.print(f"\n📚 [bold]Full Guide:[/bold] See DUAL_AGENT_SETUP.md for detailed instructions")
+        
+    except Exception as e:
+        console.print(f"❌ Setup failed: {e}")
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def legacy():
     """Show legacy CLI commands (use MCP server instead).

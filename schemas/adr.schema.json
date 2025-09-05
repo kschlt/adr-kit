@@ -52,6 +52,77 @@
       "items": {
         "type": "string"
       }
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "imports": {
+          "type": "object",
+          "properties": {
+            "disallow": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "prefer": {
+              "type": "array", 
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "boundaries": {
+          "type": "object",
+          "properties": {
+            "layers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name"]
+              }
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object", 
+                "properties": {
+                  "forbid": {
+                    "type": "string"
+                  }
+                },
+                "required": ["forbid"]
+              }
+            }
+          }
+        },
+        "python": {
+          "type": "object",
+          "properties": {
+            "disallow_imports": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rationales": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "additionalProperties": true

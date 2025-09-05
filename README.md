@@ -11,42 +11,81 @@ ADR Kit is purpose-built for AI agents like **Claude Code** to autonomously mana
 
 ## ✨ Features
 
-- **🧠 Standardized MCP Tools** with rich contextual guidance for AI agents
-- **🔄 Enforced Workflow** - Query → Create → Approve → Supersede  
-- **🔍 Built-in Conflict Detection** before ADR creation
-- **📝 MADR-compliant** ADR creation and validation
-- **⚡ Controlled AI Operation** with clear boundaries and standards
-- **📊 Reliable Indexing** with automatic relationship tracking
-- **🛡️ Standards Enforcement** via automated lint rule generation
-- **🌐 Consistent Documentation** with Log4brains integration
+- **🧠 Comprehensive MCP Server** with 12 AI-optimized tools for autonomous operation
+- **🔄 Enforced Workflow** - Query → Create → Approve → Supersede with validation
+- **🔍 Semantic Search** - Vector-based intelligent ADR discovery and matching
+- **📝 MADR-compliant** ADR creation, validation, and policy enforcement
+- **⚡ Policy Guard System** - Automated code analysis for ADR policy violations
+- **🛡️ Immutability Protection** - Content digests and tamper detection for approved ADRs
+- **📊 Multi-format Indexing** - JSON and SQLite with automatic relationship tracking
+- **🎯 Structured Policies** - Extract and enforce architectural decisions as lint rules
+- **🌐 Static Site Generation** - Beautiful documentation via Log4brains integration
+- **🤖 AI-First Design** - Rich contextual guidance for autonomous coding agents
 
-## 🚀 Quick Start for AI Agents
+## 🚀 Quick Start
 
-### Installation
+### 1. Installation
 
 ```bash
-# Requires Python 3.11+
+# Install ADR Kit in your project
 pip install adr-kit
+
+# For semantic search (optional but recommended)
+pip install sentence-transformers
 ```
 
-### Start MCP Server (Primary Interface)
+### 2. Initialize in Your Project
 
 ```bash
-# Launch MCP server for AI agent integration
+# Set up ADR structure
+cd your-project
+adr-kit init
+
+# Start the MCP server for AI integration
 adr-kit mcp-server
 ```
 
+### 3. AI Agent Integration
+
+**For Cursor/Claude Code** - Add to your MCP settings.json:
+```json
+{
+  "mcpServers": {
+    "adr-kit": {
+      "command": "adr-kit",
+      "args": ["mcp-server"],
+      "env": {}
+    }
+  }
+}
+```
+
+**Then in your AI chat:**
+- "Help me create an ADR for switching to React"
+- "Check if we have any database-related architectural decisions"
+- "Generate lint rules from our ADRs"
+
 ### MCP Tools Available for AI Agents
 
-AI agents can now use these standardized tools:
+AI agents have access to 12 comprehensive tools for complete ADR lifecycle management:
 
+**Core Workflow Tools:**
 - **`adr_init()`** - Initialize ADR system in repository
 - **`adr_query_related()`** - Find related ADRs before making decisions  
 - **`adr_create()`** - Create new ADRs with rich context
-- **`adr_approve()`** - Approve proposed ADRs and handle relationships
-- **`adr_supersede()`** - Replace existing decisions
-- **`adr_validate()`** - Validate ADRs for compliance
-- **`adr_index()`** - Generate comprehensive indexes
+- **`adr_approve()`** - Approve proposed ADRs with immutability protection
+- **`adr_supersede()`** - Replace existing decisions with automatic relationship management
+- **`adr_validate()`** - Validate ADRs for compliance and policy requirements
+
+**Advanced AI Tools:**
+- **`adr_semantic_index()`** - Build vector embeddings for intelligent ADR discovery
+- **`adr_semantic_match()`** - Find semantically similar ADRs using vector search
+- **`adr_guard()`** - Analyze code changes for ADR policy violations
+
+**Infrastructure Tools:**
+- **`adr_index()`** - Generate JSON/SQLite indexes with relationship tracking
+- **`adr_export_lint_config()`** - Generate ESLint/Ruff configs from ADR policies
+- **`adr_render_site()`** - Build static documentation site
 
 ### Manual CLI (Legacy)
 
@@ -63,139 +102,87 @@ adr-kit info
 adr-kit validate
 ```
 
-## 📚 AI Agent Workflow
+## 🔄 Typical Workflow
 
-### 🧠 Controlled Decision Process
+1. **AI detects architectural decision**: "We should switch to PostgreSQL"
+2. **Query existing decisions**: Find related database ADRs to avoid conflicts
+3. **Create proposed ADR**: AI drafts the decision with context and rationale
+4. **Human review**: Developer reviews and approves the proposal  
+5. **Activate decision**: ADR becomes official, old decisions are superseded
+6. **Generate enforcement**: Create lint rules to prevent violations
+7. **Monitor compliance**: Guard system catches policy violations in code
 
-ADR Kit provides standardized infrastructure that enables AI agents to manage architectural decisions through a reliable, enforced workflow:
+## 🛠️ Manual Usage (Optional)
 
-#### 1. **Query Phase** - Conflict Detection
-```python
-# AI agent detects architectural decision need
-# ALWAYS queries related ADRs first
-adr_query_related("database migration", tags=["backend", "data"])
-# Returns: Related ADRs, conflicts, recommendations
-```
-
-#### 2. **Create Phase** - Proposed ADRs  
-```python  
-# Creates ADR in 'proposed' status for human review
-adr_create({
-    "title": "Migrate from MySQL to PostgreSQL",
-    "tags": ["database", "backend"],
-    "deciders": ["backend-team"],
-    "content": "# Context\n[AI-generated context]..."
-})
-# Returns: ADR-0007 in 'proposed' status
-```
-
-#### 3. **Approve Phase** - Human Review
-```python
-# After human approval, AI agent activates the ADR
-adr_approve("ADR-0007", supersede_ids=["ADR-0003"])
-# Automatically handles: status changes, relationships, index updates
-```
-
-#### 4. **Supersede Phase** - Decision Evolution
-```python
-# When decisions need updating
-adr_supersede({
-    "old_id": "ADR-0007", 
-    "payload": {"title": "Enhanced Database Strategy", ...}
-})
-# Creates ADR-0008 that supersedes ADR-0007
-```
-
-### 🎯 Tool Semantics
-
-Each MCP tool includes rich contextual guidance:
-
-- **🎯 WHEN TO USE** - Clear scenarios for autonomous operation
-- **🔄 WORKFLOW** - Step-by-step process guidance
-- **⚡ AUTOMATICALLY HANDLES** - Behind-the-scenes operations
-- **💡 TIPS & GUIDANCE** - Best practices and error recovery
-
-### 📋 Manual Commands (Legacy)
-
-For manual operation when needed:
+When not using AI agents, you can use the CLI directly:
 
 ```bash
 # Initialize ADR structure
-adr-kit init [--adr-dir docs/adr]
+adr-kit init
 
-# Validate ADRs  
-adr-kit validate [--id ADR-0001]
+# Validate all ADRs
+adr-kit validate
 
-# Show MCP tools info
-adr-kit info
-
-# Legacy command reference  
-adr-kit legacy
-```
-
-#### Generate static site
-```bash
-# Requires log4brains: npm install -g log4brains
+# Generate static documentation site
 adr-kit render-site
 ```
 
-### Python Library
+## 📚 Python API
 
 ```python
-from adr_kit import parse_adr_file, validate_adr, ADRStatus
-from adr_kit.index import generate_adr_index
-from datetime import date
+from adr_kit import parse_adr_file, validate_adr
 
-# Parse an ADR file
+# Parse and validate an ADR
 adr = parse_adr_file("docs/adr/ADR-0001-example.md")
-print(f"ADR {adr.id}: {adr.title}")
-
-# Validate ADR
 result = validate_adr(adr)
+
 if result.is_valid:
-    print("✅ ADR is valid")
+    print(f"✅ {adr.title} is valid")
 else:
     for issue in result.errors:
-        print(f"❌ {issue}")
-
-# Generate index
-index = generate_adr_index("docs/adr")
-print(f"Indexed {len(index.entries)} ADRs")
+        print(f"❌ {issue.message}")
 ```
 
-### Enhanced MCP Server for AI Agents
+## 🤖 How It Works: AI Agent Workflow
 
-ADR Kit's MCP server provides standardized, reliable tools that enforce proper ADR workflow and enable controlled AI operation:
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant Agent as AI Agent
+    participant ADR as ADR Kit
+    participant Code as Codebase
 
-```bash
-# Start enhanced MCP server with rich contextual tools
-adr-kit mcp-server
+    Dev->>Agent: "We need to switch from MySQL to PostgreSQL"
+    Agent->>ADR: adr_query_related("database")
+    ADR-->>Agent: Found: ADR-0003 (MySQL decision)
+    Agent->>ADR: adr_create({title: "Use PostgreSQL", supersedes: ["ADR-0003"]})
+    ADR-->>Agent: Created ADR-0007 (status: proposed)
+    Agent->>Dev: "I've created ADR-0007. Please review."
+    Dev->>Agent: "Looks good, approve it"
+    Agent->>ADR: adr_approve("ADR-0007")
+    ADR-->>Agent: ADR-0007 approved, ADR-0003 superseded
+    Agent->>ADR: adr_export_lint_config(framework: "eslint")
+    ADR-->>Agent: Generated .eslintrc with MySQL import bans
+    
+    Note over Dev,Code: Later, during development...
+    Dev->>Code: git commit (includes "import mysql")
+    Code->>ADR: adr_guard(git_diff)
+    ADR-->>Code: ERROR: mysql imports disallowed (ADR-0007)
 ```
 
-**MCP Tools with Rich Context:**
+## 💡 Value Proposition
 
-- **`adr_init()`** - Initialize ADR system with conflict detection
-- **`adr_query_related()`** - Find related/conflicting ADRs before creation
-- **`adr_create()`** - Create proposed ADRs with rich context
-- **`adr_approve()`** - Approve ADRs with automatic relationship management
-- **`adr_supersede()`** - Replace decisions with bidirectional updates
-- **`adr_validate()`** - Validate with actionable error guidance
-- **`adr_index()`** - Generate comprehensive indexes with filtering
-- **`adr_export_lint()`** - Generate enforcement configurations
-- **`adr_render_site()`** - Build static documentation
+**For Development Teams:**
+- **Prevent Architectural Drift** - Automatically catch violations before code review
+- **Enforce Decisions** - Turn ADRs into actionable lint rules and policies  
+- **Find Related Decisions** - Semantic search prevents duplicate or conflicting ADRs
+- **Maintain Context** - Rich documentation with automatic relationship tracking
 
-**Each tool includes:**
-- 🎯 **WHEN TO USE** scenarios for autonomous operation
-- 🔄 **WORKFLOW** step-by-step process guidance  
-- ⚡ **AUTOMATICALLY HANDLES** behind-the-scenes operations
-- 💡 **CONTEXTUAL ERROR RESPONSES** with recovery guidance
-
-**Standards Enforcement Features:**
-- Mandatory conflict detection before ADR creation
-- Enforced Proposed → Accepted status workflow
-- Automatic relationship management (supersedes/superseded_by)
-- Rich error context with actionable guidance
-- Clear boundaries and standards for controlled AI operation
+**For AI Agents:**
+- **Structured Decision Making** - Clear workflow prevents invalid architectural changes
+- **Autonomous Operation** - Rich contextual guidance enables self-directed ADR management
+- **Conflict Prevention** - Mandatory checks before creating potentially conflicting decisions
+- **Standards Enforcement** - Automatic validation ensures compliance without human oversight
 
 ## 📋 ADR Format
 
@@ -207,10 +194,24 @@ id: ADR-0001
 title: Use React Query for data fetching
 status: accepted
 date: 2025-09-03
-deciders: [frontend-team, tech-lead]
+deciders: [frontend-team, tech-lead]  
 tags: [frontend, data, api]
 supersedes: [ADR-0003]
 superseded_by: []
+policy:
+  imports:
+    disallow: [axios, fetch]
+    prefer: [react-query, @tanstack/react-query]
+  boundaries:
+    layers:
+      - name: view
+      - name: service
+      - name: data
+    rules:
+      - forbid: "view -> data"
+  python:
+    disallow_imports: []
+  rationales: ["Standardize data fetching", "Prevent direct API calls from components"]
 ---
 
 # Context
@@ -270,58 +271,13 @@ your-project/
 └── .eslintrc.adrs.json        # Generated lint rules
 ```
 
-## 🧪 Development
+## 🤖 AI Agent Benefits
 
-### Setup
-
-```bash
-git clone https://github.com/kschlt/adr-kit.git
-cd adr-kit
-# Requires Python 3.11+ for FastMCP support
-pip install -e ".[dev]"
-```
-
-### Run tests
-
-```bash
-pytest tests/
-```
-
-## 🤖 AI Agent Integration
-
-### Claude Code Integration
-
-ADR Kit is optimized for **Claude Code** and similar AI agents. The MCP server provides standardized, reliable infrastructure that enforces proper ADR standards while enabling controlled autonomous operation:
-
-```bash
-# 1. Start MCP server in your project
-adr-kit mcp-server
-
-# 2. AI agents can now:
-# - Detect architectural decisions in conversations
-# - Query for conflicts before creating ADRs  
-# - Create proposed ADRs with rich context
-# - Guide humans through approval workflow
-# - Handle superseding relationships automatically
-```
-
-### Autonomous Workflow Example
-
-When an AI agent detects an architectural decision:
-
-1. **🔍 Query**: `adr_query_related("database", ["backend"])` → Finds existing database ADRs
-2. **📝 Create**: `adr_create({...})` → Creates ADR-0007 in 'proposed' status  
-3. **💬 Human Review**: Agent presents ADR to human for approval
-4. **✅ Approve**: `adr_approve("ADR-0007", supersede_ids=["ADR-0003"])` → Activates decision
-5. **📊 Index**: Automatically updates relationships and generates indexes
-
-### Benefits for AI Agents
-
-- **🧠 Standardized Interface** - Clear, consistent tool signatures and behavior
-- **🔄 Enforced Workflow** - Prevents invalid state transitions and ensures compliance
-- **⚡ Built-in Guardrails** - Mandatory conflict detection prevents inconsistent decisions  
-- **💡 Rich Error Context** - Detailed feedback enables autonomous error recovery
-- **📋 Automatic Standards** - Handles complex relationship logic reliably
+- **🧠 Standardized Interface** - 12 comprehensive MCP tools with consistent behavior
+- **🔄 Enforced Workflow** - Prevents invalid architectural decisions and ensures compliance  
+- **⚡ Built-in Guardrails** - Mandatory conflict detection prevents inconsistent decisions
+- **💡 Rich Context** - Detailed guidance enables autonomous operation with minimal human oversight
+- **📋 Automatic Management** - Handles complex relationship logic and validation reliably
 
 ## 🔗 Integration
 
@@ -359,56 +315,67 @@ jobs:
       - run: adr-kit index --out docs/adr/adr-index.json
 ```
 
-### Enforcement Examples
+### Policy Enforcement Examples
 
-ADR Kit can generate lint rules from your architectural decisions:
+ADR Kit automatically extracts and enforces policies from your architectural decisions:
 
-**ESLint example** - Ban deprecated libraries:
+**Structured Policy Definition:**
+```yaml
+# In ADR front-matter
+policy:
+  imports:
+    disallow: [moment, jquery, lodash]
+    prefer: [date-fns, dayjs]
+  boundaries:
+    layers:
+      - name: view
+      - name: service  
+      - name: data
+    rules:
+      - forbid: "view -> data"
+  python:
+    disallow_imports: [flask, django]
+  rationales: ["Modern lightweight libraries", "Enforce layered architecture"]
+```
+
+**Generated ESLint Config:**
 ```json
 {
   "rules": {
     "no-restricted-imports": [
       "error", 
       {
-        "paths": [{
-          "name": "moment", 
-          "message": "Use date-fns instead (ADR-0042)"
-        }]
+        "paths": [
+          {"name": "moment", "message": "Use date-fns instead (ADR-0001)"},
+          {"name": "jquery", "message": "Use native DOM APIs (ADR-0001)"}
+        ]
       }
     ]
   }
 }
 ```
 
-**Ruff example** - Enforce Python standards:
+**Generated Ruff Config:**
 ```toml
-[tool.ruff]
-select = ["E", "W", "F", "UP"]  # Based on ADR decisions
+[tool.ruff.flake8-banned-api]
+banned-api = [
+    "flask = Use FastAPI instead (ADR-0001)",
+    "django = Use FastAPI instead (ADR-0001)"
+]
 ```
 
-## 📖 Examples
+**Real-time Policy Guard:**
+```bash
+# In your git workflow
+git diff | adr-kit guard  # Catches violations before commit
+```
 
-See the `docs/adr/` directory for example ADRs:
+## 📚 Learn More
 
-- [ADR-0001: Use Python and FastAPI for the ADR Kit backend](docs/adr/ADR-0001-sample.md)
-
+- **Example ADR**: See [`docs/adr/ADR-0001-sample.md`](docs/adr/ADR-0001-sample.md) for a complete example with policies
+- **MADR Format**: Based on the [Markdown ADR](https://adr.github.io/madr/) specification
+- **MCP Protocol**: Integrates with [Model Context Protocol](https://modelcontextprotocol.io) for AI agents
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [MADR](https://adr.github.io/madr/) for the ADR format specification
-- [Log4brains](https://github.com/thomvaill/log4brains) for static site generation
-- [Pydantic](https://pydantic.dev/) for data validation
-- [Typer](https://typer.tiangolo.com/) for the CLI framework
-
-## 📞 Support
-
-- 📚 [Documentation](docs/)
-- 🐛 [Issue Tracker](https://github.com/kschlt/adr-kit/issues)
-
----
-
-Built with ❤️ for better architectural decision making.
+MIT License - see the [LICENSE](LICENSE) file for details.

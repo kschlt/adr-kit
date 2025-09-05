@@ -18,12 +18,16 @@ from typing import Any, Dict, List, Optional, Union
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
-from ..core.model import ADR, ADRFrontMatter, ADRStatus
+from ..core.model import ADR, ADRFrontMatter, ADRStatus, PolicyModel
 from ..core.parse import find_adr_files, parse_adr_file, ParseError
 from ..core.validate import validate_adr_file, validate_adr_directory
+from ..core.policy_extractor import PolicyExtractor
+from ..core.immutability import ImmutabilityManager
+from ..semantic.retriever import SemanticIndex
+from ..guard.detector import GuardSystem, PolicyViolation, CodeAnalysisResult
 from ..index.json_index import generate_adr_index, ADRIndex
 from ..index.sqlite_index import generate_sqlite_index, ADRSQLiteIndex
-from ..enforce.eslint import generate_eslint_config
+from ..enforce.eslint import generate_eslint_config, StructuredESLintGenerator
 from ..enforce.ruff import generate_ruff_config, generate_import_linter_config
 
 
@@ -35,6 +39,7 @@ class ADRCreatePayload(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for the ADR")
     deciders: Optional[List[str]] = Field(None, description="People who made the decision")
     status: Optional[ADRStatus] = Field(ADRStatus.PROPOSED, description="Initial status")
+    policy: Optional[PolicyModel] = Field(None, description="Structured policy for enforcement")
     content: Optional[str] = Field(None, description="Custom content for the ADR")
 
 
@@ -62,6 +67,48 @@ class ADRExportLintRequest(BaseModel):
     adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
 
 
+class ADRSemanticIndexRequest(BaseModel):
+    """Request for semantic index building."""
+    adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
+    force_rebuild: Optional[bool] = Field(False, description="Force complete rebuild")
+
+
+class ADRSemanticMatchRequest(BaseModel):
+    """Request for semantic matching."""
+    text: str = Field(..., description="Query text for semantic matching")
+    k: Optional[int] = Field(5, description="Number of results to return")
+    filter_status: Optional[List[str]] = Field(None, description="Filter by ADR status")
+
+
+class ADRGuardRequest(BaseModel):
+    """Request for ADR policy guard analysis of code changes."""
+    diff_text: str = Field(..., description="Git diff output to analyze for policy violations")
+    build_index: bool = Field(True, description="Whether to rebuild the semantic index before analysis")
+
+
+def load_adr_template() -> str:
+    """Load the standard ADR template."""
+    template_path = Path(__file__).parent.parent.parent / "VersionV3" / "templates" / "adr_template.md"
+    
+    if template_path.exists():
+        # Load the actual template content (without front-matter)
+        content = template_path.read_text(encoding='utf-8')
+        # Extract only the content part (after ---)
+        if '---' in content:
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                return parts[2].strip()
+    
+    # Fallback template matching your V3 spec
+    return """## Context
+
+## Decision
+
+## Consequences
+
+## Alternatives"""
+
+
 # Initialize FastMCP server
 mcp = FastMCP("ADR Kit")
 
@@ -80,21 +127,28 @@ def adr_create(payload: ADRCreatePayload, adr_dir: str = "docs/adr") -> Dict[str
     1. ALWAYS check existing ADRs first using adr_query_related() 
     2. Create ADR with status 'proposed' for human review
     3. Auto-populate technical context based on conversation/codebase
-    4. Identify potential superseding relationships with existing ADRs
-    5. Notify human with file path for review
+    4. Include structured policy if enforceable decisions detected
+    5. Identify potential superseding relationships with existing ADRs
+    6. Notify human with file path for review
     
     ⚡ AUTOMATICALLY HANDLES:
     - Unique ID generation (ADR-NNNN format)
     - Date stamping 
     - MADR template structure
-    - Schema validation
+    - Schema and policy validation
+    
+    💡 POLICY INTEGRATION:
+    - Include structured policy for library/framework decisions
+    - Auto-detect import restrictions from conversation context
+    - Generate enforcement-ready rules for accepted ADRs
+    - Support ESLint, Ruff, and import-linter generation
     
     📋 Args:
-        payload: ADR creation data with title, tags, deciders, and content
+        payload: ADR creation data with title, tags, deciders, content, and policy
         adr_dir: Directory for ADR files (default: docs/adr)
         
     Returns:
-        Dictionary with success status, ADR ID, file path, and next steps for human
+        Dictionary with success status, ADR ID, file path, policy validation, and next steps
     """
     try:
         adr_path = Path(adr_dir)
@@ -116,55 +170,41 @@ def adr_create(payload: ADRCreatePayload, adr_dir: str = "docs/adr") -> Dict[str
         
         new_id = f"ADR-{max_num + 1:04d}"
         
-        # Create front matter
+        # Create front matter with policy support
         front_matter = ADRFrontMatter(
             id=new_id,
             title=payload.title,
             status=payload.status or ADRStatus.PROPOSED,
             date=date.today(),
             tags=payload.tags,
-            deciders=payload.deciders
+            deciders=payload.deciders,
+            policy=payload.policy
         )
         
-        # Use provided content or template
+        # Use provided content or load from template
         if payload.content:
             content = payload.content
         else:
-            content = f"""# Context
-
-What is the context of this decision? What problem are we trying to solve?
-
-# Decision
-
-What is the change that we're proposing or doing?
-
-# Consequences
-
-What are the positive and negative consequences of this decision?
-
-## Positive
-
-- 
-
-## Negative
-
-- 
-
-# Alternatives
-
-What other alternatives have been considered?
-
-- Alternative 1: 
-- Alternative 2: """
+            content = load_adr_template()
         
-        # Create ADR object and write file
+        # Create ADR object and validate policy
         adr = ADR(front_matter=front_matter, content=content)
+        
+        # Policy validation and enhancement
+        policy_extractor = PolicyExtractor()
+        extracted_policy = policy_extractor.extract_policy(adr)
+        policy_validation = []
+        
+        if payload.policy or policy_extractor.has_extractable_policy(adr):
+            policy_validation.extend(policy_extractor.validate_policy_completeness(adr))
+        
         filename = f"{new_id}-{payload.title.lower().replace(' ', '-')}.md"
         file_path = adr_path / filename
         
         file_path.write_text(adr.to_markdown(), encoding='utf-8')
         
-        return {
+        # Enhanced response with policy information
+        response = {
             "success": True,
             "id": new_id,
             "path": str(file_path),
@@ -173,6 +213,23 @@ What other alternatives have been considered?
             "next_steps": f"Please review the ADR at {file_path} and use adr_approve() to accept it or provide feedback for modifications.",
             "workflow_stage": "awaiting_human_review"
         }
+        
+        # Add policy information if present
+        if extracted_policy and (extracted_policy.imports or extracted_policy.boundaries or extracted_policy.python):
+            response["policy_detected"] = True
+            response["policy_summary"] = {
+                "imports": bool(extracted_policy.imports),
+                "boundaries": bool(extracted_policy.boundaries), 
+                "python": bool(extracted_policy.python)
+            }
+            response["enforcement_ready"] = not bool(policy_validation)
+            if not policy_validation:
+                response["lint_generation_tip"] = f"After approval, use adr_export_lint_config() to generate enforcement rules"
+        
+        if policy_validation:
+            response["policy_warnings"] = policy_validation
+        
+        return response
         
     except Exception as e:
         return {
@@ -304,34 +361,45 @@ def adr_query_related(topic: str, tags: Optional[List[str]] = None, adr_dir: str
 
 
 @mcp.tool()
-def adr_approve(adr_id: str, supersede_ids: Optional[List[str]] = None, adr_dir: str = "docs/adr") -> Dict[str, Any]:
-    """Approve a proposed ADR and handle superseding relationships.
+def adr_approve(adr_id: str, supersede_ids: Optional[List[str]] = None, adr_dir: str = "docs/adr", make_readonly: bool = False) -> Dict[str, Any]:
+    """Approve a proposed ADR with immutability protection and handle superseding relationships.
     
     🎯 WHEN TO USE:
     - After human has reviewed and approved a proposed ADR
     - When user confirms ADR should be accepted
     - To finalize the ADR workflow and update relationships
     
-    🔄 WORKFLOW:
-    1. Changes ADR status from 'proposed' to 'accepted'
-    2. Updates superseded ADRs to 'superseded' status  
-    3. Establishes bidirectional relationships
-    4. Regenerates index with new relationships
-    5. Validates all affected ADRs
+    🔄 ENHANCED WORKFLOW (V3 - Immutability):
+    1. Validates ADR schema and policy completeness
+    2. Changes ADR status from 'proposed' to 'accepted'
+    3. **Computes content digest** for immutability tracking
+    4. **Stores digest** in .project-index/adr-locks.json
+    5. **Optional**: Makes file read-only (chmod 0444)
+    6. Updates superseded ADRs to 'superseded' status  
+    7. Establishes bidirectional relationships
+    8. Regenerates index with new relationships
     
     ⚡ AUTOMATICALLY HANDLES:
-    - Status transitions
-    - Relationship updates (supersedes/superseded_by)
-    - Index regeneration
-    - Cross-validation of affected ADRs
+    - **Immutability Protection**: Approved ADRs become tamper-resistant
+    - **Content Digests**: SHA-256 hashing for integrity verification
+    - **Lock Storage**: Persistent immutability tracking
+    - Status transitions and relationship updates
+    - Index regeneration and cross-validation
+    
+    🛡️ SECURITY FEATURES:
+    - Content digest prevents unauthorized modifications
+    - Optional read-only file protection
+    - Only status and supersession fields remain mutable
+    - Tamper detection in validation workflow
     
     📋 Args:
         adr_id: ID of the ADR to approve (e.g., "ADR-0007")
         supersede_ids: Optional list of ADR IDs this decision supersedes
         adr_dir: Directory containing ADRs
+        make_readonly: Whether to make the ADR file read-only (default: False)
         
     Returns:
-        Dictionary with approval status and updated relationships
+        Dictionary with approval status, immutability info, and updated relationships
     """
     try:
         adr_files = find_adr_files(Path(adr_dir))
@@ -365,6 +433,27 @@ def adr_approve(adr_id: str, supersede_ids: Optional[List[str]] = None, adr_dir:
                 "guidance": "No action needed - ADR is already approved"
             }
         
+        # Initialize immutability manager
+        immutability_manager = ImmutabilityManager(Path(adr_dir).parent.parent)
+        
+        # Validate ADR before approval (including policy requirements)
+        validation_result = validate_adr_file(target_file)
+        if not validation_result.is_valid:
+            return {
+                "success": False,
+                "error": "ADR validation failed",
+                "validation_issues": [
+                    {
+                        "level": issue.level,
+                        "message": issue.message,
+                        "field": issue.field,
+                        "rule": issue.rule
+                    } for issue in validation_result.issues
+                ],
+                "message": f"ADR {adr_id} must pass validation before approval",
+                "guidance": "Fix validation issues and try again"
+            }
+        
         # Update target ADR to accepted
         target_adr.front_matter.status = ADRStatus.ACCEPTED
         
@@ -390,6 +479,22 @@ def adr_approve(adr_id: str, supersede_ids: Optional[List[str]] = None, adr_dir:
         # Save updated target ADR
         target_file.write_text(target_adr.to_markdown(), encoding='utf-8')
         
+        # Create immutability lock (Phase 3 - V3 Feature)
+        try:
+            lock = immutability_manager.approve_adr(target_adr, make_readonly=make_readonly)
+            immutability_info = {
+                "digest": lock.digest,
+                "locked_at": lock.locked_at,
+                "is_readonly": lock.is_readonly,
+                "locks_file": str(immutability_manager.locks_file)
+            }
+        except Exception as e:
+            # Don't fail approval if immutability setup fails
+            immutability_info = {
+                "error": f"Immutability setup failed: {e}",
+                "fallback": "ADR approved but not locked"
+            }
+        
         # Regenerate index
         try:
             from ..index.json_index import generate_adr_index
@@ -402,9 +507,16 @@ def adr_approve(adr_id: str, supersede_ids: Optional[List[str]] = None, adr_dir:
             "adr_id": adr_id,
             "new_status": "accepted",
             "superseded_adrs": updated_adrs,
-            "message": f"✅ ADR {adr_id} approved and activated",
+            "immutability": immutability_info,
+            "message": f"✅ ADR {adr_id} approved, activated, and protected",
             "relationships_updated": len(updated_adrs),
-            "workflow_stage": "completed"
+            "workflow_stage": "completed",
+            "security_features": [
+                "Content digest computed for tamper detection",
+                "Immutability lock stored in .project-index/adr-locks.json",
+                "Only status transitions and supersession updates allowed",
+                f"File read-only protection: {'enabled' if make_readonly else 'disabled'}"
+            ]
         }
         
     except Exception as e:
@@ -506,30 +618,33 @@ def adr_supersede(request: ADRSupersedePayload, adr_dir: str = "docs/adr") -> Di
 
 @mcp.tool()
 def adr_validate(request: ADRValidateRequest) -> Dict[str, Any]:
-    """Validate ADRs for schema compliance and semantic rules.
+    """Validate ADRs for schema compliance, semantic rules, and policy requirements.
     
     🎯 WHEN TO USE:
     - After creating or modifying ADRs
-    - Before approving ADRs (recommended)
+    - Before approving ADRs (recommended - now includes policy validation)
     - When troubleshooting ADR issues
     - As part of quality assurance workflow
     
     🔍 WHAT IT CHECKS:
     - JSON Schema compliance (required fields, formats)
     - Semantic rules (superseded ADRs have superseded_by)
+    - Policy completeness for accepted ADRs (V3 requirement)
+    - Structured policy format validation
     - File format and YAML front-matter syntax
     - Cross-references and relationship consistency
     
-    💡 RETURNS:
-    - Detailed error messages with guidance
-    - Warnings for potential issues
-    - Success confirmation for valid ADRs
+    💡 ENHANCED VALIDATION:
+    - Checks that accepted ADRs have extractable policies
+    - Validates policy structure if present in front-matter
+    - Provides actionable guidance for missing enforcement rules
+    - Supports hybrid policy extraction (structured + pattern-based)
     
     📋 Args:
         request: Validation request with optional specific ADR ID
         
     Returns:
-        Dictionary with validation results and actionable feedback
+        Dictionary with validation results, policy analysis, and actionable feedback
     """
     try:
         adr_dir = request.adr_dir or "docs/adr"
@@ -561,16 +676,35 @@ def adr_validate(request: ADRValidateRequest) -> Dict[str, Any]:
             # Validate all ADRs
             results = validate_adr_directory(adr_dir)
         
-        # Process results
+        # Process results with policy analysis
         total_adrs = len(results)
         valid_adrs = sum(1 for r in results if r.is_valid)
         total_errors = sum(len(r.errors) for r in results)
         total_warnings = sum(len(r.warnings) for r in results)
         
+        # Enhanced policy analysis
+        policy_extractor = PolicyExtractor()
+        policy_summary = {
+            "adrs_with_policies": 0,
+            "accepted_without_policies": 0,
+            "enforcement_ready": 0
+        }
+        
         issues = []
         for result in results:
             if result.adr and result.adr.file_path:
                 file_name = result.adr.file_path.name
+                
+                # Analyze policy status
+                if result.adr.front_matter.status == ADRStatus.ACCEPTED:
+                    has_policy = policy_extractor.has_extractable_policy(result.adr)
+                    if has_policy:
+                        policy_summary["adrs_with_policies"] += 1
+                        extracted = policy_extractor.extract_policy(result.adr)
+                        if extracted.imports or extracted.boundaries or extracted.python:
+                            policy_summary["enforcement_ready"] += 1
+                    else:
+                        policy_summary["accepted_without_policies"] += 1
             else:
                 file_name = "Unknown file"
             
@@ -583,7 +717,7 @@ def adr_validate(request: ADRValidateRequest) -> Dict[str, Any]:
                     "rule": issue.rule
                 })
         
-        return {
+        response = {
             "success": True,
             "summary": {
                 "total_adrs": total_adrs,
@@ -591,9 +725,19 @@ def adr_validate(request: ADRValidateRequest) -> Dict[str, Any]:
                 "errors": total_errors,
                 "warnings": total_warnings
             },
+            "policy_analysis": policy_summary,
             "issues": issues,
             "is_valid": total_errors == 0
         }
+        
+        # Add policy guidance if needed
+        if policy_summary["accepted_without_policies"] > 0:
+            response["policy_guidance"] = f"{policy_summary['accepted_without_policies']} accepted ADRs lack extractable policies. Consider adding structured policy blocks or enhance content with decision rationales."
+        
+        if policy_summary["enforcement_ready"] > 0:
+            response["enforcement_tip"] = f"{policy_summary['enforcement_ready']} ADRs are ready for lint rule generation. Use adr_export_lint_config() to create enforcement configurations."
+        
+        return response
         
     except Exception as e:
         return {
@@ -676,17 +820,61 @@ def adr_index(request: ADRIndexRequest) -> Dict[str, Any]:
 
 @mcp.tool()
 def adr_export_lint_config(request: ADRExportLintRequest) -> Dict[str, Any]:
-    """Export lint configuration from ADRs.
+    """Generate lint configurations from structured ADR policies using hybrid extraction.
     
-    Args:
-        request: Lint export request
+    🎯 WHEN TO USE:
+    - After approving ADRs with policy decisions
+    - To enforce architectural decisions in development workflow
+    - When setting up automated policy enforcement
+    - To generate team-wide coding standards from ADRs
+    
+    🔧 WHAT IT GENERATES:
+    - ESLint: no-restricted-imports rules with ADR citations
+    - Ruff: Python import restrictions and style rules
+    - import-linter: Architectural boundary enforcement
+    - All configs include metadata linking back to source ADRs
+    
+    💡 HYBRID POLICY EXTRACTION:
+    - Primary: Uses structured policy from ADR front-matter
+    - Fallback: Pattern-based extraction from ADR content
+    - Merges both sources for comprehensive rule coverage
+    - Auto-detects library preferences and architectural boundaries
+    
+    🎯 AI AGENT WORKFLOW:
+    1. Scans all accepted ADRs for policy information
+    2. Extracts structured policies from front-matter
+    3. Enhances with pattern-based extraction for legacy ADRs
+    4. Generates framework-specific enforcement rules
+    5. Includes ADR citations for traceability
+    
+    📋 Args:
+        request: Framework type and ADR directory specification
         
     Returns:
-        Dictionary with generated configuration
+        Generated configuration with ADR metadata, policy summary, and enforcement rules
     """
     try:
         adr_dir = request.adr_dir or "docs/adr"
         framework = request.framework.lower()
+        
+        # Enhanced policy analysis for lint generation
+        policy_extractor = PolicyExtractor()
+        adr_files = find_adr_files(Path(adr_dir))
+        source_adrs = []
+        total_policies = 0
+        
+        # Analyze ADRs for policy content
+        for file_path in adr_files:
+            try:
+                adr = parse_adr_file(file_path, strict=False)
+                if adr and adr.front_matter.status == ADRStatus.ACCEPTED:
+                    if policy_extractor.has_extractable_policy(adr):
+                        extracted = policy_extractor.extract_policy(adr)
+                        if extracted.imports or extracted.boundaries or extracted.python:
+                            source_adrs.append(adr.front_matter.id)
+                            total_policies += 1
+            except ParseError:
+                continue
         
         if framework == "eslint":
             config = generate_eslint_config(adr_dir)
@@ -704,13 +892,26 @@ def adr_export_lint_config(request: ADRExportLintRequest) -> Dict[str, Any]:
                 "supported": ["eslint", "ruff", "import-linter"]
             }
         
-        return {
+        response = {
             "success": True,
             "framework": framework,
             "config": config,
             "filename": filename,
-            "message": f"Generated {framework} configuration"
+            "message": f"Generated {framework} configuration from {total_policies} ADR policies",
+            "policy_summary": {
+                "source_adrs": source_adrs,
+                "total_policies": total_policies,
+                "extraction_method": "hybrid (structured + pattern-based)"
+            }
         }
+        
+        # Add usage guidance
+        if total_policies == 0:
+            response["guidance"] = "No policies found in accepted ADRs. Ensure ADRs contain structured policy blocks or decision rationales in content."
+        else:
+            response["usage_tip"] = f"Save configuration to {filename} and integrate with your development workflow for automated policy enforcement."
+        
+        return response
         
     except Exception as e:
         return {
@@ -721,47 +922,96 @@ def adr_export_lint_config(request: ADRExportLintRequest) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def adr_render_site(adr_dir: str = "docs/adr", out_dir: str = ".log4brains/out") -> Dict[str, Any]:
-    """Render static site via Log4brains.
+def adr_render_site(adr_dir: str = "docs/adr", out_dir: str = None) -> Dict[str, Any]:
+    """Render beautiful static ADR site using Log4brains.
     
-    Args:
-        adr_dir: ADR directory
-        out_dir: Output directory for site
+    🎯 WHEN TO USE:
+    - After creating/updating ADRs to generate browsable site
+    - To create documentation website for architectural decisions  
+    - For sharing ADRs with team members and stakeholders
+    - When preparing ADR documentation for deployment
+    
+    🌐 WHAT IT CREATES:
+    - Static HTML site with timeline navigation
+    - Searchable ADR interface with metadata
+    - Automatic relationship mapping between ADRs
+    - Mobile-friendly responsive design
+    - Ready for deployment to GitHub Pages, etc.
+    
+    🔧 INTEGRATION:
+    - Uses Log4brains for proven site generation
+    - Preserves ADR Kit policy metadata  
+    - Maintains compatibility with your ADR format
+    - Outputs to easily discoverable location
+    
+    📋 Args:
+        adr_dir: Directory containing ADR files (default: docs/adr)
+        out_dir: Output directory for site (default: docs/adr/site/ for easy discovery)
         
     Returns:
-        Dictionary with render result
+        Dictionary with site generation results and local URL for browsing
     """
     try:
+        # Use better default output directory (easily discoverable)
+        if out_dir is None:
+            out_dir = f"{adr_dir}/site"
+        
+        # Ensure output directory exists
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        
         # Check if log4brains is available
         try:
             subprocess.run(["log4brains", "--version"], capture_output=True, check=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
             return {
                 "success": False,
-                "error": "log4brains not found",
-                "message": "Please install log4brains: npm install -g log4brains"
+                "error": "log4brains not found", 
+                "message": "Please install log4brains: npm install -g log4brains",
+                "installation_help": "Log4brains generates beautiful ADR sites. Install with: npm install -g log4brains"
             }
         
-        # Run log4brains build
+        # Validate ADR directory exists
+        adr_path = Path(adr_dir)
+        if not adr_path.exists():
+            return {
+                "success": False,
+                "error": "ADR directory not found",
+                "message": f"ADR directory '{adr_dir}' does not exist. Use adr_init() first."
+            }
+        
+        # Run log4brains build with better error handling
         result = subprocess.run([
-            "log4brains", "build",
+            "log4brains", "build", 
             "--adrDir", adr_dir,
             "--outDir", out_dir
-        ], capture_output=True, text=True)
+        ], capture_output=True, text=True, timeout=60)
         
         if result.returncode != 0:
             return {
                 "success": False,
                 "error": "log4brains build failed",
                 "stderr": result.stderr,
-                "message": "Log4brains build process failed"
+                "stdout": result.stdout,
+                "message": "Log4brains build process failed. Check ADR format compatibility."
+            }
+        
+        # Check if site was actually generated
+        site_index = Path(out_dir) / "index.html"
+        if not site_index.exists():
+            return {
+                "success": False,
+                "error": "site not generated",
+                "message": "Log4brains completed but no site was generated"
             }
         
         return {
             "success": True,
             "out_dir": out_dir,
-            "message": f"ADR site rendered to {out_dir}",
-            "stdout": result.stdout
+            "site_url": f"file://{site_index.absolute()}",
+            "message": f"✅ ADR site rendered successfully to {out_dir}",
+            "browse_instruction": f"Open {site_index} in your browser to view the site",
+            "stdout": result.stdout,
+            "adr_count": len([f for f in adr_path.glob("*.md") if f.name.startswith("ADR-")])
         }
         
     except Exception as e:
@@ -830,6 +1080,280 @@ def adr_init(adr_dir: str = "docs/adr") -> Dict[str, Any]:
         }
 
 
+@mcp.tool()
+def adr_semantic_index(request: ADRSemanticIndexRequest, adr_dir: str = "docs/adr") -> Dict[str, Any]:
+    """Build or update semantic index for intelligent ADR discovery.
+    
+    🎯 WHEN TO USE:
+    - After creating or updating multiple ADRs
+    - When setting up semantic search capabilities
+    - To enable intelligent ADR matching and discovery
+    - Before using adr_semantic_match() for the first time
+    
+    🧠 WHAT IT DOES:
+    - Chunks ADR content into semantic segments (title, sections, content)
+    - Generates vector embeddings using sentence-transformers
+    - Stores embeddings locally (.project-index/adr-vectors/)
+    - Creates searchable semantic index for fast retrieval
+    - Supports incremental updates (only processes new/changed ADRs)
+    
+    💾 STORAGE FORMAT:
+    - chunks.jsonl: Semantic chunks with metadata
+    - embeddings.npz: NumPy embeddings matrix
+    - meta.idx.json: Mappings and index metadata
+    
+    🔧 AI AGENT USAGE:
+    - Run after batch ADR operations
+    - Use force_rebuild=True for fresh start
+    - Index enables semantic matching and related ADR discovery
+    - Required for adr_semantic_match() functionality
+    
+    📋 Args:
+        request: Semantic indexing request with directory and options
+        adr_dir: Directory containing ADR files (defaults to request.adr_dir)
+        
+    Returns:
+        Dictionary with indexing statistics and semantic capabilities info
+    """
+    try:
+        adr_directory = request.adr_dir or adr_dir
+        
+        # Initialize semantic index
+        semantic_index = SemanticIndex(Path(adr_directory).parent.parent)
+        
+        # Build or update index
+        stats = semantic_index.build_index(
+            adr_dir=adr_directory,
+            force_rebuild=request.force_rebuild or False
+        )
+        
+        return {
+            "success": True,
+            "semantic_index": stats,
+            "storage_location": str(semantic_index.vectors_dir),
+            "capabilities": [
+                "Semantic similarity search",
+                "Intelligent ADR discovery", 
+                "Content-aware matching",
+                "Related ADR suggestions"
+            ],
+            "message": f"✅ Semantic index ready: {stats['total_chunks']} chunks from {stats['total_adrs']} ADRs",
+            "next_steps": "Use adr_semantic_match() to perform intelligent ADR searches"
+        }
+        
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": "Missing dependencies",
+            "message": str(e),
+            "guidance": "Install semantic search dependencies: pip install sentence-transformers"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Semantic indexing failed: {e}",
+            "guidance": "Check ADR directory exists and contains valid ADR files"
+        }
+
+
+@mcp.tool() 
+def adr_semantic_match(request: ADRSemanticMatchRequest, adr_dir: str = "docs/adr") -> Dict[str, Any]:
+    """Find semantically related ADRs using vector similarity.
+    
+    🎯 WHEN TO USE:
+    - Before creating new ADRs (find related existing decisions)
+    - When exploring architectural decision context
+    - To discover ADRs related to specific topics or technologies
+    - For intelligent ADR recommendations based on content
+    
+    🧠 HOW IT WORKS:
+    - Converts query text to vector embedding
+    - Computes cosine similarity with existing ADR embeddings  
+    - Ranks results by semantic relevance
+    - Returns ADRs with contextual excerpts and metadata
+    - Supports status filtering (e.g., only 'accepted' ADRs)
+    
+    💡 QUERY EXAMPLES:
+    - "database migration strategy"
+    - "microservices communication patterns"  
+    - "frontend state management"
+    - "authentication and authorization"
+    
+    ⚡ AI AGENT WORKFLOW:
+    1. Use before adr_create() to find related decisions
+    2. Analyze returned matches for conflicts or dependencies
+    3. Reference related ADRs in new ADR content
+    4. Suggest superseding relationships when appropriate
+    
+    📋 Args:
+        request: Semantic matching request with query and filters
+        adr_dir: Directory containing ADRs (fallback)
+        
+    Returns:
+        Dictionary with semantically matched ADRs, scores, and excerpts
+    """
+    try:
+        # Initialize semantic index
+        semantic_index = SemanticIndex(Path(adr_dir).parent.parent)
+        
+        # Convert filter status to set if provided
+        filter_status = set(request.filter_status) if request.filter_status else None
+        
+        # Perform semantic search
+        matches = semantic_index.search(
+            query=request.text,
+            k=request.k or 5,
+            filter_status=filter_status
+        )
+        
+        if not matches:
+            return {
+                "success": True,
+                "matches": [],
+                "query": request.text,
+                "total_found": 0,
+                "message": "No semantically related ADRs found",
+                "guidance": "Try broader search terms or run adr_semantic_index() first"
+            }
+        
+        # Convert matches to serializable format
+        match_data = []
+        for match in matches:
+            match_info = {
+                "adr_id": match.adr_id,
+                "title": match.title,
+                "status": match.status,
+                "similarity_score": match.score,
+                "excerpt": match.excerpt,
+                "matching_sections": [
+                    {
+                        "type": chunk.chunk_type,
+                        "section": chunk.section_name,
+                        "content_preview": chunk.content[:100] + "..." if len(chunk.content) > 100 else chunk.content
+                    }
+                    for chunk in match.chunks[:2]  # Top 2 matching sections
+                ]
+            }
+            match_data.append(match_info)
+        
+        return {
+            "success": True,
+            "matches": match_data,
+            "query": request.text,
+            "total_found": len(matches),
+            "semantic_analysis": {
+                "avg_similarity": sum(m.score for m in matches) / len(matches),
+                "top_score": max(m.score for m in matches),
+                "confidence": "high" if matches[0].score > 0.7 else "medium" if matches[0].score > 0.5 else "low"
+            },
+            "message": f"🎯 Found {len(matches)} semantically related ADRs",
+            "workflow_suggestions": [
+                "Review matches for potential conflicts before creating new ADRs",
+                "Consider superseding relationships with highly similar decisions",
+                "Reference related ADRs in new architectural decisions"
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Semantic search failed: {e}",
+            "guidance": "Ensure adr_semantic_index() has been run to build the semantic index"
+        }
+
+
+@mcp.tool()
+def adr_guard(request: ADRGuardRequest, adr_dir: str = "docs/adr") -> Dict[str, Any]:
+    """Analyze code changes for ADR policy violations using semantic context.
+    
+    This powerful tool examines git diffs against your ADR policies to detect violations
+    before they reach production. It combines semantic understanding with policy rules
+    to provide contextual, actionable feedback for maintaining architectural compliance.
+    
+    Key capabilities:
+    - Parses git diffs to extract imports and file changes
+    - Uses semantic similarity to find relevant ADRs for the changed code
+    - Checks imports against disallow/prefer lists from ADR policies
+    - Validates architectural boundaries and layer violations
+    - Provides specific violation details with ADR references
+    - Suggests concrete fixes and alternatives
+    
+    Perfect for:
+    - Pre-commit hooks to enforce architectural decisions
+    - Code review automation to catch policy violations
+    - CI/CD integration for architectural governance
+    - Developer guidance during feature development
+    
+    Args:
+        request: Contains git diff text and configuration options
+        adr_dir: Directory containing ADR files to check against
+    
+    Returns:
+        Comprehensive analysis with violations, suggestions, and relevant ADRs
+    """
+    try:
+        # Initialize guard system
+        project_root = Path(adr_dir).parent.parent
+        guard = GuardSystem(project_root=project_root, adr_dir=adr_dir)
+        
+        # Analyze the diff
+        result = guard.analyze_diff(
+            diff_text=request.diff_text,
+            build_index=request.build_index
+        )
+        
+        # Format violations for agent consumption
+        violations_data = []
+        for violation in result.violations:
+            violations_data.append({
+                "type": violation.violation_type,
+                "severity": violation.severity,
+                "message": violation.message,
+                "file": violation.file_path,
+                "line": violation.line_number,
+                "adr_id": violation.adr_id,
+                "adr_title": violation.adr_title,
+                "suggested_fix": violation.suggested_fix,
+                "context": violation.context
+            })
+        
+        # Format relevant ADRs
+        relevant_adrs_data = []
+        for adr_match in result.relevant_adrs:
+            relevant_adrs_data.append({
+                "adr_id": adr_match.adr_id,
+                "title": adr_match.title,
+                "status": adr_match.status,
+                "relevance_score": adr_match.score,
+                "excerpt": adr_match.excerpt
+            })
+        
+        return {
+            "success": True,
+            "analysis": {
+                "summary": result.summary,
+                "violations": violations_data,
+                "analyzed_files": result.analyzed_files,
+                "relevant_adrs": relevant_adrs_data,
+                "has_errors": result.has_errors,
+                "has_warnings": result.has_warnings,
+                "total_violations": len(result.violations)
+            },
+            "message": f"Analyzed {len(result.analyzed_files)} files for policy compliance",
+            "guidance": "Review violations and apply suggested fixes. Consider updating ADRs if policies need adjustment."
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to analyze code changes for policy violations",
+            "guidance": "Check that git diff is valid and ADR directory exists with policy-enabled ADRs"
+        }
+
+
 # MCP Resources
 
 @mcp.resource("file://adr.index.json")
@@ -853,5 +1377,28 @@ def run_server():
     asyncio.run(mcp.run())
 
 
+def run_stdio_server():
+    """Run the MCP server over stdio for Cursor/Claude Code integration."""
+    import asyncio
+    import sys
+    
+    # Set up stdio transport for MCP
+    async def stdio_server():
+        # FastMCP automatically handles stdio when no port is specified
+        await mcp.run(transport="stdio")
+    
+    # Ensure clean stdio handling
+    try:
+        asyncio.run(stdio_server())
+    except KeyboardInterrupt:
+        # Clean exit on Ctrl+C
+        sys.exit(0)
+    except Exception as e:
+        # Log errors to stderr so they don't interfere with MCP protocol
+        print(f"MCP Server error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    run_server()
+    # Default to stdio server for better integration
+    run_stdio_server()

@@ -14,10 +14,96 @@ from typing import Dict, List, Any, Union, Optional
 
 from ..core.parse import find_adr_files, parse_adr_file, ParseError
 from ..core.model import ADRStatus
+from ..core.policy_extractor import PolicyExtractor
+
+
+class StructuredESLintGenerator:
+    """Generate ESLint configuration from structured ADR policies."""
+    
+    def __init__(self):
+        self.policy_extractor = PolicyExtractor()
+    
+    def generate_eslint_config(self, adr_dir: str = "docs/adr") -> Dict[str, Any]:
+        """Generate complete ESLint configuration from all accepted ADRs.
+        
+        Args:
+            adr_dir: Directory containing ADR files
+            
+        Returns:
+            ESLint configuration dictionary
+        """
+        config = {
+            "rules": {},
+            "settings": {},
+            "env": {},
+            "extends": [],
+            "__adr_metadata": {
+                "generated_by": "ADR Kit",
+                "source_adrs": [],
+                "generation_timestamp": None
+            }
+        }
+        
+        # Find all ADR files
+        adr_files = find_adr_files(adr_dir)
+        accepted_adrs = []
+        
+        for file_path in adr_files:
+            try:
+                adr = parse_adr_file(file_path, strict=False)
+                if adr and adr.front_matter.status == ADRStatus.ACCEPTED:
+                    accepted_adrs.append(adr)
+            except ParseError:
+                continue
+        
+        # Extract policies and generate rules
+        banned_imports = []
+        preferred_mappings = {}
+        
+        for adr in accepted_adrs:
+            policy = self.policy_extractor.extract_policy(adr)
+            config["__adr_metadata"]["source_adrs"].append({
+                "id": adr.front_matter.id,
+                "title": adr.front_matter.title,
+                "file_path": str(adr.file_path) if adr.file_path else None
+            })
+            
+            # Process import policies
+            if policy.imports:
+                if policy.imports.disallow:
+                    for lib in policy.imports.disallow:
+                        banned_imports.append({
+                            "name": lib,
+                            "message": f"Use alternative instead of {lib} (per {adr.front_matter.id}: {adr.front_matter.title})",
+                            "adr_id": adr.front_matter.id
+                        })
+                
+                if policy.imports.prefer:
+                    for lib in policy.imports.prefer:
+                        preferred_mappings[lib] = adr.front_matter.id
+        
+        # Generate no-restricted-imports rule
+        if banned_imports:
+            config["rules"]["no-restricted-imports"] = [
+                "error",
+                {
+                    "paths": banned_imports
+                }
+            ]
+        
+        # Generate additional rules based on preferences
+        if preferred_mappings:
+            config["__adr_metadata"]["preferred_libraries"] = preferred_mappings
+        
+        # Add timestamp
+        from datetime import datetime
+        config["__adr_metadata"]["generation_timestamp"] = datetime.now().isoformat()
+        
+        return config
 
 
 class ESLintRuleExtractor:
-    """Extract ESLint rules from ADR content."""
+    """Extract ESLint rules from ADR content (legacy pattern-based approach)."""
     
     def __init__(self):
         # Common patterns for identifying banned imports/libraries
@@ -147,7 +233,9 @@ class ESLintRuleExtractor:
 
 
 def generate_eslint_config(adr_directory: Union[Path, str] = "docs/adr") -> str:
-    """Generate ESLint configuration from ADRs.
+    """Generate ESLint configuration from ADRs using hybrid approach.
+    
+    Uses structured policies first, falls back to pattern matching.
     
     Args:
         adr_directory: Directory containing ADR files
@@ -155,72 +243,62 @@ def generate_eslint_config(adr_directory: Union[Path, str] = "docs/adr") -> str:
     Returns:
         JSON string with ESLint configuration
     """
+    # Use structured policy generator (primary)
+    structured_generator = StructuredESLintGenerator()
+    config = structured_generator.generate_eslint_config(str(adr_directory))
+    
+    # Enhance with pattern-based extraction (backup for legacy ADRs)
     extractor = ESLintRuleExtractor()
     
-    # Find and parse all ADRs
+    # Enhance with legacy pattern-based extraction for ADRs without structured policies
+    additional_banned = set()
     adr_files = find_adr_files(adr_directory)
-    all_banned_imports = set()
-    preferred_imports = {}
-    custom_rules = []
     
     for file_path in adr_files:
         try:
             adr = parse_adr_file(file_path, strict=False)
-            if not adr:
+            if not adr or adr.front_matter.status != ADRStatus.ACCEPTED:
+                continue
+            
+            # Skip if already has structured policy
+            if adr.front_matter.policy and adr.front_matter.policy.imports:
                 continue
                 
+            # Use pattern extraction for legacy ADRs
             rules = extractor.extract_from_adr(adr)
-            
-            # Collect banned imports
-            all_banned_imports.update(rules["banned_imports"])
-            
-            # Collect preferred imports
-            preferred_imports.update(rules["preferred_imports"])
-            
-            # Collect custom rules
-            custom_rules.extend(rules["custom_rules"])
+            additional_banned.update(rules["banned_imports"])
             
         except ParseError:
             continue
     
-    # Build ESLint configuration
-    eslint_config = {
-        "rules": {},
-        "overrides": []
-    }
-    
-    # Add import restrictions if any banned imports found
-    if all_banned_imports:
+    # Merge additional pattern-based rules into structured config
+    if additional_banned and "no-restricted-imports" in config["rules"]:
+        existing_paths = config["rules"]["no-restricted-imports"][1]["paths"]
+        existing_names = {item["name"] for item in existing_paths}
+        
+        for lib in additional_banned:
+            if lib not in existing_names:
+                existing_paths.append({
+                    "name": lib,
+                    "message": f"Import of '{lib}' is not allowed (extracted from ADR content)"
+                })
+    elif additional_banned:
+        # No structured rules, use pattern-based only
         banned_patterns = []
-        for lib in all_banned_imports:
+        for lib in additional_banned:
             banned_patterns.append({
                 "name": lib,
                 "message": f"Import of '{lib}' is not allowed according to ADR decisions"
             })
-        
-        eslint_config["rules"]["no-restricted-imports"] = [
+        config["rules"]["no-restricted-imports"] = [
             "error",
             {
                 "paths": banned_patterns
             }
         ]
     
-    # Add custom rules
-    for rule in custom_rules:
-        eslint_config["rules"][rule["rule"]] = rule["severity"]
-    
-    # Add comment explaining the configuration
-    config_with_comments = {
-        "_comment": "This ESLint configuration was generated from ADR decisions. Do not edit manually.",
-        "_adr_source": str(adr_directory),
-        "_generated_rules": {
-            "banned_imports": list(all_banned_imports),
-            "preferred_imports": preferred_imports
-        },
-        **eslint_config
-    }
-    
-    return json.dumps(config_with_comments, indent=2)
+    # Return the enhanced configuration as JSON
+    return json.dumps(config, indent=2)
 
 
 def generate_eslint_overrides(adr_directory: Union[Path, str] = "docs/adr") -> Dict[str, Any]:
