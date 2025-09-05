@@ -29,6 +29,9 @@ from ..index.json_index import generate_adr_index, ADRIndex
 from ..index.sqlite_index import generate_sqlite_index, ADRSQLiteIndex
 from ..enforce.eslint import generate_eslint_config, StructuredESLintGenerator
 from ..enforce.ruff import generate_ruff_config, generate_import_linter_config
+from ..contract import ConstraintsContractBuilder, ContractBuildError
+from ..gate import PolicyGate, GateDecision, TechnicalChoice, create_technical_choice
+from ..context import PlanningContext, PlanningConfig, TaskHint
 
 
 # Pydantic models for MCP tool parameters
@@ -84,6 +87,62 @@ class ADRGuardRequest(BaseModel):
     """Request for ADR policy guard analysis of code changes."""
     diff_text: str = Field(..., description="Git diff output to analyze for policy violations")
     build_index: bool = Field(True, description="Whether to rebuild the semantic index before analysis")
+
+
+class ADRContractRequest(BaseModel):
+    """Request for constraints contract operations."""
+    force_rebuild: Optional[bool] = Field(False, description="Force rebuild contract from scratch")
+    adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
+
+
+class ADRContractValidateRequest(BaseModel):
+    """Request for validating a policy against the current contract."""
+    policy: dict = Field(..., description="Policy data to validate")
+    adr_id: str = Field(..., description="ADR ID for the policy being validated")
+    adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
+
+
+class ADRPreflightRequest(BaseModel):
+    """Request for preflight evaluation of a technical choice."""
+    choice_name: str = Field(..., description="Name of the technical choice (e.g., 'react', 'axios')")
+    context: str = Field(..., description="Context or reason for this choice")
+    choice_type: Optional[str] = Field("dependency", description="Type of choice: dependency, framework, tool, etc.")
+    ecosystem: Optional[str] = Field("npm", description="Package ecosystem (npm, pypi, gem, etc.)")
+    is_dev_dependency: Optional[bool] = Field(False, description="Whether this is a development dependency")
+    alternatives_considered: Optional[List[str]] = Field(None, description="Other options that were considered")
+    adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
+
+
+class ADRPreflightBulkRequest(BaseModel):
+    """Request for bulk preflight evaluation of multiple choices."""
+    choices: List[Dict[str, Any]] = Field(..., description="List of technical choices to evaluate")
+    context: str = Field(..., description="Overall context for these choices")
+    adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
+
+
+class ADRGateConfigRequest(BaseModel):
+    """Request for gate configuration operations."""
+    action: str = Field(..., description="Action: 'get', 'update', 'reset'")
+    config_updates: Optional[Dict[str, Any]] = Field(None, description="Configuration updates")
+    adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
+
+
+class ADRPlanningContextRequest(BaseModel):
+    """Request for planning context generation."""
+    task_description: str = Field(..., description="What the agent is trying to accomplish")
+    changed_files: Optional[List[str]] = Field(None, description="Files being modified")
+    technologies_mentioned: Optional[List[str]] = Field(None, description="Technologies mentioned in task")
+    task_type: Optional[str] = Field(None, description="Type of task: feature, bugfix, refactor, etc.")
+    priority: Optional[str] = Field("medium", description="Task priority: low, medium, high, critical")
+    max_relevant_adrs: Optional[int] = Field(5, description="Maximum number of relevant ADRs to include")
+    max_tokens: Optional[int] = Field(800, description="Maximum token budget for context packet")
+    adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
+
+
+class ADRPlanningBulkRequest(BaseModel):
+    """Request for bulk planning context generation."""
+    tasks: List[Dict[str, Any]] = Field(..., description="List of task descriptions and metadata")
+    adr_dir: Optional[str] = Field("docs/adr", description="ADR directory")
 
 
 def load_adr_template() -> str:
@@ -1352,6 +1411,1045 @@ def adr_guard(request: ADRGuardRequest, adr_dir: str = "docs/adr") -> Dict[str, 
             "message": "Failed to analyze code changes for policy violations",
             "guidance": "Check that git diff is valid and ADR directory exists with policy-enabled ADRs"
         }
+
+
+@mcp.tool()
+def adr_contract_build(request: ADRContractRequest) -> Dict[str, Any]:
+    """Build the unified constraints contract from all accepted ADRs.
+    
+    🎯 THE KEYSTONE TOOL: Creates constraints_accepted.json - the single source of truth
+    that agents use for all architectural decisions. This is the most important tool
+    for establishing deterministic policy enforcement.
+    
+    💡 WHEN TO USE:
+    - After approving new ADRs (adr_approve()) to update the contract
+    - When setting up a new project to establish baseline constraints
+    - After superseding ADRs to reflect new architectural decisions
+    - To check current contract status and constraint counts
+    - For debugging policy conflicts or enforcement issues
+    
+    ⚡ AUTOMATICALLY HANDLES:
+    - Finds all accepted ADRs in the specified directory
+    - Merges policies using "deny beats allow" conflict resolution
+    - Respects supersede relationships (topological ordering)
+    - Generates SHA-256 hash for change detection
+    - Caches results for performance (rebuilt only when ADRs change)
+    - Creates provenance mapping (each rule → source ADR)
+    
+    🔒 CONFLICT RESOLUTION:
+    - Import conflicts: disallow beats prefer (safety first)
+    - Boundary conflicts: later ADRs override earlier ones
+    - Unresolvable conflicts cause build failure with clear error messages
+    
+    📊 RETURNS:
+    - Contract metadata: hash, generation time, source ADRs
+    - Constraint counts: imports, boundaries, Python rules
+    - Cache information: hit/miss, performance metrics
+    - Success/failure status with actionable error messages
+    
+    Args:
+        request: Configuration for contract building
+        
+    Returns:
+        Complete contract status with metadata, counts, and guidance
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        builder = ConstraintsContractBuilder(adr_dir)
+        
+        # Build/rebuild the contract
+        contract = builder.build_contract(force_rebuild=request.force_rebuild)
+        summary = builder.get_contract_summary()
+        
+        # Get the contract file path for agent reference
+        contract_path = builder.get_contract_file_path()
+        
+        return {
+            "success": True,
+            "contract": {
+                "file_path": str(contract_path),
+                "hash": contract.metadata.hash,
+                "generated_at": contract.metadata.generated_at.isoformat(),
+                "source_adrs": contract.metadata.source_adrs,
+                "constraints_count": {
+                    "total": sum([
+                        len(contract.constraints.imports.disallow) if contract.constraints.imports and contract.constraints.imports.disallow else 0,
+                        len(contract.constraints.imports.prefer) if contract.constraints.imports and contract.constraints.imports.prefer else 0,
+                        len(contract.constraints.boundaries.rules) if contract.constraints.boundaries and contract.constraints.boundaries.rules else 0,
+                        len(contract.constraints.python.disallow_imports) if contract.constraints.python and contract.constraints.python.disallow_imports else 0
+                    ]),
+                    "imports_disallow": len(contract.constraints.imports.disallow) if contract.constraints.imports and contract.constraints.imports.disallow else 0,
+                    "imports_prefer": len(contract.constraints.imports.prefer) if contract.constraints.imports and contract.constraints.imports.prefer else 0,
+                    "boundary_rules": len(contract.constraints.boundaries.rules) if contract.constraints.boundaries and contract.constraints.boundaries.rules else 0,
+                    "python_disallow": len(contract.constraints.python.disallow_imports) if contract.constraints.python and contract.constraints.python.disallow_imports else 0
+                }
+            },
+            "cache_info": summary.get("cache_info", {}),
+            "message": f"✅ Built constraints contract from {len(contract.metadata.source_adrs)} accepted ADRs",
+            "guidance": [
+                f"Contract available at {contract_path} - this is your definitive policy source",
+                "Use this contract hash for change detection in CI/automation",
+                "All agent decisions should reference this contract, not individual ADRs",
+                f"Run adr_export_lint_config() to apply {summary.get('total_constraints', 0)} constraints as lint rules"
+            ]
+        }
+        
+    except ContractBuildError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": "ContractBuildError",
+            "message": "❌ Contract build failed due to policy conflicts",
+            "guidance": [
+                "Review the conflicting ADRs listed in the error",
+                "Consider superseding older ADRs that conflict with newer decisions",
+                "Use explicit policy precedence in newer ADRs to resolve conflicts",
+                "Check that ADR relationships (supersedes/superseded_by) are correctly set"
+            ]
+        }
+    
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Contract building failed",
+            "guidance": [
+                "Ensure ADR directory exists and contains valid ADRs",
+                "Check that accepted ADRs have valid policy front-matter",
+                "Verify file permissions allow reading ADRs and writing cache"
+            ]
+        }
+
+
+@mcp.tool() 
+def adr_contract_validate_policy(request: ADRContractValidateRequest) -> Dict[str, Any]:
+    """Validate a policy against the current constraints contract.
+    
+    🎯 PROACTIVE CONFLICT PREVENTION: Check if a new policy would conflict with 
+    existing architectural decisions BEFORE creating or accepting an ADR.
+    
+    💡 WHEN TO USE:
+    - Before adr_create() when policy is included - prevent conflicts upfront
+    - During ADR review process to validate policy compatibility  
+    - When updating existing ADRs to ensure no new conflicts
+    - For policy design guidance - understand current constraint landscape
+    
+    🔍 VALIDATION CHECKS:
+    - Import conflicts: new disallow vs existing prefer (and vice versa)
+    - Boundary conflicts: architectural layer violations
+    - Python-specific conflicts: import restrictions
+    - Supersede relationship impacts on policy precedence
+    
+    ⚡ AUTOMATICALLY HANDLES:
+    - Loads current constraints_accepted.json contract
+    - Parses and validates policy structure
+    - Identifies specific conflicting rules with source ADR references
+    - Provides actionable resolution suggestions
+    
+    📊 RETURNS:
+    - Validation status: valid/invalid with detailed conflict descriptions
+    - Conflicting ADR references: which decisions would be violated
+    - Resolution suggestions: how to resolve conflicts
+    - Current contract hash: for cache validation
+    
+    Args:
+        request: Policy data and ADR ID to validate
+        
+    Returns:
+        Detailed validation results with conflict resolution guidance
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        builder = ConstraintsContractBuilder(adr_dir)
+        
+        # Validate the policy
+        validation_result = builder.validate_new_policy(request.policy, request.adr_id)
+        
+        if validation_result["valid"]:
+            return {
+                "success": True,
+                "valid": True,
+                "conflicts": [],
+                "contract_hash": validation_result["contract_hash"],
+                "message": f"✅ Policy for {request.adr_id} is compatible with existing constraints",
+                "guidance": [
+                    "Policy validation passed - no conflicts detected",
+                    "Safe to proceed with ADR creation/acceptance",
+                    "Policy will be included in next contract rebuild"
+                ]
+            }
+        else:
+            return {
+                "success": True,
+                "valid": False,
+                "conflicts": validation_result["conflicts"],
+                "contract_hash": validation_result["contract_hash"],
+                "message": f"❌ Policy conflicts detected for {request.adr_id}",
+                "guidance": [
+                    "Review conflicts and consider policy modifications",
+                    "Use supersede relationships to override conflicting decisions",
+                    "Consider if existing ADRs should be deprecated/superseded",
+                    "Ensure policy precedence is clearly established"
+                ]
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "valid": False,
+            "message": "Policy validation failed",
+            "guidance": [
+                "Check that policy structure matches PolicyModel schema",
+                "Ensure constraints contract exists (run adr_contract_build())",
+                "Verify ADR directory path and permissions"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_contract_status(request: ADRContractRequest) -> Dict[str, Any]:
+    """Get current status and metadata of the constraints contract.
+    
+    🎯 CONTRACT VISIBILITY: Understand the current state of your architectural
+    constraints without rebuilding. Perfect for debugging and status checking.
+    
+    💡 WHEN TO USE:
+    - Before making architectural decisions to understand current constraints
+    - For debugging policy enforcement issues  
+    - To check if contract needs rebuilding (hash changed)
+    - For CI/CD status reporting on architectural governance
+    - When investigating why certain policies aren't being enforced
+    
+    ⚡ PROVIDES:
+    - Contract metadata: hash, generation time, source ADRs
+    - Constraint statistics: counts by type (imports, boundaries, Python)
+    - Cache status: hit/miss rates, performance metrics  
+    - File locations: where contract and cache files are stored
+    - Validation status: are all constraints properly formed
+    
+    📊 RETURNS:
+    - Complete contract summary with all metadata
+    - Actionable guidance based on current state
+    - Performance and caching information
+    - File paths for manual inspection if needed
+    
+    Args:
+        request: Configuration for status checking
+        
+    Returns:
+        Comprehensive contract status and metadata
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        builder = ConstraintsContractBuilder(adr_dir)
+        
+        # Get comprehensive status
+        summary = builder.get_contract_summary()
+        contract_path = builder.get_contract_file_path()
+        
+        if summary["success"]:
+            return {
+                "success": True,
+                "contract": {
+                    "exists": contract_path.exists(),
+                    "file_path": str(contract_path),
+                    "hash": summary["contract_hash"],
+                    "generated_at": summary["generated_at"],
+                    "source_adrs": summary["source_adrs"]
+                },
+                "constraints": summary["constraint_counts"],
+                "statistics": {
+                    "total_constraints": summary["total_constraints"],
+                    "source_adr_count": len(summary["source_adrs"]),
+                    "provenance_entries": summary["provenance_entries"]
+                },
+                "cache": summary["cache_info"],
+                "message": f"📊 Contract contains {summary['total_constraints']} constraints from {len(summary['source_adrs'])} ADRs",
+                "guidance": [
+                    f"Contract hash: {summary['contract_hash'][:8]}... (use for change detection)",
+                    f"Source ADRs: {', '.join(summary['source_adrs'])}",
+                    "Use adr_contract_build() to rebuild if ADRs have changed",
+                    "Reference this contract for all architectural decisions"
+                ]
+            }
+        else:
+            return {
+                "success": False,
+                "error": summary.get("error", "Unknown error"),
+                "cache": summary.get("cache_info", {}),
+                "message": "Contract status check failed",
+                "guidance": [
+                    "Run adr_contract_build() to create initial contract",
+                    "Ensure ADR directory exists and contains accepted ADRs",
+                    "Check file permissions for cache directory"
+                ]
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to get contract status",
+            "guidance": [
+                "Verify ADR directory path is correct",
+                "Ensure sufficient permissions to read ADR files",
+                "Check that ADR directory structure is properly initialized"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_preflight(request: ADRPreflightRequest) -> Dict[str, Any]:
+    """Evaluate a technical choice through the preflight policy gate.
+    
+    🎯 THE CONTROL POINT: This is where agents check if a technical decision
+    requires human approval BEFORE implementation. The gate prevents policy
+    violations and ensures architectural decisions follow the established
+    governance process.
+    
+    💡 WHEN TO USE (CRITICAL - USE THIS FIRST):
+    - BEFORE adding any new dependency to package.json/requirements.txt/etc.
+    - BEFORE adopting a new framework or major library
+    - BEFORE making any significant technical choice
+    - When user mentions "use X", "switch to Y", "try Z", "install ABC"
+    - For ANY choice that could affect architecture or team standards
+    
+    ⚡ AUTOMATICALLY HANDLES:
+    - Checks against existing constraints contract (constraints_accepted.json)
+    - Applies "require ADR" default for runtime dependencies
+    - Categorizes choices (dependency/framework/tool) with smart defaults
+    - Normalizes names and handles aliases (react-query → @tanstack/react-query)
+    - Detects conflicts with existing ADR policies
+    - Provides clear guidance: PROCEED, DRAFT ADR, or BLOCKED
+    
+    🔍 EVALUATION LOGIC:
+    1. Always-allow list: Proceed immediately (dev tools, pre-approved choices)
+    2. Always-deny list: Block immediately (banned libraries/patterns)
+    3. Contract conflicts: Block if conflicts with accepted ADR policies
+    4. Default policies: Apply "require ADR" for runtime deps/frameworks
+    
+    📊 RETURNS:
+    - Clear decision: ALLOWED, REQUIRES_ADR, BLOCKED, or CONFLICT
+    - Human-readable reasoning explaining the decision
+    - Agent guidance: specific next steps based on decision
+    - Metadata: choice category, normalized name, evaluation details
+    
+    🚀 AGENT WORKFLOW:
+    ```
+    result = adr_preflight({
+        "choice_name": "axios", 
+        "context": "need HTTP client for API calls",
+        "choice_type": "dependency"
+    })
+    
+    if result.should_proceed:
+        # ✅ Implement immediately
+    elif result.requires_human_approval:
+        # 🛑 Draft ADR first: adr_create() with the choice details
+    else:
+        # ❌ Blocked - find alternative or update existing ADRs
+    ```
+    
+    Args:
+        request: Technical choice details and context
+        
+    Returns:
+        Gate evaluation result with decision and actionable guidance
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        gate = PolicyGate(adr_dir)
+        
+        # Create technical choice from request
+        choice = create_technical_choice(
+            choice_type=request.choice_type,
+            name=request.choice_name,
+            context=request.context,
+            ecosystem=request.ecosystem,
+            is_dev_dependency=request.is_dev_dependency,
+            alternatives_considered=request.alternatives_considered or []
+        )
+        
+        # Evaluate through the gate
+        result = gate.evaluate(choice)
+        
+        # Get recommendations for context
+        recommendations = gate.get_recommendations_for_choice(request.choice_name)
+        
+        # Build response with clear agent guidance
+        response = {
+            "success": True,
+            "decision": result.decision.value,
+            "should_proceed": result.should_proceed,
+            "requires_human_approval": result.requires_human_approval, 
+            "is_blocked": result.is_blocked,
+            "choice": {
+                "name": result.choice.name,
+                "type": result.choice.choice_type.value,
+                "context": result.choice.context,
+                "category": result.metadata.get("category"),
+                "normalized_name": result.metadata.get("normalized_name")
+            },
+            "reasoning": result.reasoning,
+            "agent_guidance": result.get_agent_guidance(),
+            "recommendations": recommendations,
+            "evaluated_at": result.evaluated_at.isoformat()
+        }
+        
+        # Add decision-specific guidance
+        if result.decision == GateDecision.ALLOWED:
+            response["message"] = f"✅ '{request.choice_name}' approved - you may proceed"
+            response["next_steps"] = [
+                "Implement the choice as planned",
+                "Document the implementation in code comments if needed",
+                "Consider if this choice should be added to preferred alternatives"
+            ]
+        
+        elif result.decision == GateDecision.REQUIRES_ADR:
+            response["message"] = f"🛑 '{request.choice_name}' requires ADR approval first"
+            response["next_steps"] = [
+                "Use adr_create() to draft an ADR for this choice",
+                "Include the context and alternatives in the ADR",
+                "Request human review and approval",
+                "DO NOT implement until ADR is accepted"
+            ]
+        
+        elif result.decision == GateDecision.BLOCKED:
+            response["message"] = f"❌ '{request.choice_name}' is blocked by policy"
+            response["next_steps"] = [
+                "Do not implement this choice",
+                "Consider the recommended alternatives",
+                "If strongly needed, discuss with team lead to update policies"
+            ]
+        
+        elif result.decision == GateDecision.CONFLICT:
+            response["message"] = f"⚠️ '{request.choice_name}' conflicts with existing ADRs"
+            response["next_steps"] = [
+                "Review the conflicting ADR policies listed",
+                "Use the recommended alternatives if suitable",
+                "If this choice is truly needed, consider superseding conflicting ADRs",
+                "Draft ADR explaining why existing decisions should be changed"
+            ]
+        
+        return response
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "decision": "error",
+            "message": "Preflight evaluation failed",
+            "agent_guidance": "Unable to evaluate choice - check ADR directory and try again",
+            "guidance": [
+                "Ensure ADR directory exists and is accessible",
+                "Check that policy gate configuration is valid",
+                "Verify choice name and type are provided correctly"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_preflight_bulk(request: ADRPreflightBulkRequest) -> Dict[str, Any]:
+    """Evaluate multiple technical choices through the preflight gate.
+    
+    🎯 BULK EVALUATION: Perfect for evaluating entire dependency lists,
+    technology stacks, or multiple related choices in one operation.
+    
+    💡 WHEN TO USE:
+    - Planning a new project with multiple dependencies
+    - Evaluating an existing project's dependencies against new policies
+    - Technology stack decisions (frontend + backend + database + tools)
+    - Migration scenarios where multiple choices change together
+    - Reviewing package.json, requirements.txt, or similar manifests
+    
+    📊 RETURNS:
+    - Individual results for each choice with decisions and guidance
+    - Summary statistics: allowed/blocked/requiring ADR counts
+    - Batch recommendations for addressing blocked or conflicting choices
+    - Prioritized action list for choices requiring ADRs
+    
+    Args:
+        request: List of technical choices and overall context
+        
+    Returns:
+        Bulk evaluation results with summary and individual decisions
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        gate = PolicyGate(adr_dir)
+        
+        results = []
+        summary = {
+            "total": len(request.choices),
+            "allowed": 0,
+            "requires_adr": 0,
+            "blocked": 0,
+            "conflicts": 0,
+            "errors": 0
+        }
+        
+        # Evaluate each choice
+        for choice_data in request.choices:
+            try:
+                # Create technical choice
+                choice = create_technical_choice(
+                    choice_type=choice_data.get("choice_type", "dependency"),
+                    name=choice_data["choice_name"],
+                    context=choice_data.get("context", request.context),
+                    **{k: v for k, v in choice_data.items() 
+                       if k not in ["choice_name", "choice_type", "context"]}
+                )
+                
+                # Evaluate
+                result = gate.evaluate(choice)
+                
+                # Add to results
+                results.append({
+                    "choice_name": choice_data["choice_name"],
+                    "decision": result.decision.value,
+                    "reasoning": result.reasoning,
+                    "should_proceed": result.should_proceed,
+                    "requires_human_approval": result.requires_human_approval,
+                    "is_blocked": result.is_blocked,
+                    "agent_guidance": result.get_agent_guidance(),
+                    "metadata": result.metadata
+                })
+                
+                # Update summary
+                if result.decision == GateDecision.ALLOWED:
+                    summary["allowed"] += 1
+                elif result.decision == GateDecision.REQUIRES_ADR:
+                    summary["requires_adr"] += 1
+                elif result.decision == GateDecision.BLOCKED:
+                    summary["blocked"] += 1
+                elif result.decision == GateDecision.CONFLICT:
+                    summary["conflicts"] += 1
+                    
+            except Exception as e:
+                results.append({
+                    "choice_name": choice_data.get("choice_name", "unknown"),
+                    "decision": "error", 
+                    "reasoning": f"Evaluation failed: {e}",
+                    "error": str(e)
+                })
+                summary["errors"] += 1
+        
+        # Generate action recommendations
+        action_plan = []
+        if summary["requires_adr"] > 0:
+            action_plan.append(f"📋 Draft {summary['requires_adr']} ADRs for choices requiring approval")
+        if summary["blocked"] > 0:
+            action_plan.append(f"🚫 Review {summary['blocked']} blocked choices - find alternatives")
+        if summary["conflicts"] > 0:
+            action_plan.append(f"⚠️ Resolve {summary['conflicts']} policy conflicts")
+        if summary["allowed"] > 0:
+            action_plan.append(f"✅ Proceed with {summary['allowed']} approved choices")
+        
+        return {
+            "success": True,
+            "results": results,
+            "summary": summary,
+            "action_plan": action_plan,
+            "message": f"Evaluated {summary['total']} choices: {summary['allowed']} approved, {summary['requires_adr']} need ADR, {summary['blocked']} blocked",
+            "guidance": [
+                "Review individual choice results for specific guidance",
+                "Prioritize ADR creation for choices marked 'requires_adr'",
+                "Address blocked/conflicting choices before proceeding",
+                "Document approval reasoning in ADRs for future reference"
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Bulk preflight evaluation failed",
+            "guidance": [
+                "Check that all choices have required fields",
+                "Ensure ADR directory is accessible",
+                "Verify choice data format is correct"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_gate_config(request: ADRGateConfigRequest) -> Dict[str, Any]:
+    """Manage preflight gate configuration.
+    
+    🎯 POLICY CONTROL: Configure the preflight gate's behavior, default
+    policies, allow/deny lists, and categorization rules.
+    
+    💡 WHEN TO USE:
+    - Initial project setup: configure default policies
+    - Add frequently used libraries to allow-list
+    - Block problematic libraries/patterns
+    - Adjust policies as project evolves
+    - Debug gate decisions by checking current configuration
+    
+    🔧 CONFIGURATION OPTIONS:
+    - Default policies: require_adr (default), allowed, blocked
+    - Allow/deny lists: explicit overrides for specific choices
+    - Development tools: typically allowed without ADR
+    - Categories: how choices are classified
+    - Name mappings: normalize aliases and variants
+    
+    Args:
+        request: Configuration action and optional updates
+        
+    Returns:
+        Current configuration state and update results
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        gate = PolicyGate(adr_dir)
+        
+        if request.action == "get":
+            # Return current configuration
+            status = gate.get_gate_status()
+            return {
+                "success": True,
+                "action": "get",
+                "configuration": status,
+                "message": "Current gate configuration retrieved",
+                "guidance": [
+                    "Review default policies for different choice types",
+                    "Check allow/deny lists for explicit overrides",
+                    "Verify development tools are properly categorized",
+                    "Use 'update' action to modify configuration"
+                ]
+            }
+        
+        elif request.action == "update":
+            if not request.config_updates:
+                return {
+                    "success": False,
+                    "error": "No configuration updates provided",
+                    "message": "Update action requires config_updates"
+                }
+            
+            # Apply configuration updates
+            updates_applied = []
+            
+            # Update allow list
+            if "add_to_allow" in request.config_updates:
+                for choice in request.config_updates["add_to_allow"]:
+                    gate.engine.add_to_allow_list(choice)
+                    updates_applied.append(f"Added '{choice}' to allow list")
+            
+            # Update deny list
+            if "add_to_deny" in request.config_updates:
+                for choice in request.config_updates["add_to_deny"]:
+                    gate.engine.add_to_deny_list(choice)
+                    updates_applied.append(f"Added '{choice}' to deny list")
+            
+            # Update default policies
+            if "default_policies" in request.config_updates:
+                for choice_type, policy in request.config_updates["default_policies"].items():
+                    gate.engine.update_default_policy(choice_type, GateDecision(policy))
+                    updates_applied.append(f"Updated default {choice_type} policy to {policy}")
+            
+            return {
+                "success": True,
+                "action": "update",
+                "updates_applied": updates_applied,
+                "configuration": gate.get_gate_status(),
+                "message": f"Applied {len(updates_applied)} configuration updates",
+                "guidance": [
+                    "Configuration changes take effect immediately",
+                    "Test updated policies with adr_preflight()",
+                    "Document significant policy changes in ADRs"
+                ]
+            }
+        
+        elif request.action == "reset":
+            # Reset to default configuration
+            # This would require implementing a reset method
+            return {
+                "success": False,
+                "error": "Reset action not yet implemented",
+                "message": "Configuration reset is not available in this version",
+                "guidance": [
+                    "Manually delete .adr/policy.json to reset to defaults",
+                    "Use 'update' action to modify specific settings"
+                ]
+            }
+        
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown action: {request.action}",
+                "message": "Valid actions are: get, update, reset"
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Gate configuration operation failed",
+            "guidance": [
+                "Ensure ADR directory exists and is writable", 
+                "Check that configuration updates are valid",
+                "Verify action parameter is correct"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_planning_context(request: ADRPlanningContextRequest) -> Dict[str, Any]:
+    """Generate curated planning context for specific tasks.
+    
+    🎯 THE PLANNING REVOLUTION: Instead of agents searching through all ADRs,
+    this tool provides exactly what they need: constraints + relevant decisions
+    + contextual guidance, all optimized for the specific task at hand.
+    
+    💡 WHEN TO USE (CRITICAL - USE AT START OF PLANNING):
+    - Beginning any new feature, bugfix, or refactor work
+    - When user describes what they want to accomplish
+    - Before making architectural decisions or technical choices
+    - When you need to understand "what do I need to know for this task?"
+    - After running preflight checks and needing detailed context
+    
+    ⚡ AUTOMATICALLY HANDLES:
+    - Analyzes task to understand architectural scope and requirements
+    - Loads current constraints contract for hard rules
+    - Ranks ALL ADRs by relevance to this specific task
+    - Curates shortlist of most relevant decisions (3-5 ADRs max)
+    - Generates contextual guidance specific to task type and complexity
+    - Optimizes for token efficiency (target: 800 tokens)
+    - Creates agent-ready prompt with actionable guidance
+    
+    🔍 INTELLIGENCE LAYERS:
+    1. Task Analysis: Understands what you're trying to accomplish
+    2. Technology Detection: Identifies relevant tech stack components
+    3. Relevance Ranking: Scores ADRs by overlap with task requirements
+    4. Context Curation: Selects most important architectural guidance
+    5. Guidance Generation: Creates specific promptlets for the task
+    6. Token Optimization: Fits within agent working memory limits
+    
+    📊 RETURNS:
+    - Hard constraints: Non-negotiable rules from constraints contract
+    - Relevant ADRs: 3-5 most important decisions with summaries
+    - Contextual guidance: Task-specific instructions and warnings
+    - Agent-ready prompt: Formatted for direct use in agent context
+    - Token count: Estimated usage for budget management
+    
+    🚀 AGENT WORKFLOW TRANSFORMATION:
+    ```
+    # OLD WAY - Overwhelming
+    results = search_all_adrs("authentication")  # 50+ results
+    agent_struggles_to_understand_what_matters()
+    
+    # NEW WAY - Curated Intelligence  
+    context = adr_planning_context({
+        "task_description": "implement OAuth2 login flow",
+        "technologies_mentioned": ["react", "oauth2", "jwt"]
+    })
+    # Gets exactly what's needed:
+    # - "Don't use basic auth (ADR-0003)"
+    # - "JWT structure defined in ADR-0007" 
+    # - "OAuth provider preference: Auth0 (ADR-0012)"
+    # - Focused, actionable, complete
+    ```
+    
+    Args:
+        request: Task details and configuration options
+        
+    Returns:
+        Curated context packet with constraints, relevant ADRs, and guidance
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        
+        # Create planning context service
+        config = PlanningConfig(
+            adr_dir=adr_dir,
+            max_relevant_adrs=request.max_relevant_adrs,
+            max_token_budget=request.max_tokens
+        )
+        planner = PlanningContext(config)
+        
+        # Create task hint
+        task_hint = TaskHint(
+            task_description=request.task_description,
+            changed_files=request.changed_files,
+            technologies_mentioned=request.technologies_mentioned,
+            task_type=request.task_type,
+            priority=request.priority
+        )
+        
+        # Generate context packet
+        context_packet = planner.create_context_packet(task_hint)
+        
+        # Format response with rich context
+        return {
+            "success": True,
+            "context_packet": {
+                "task_description": context_packet.task_description,
+                "task_type": context_packet.task_type,
+                "hard_constraints": context_packet.hard_constraints,
+                "relevant_adrs": [
+                    {
+                        "id": adr.id,
+                        "title": adr.title,
+                        "status": adr.status.value,
+                        "summary": adr.summary,
+                        "relevance_score": adr.relevance_score,
+                        "relevance_reason": adr.relevance_reason,
+                        "key_constraints": adr.key_constraints,
+                        "related_technologies": adr.related_technologies
+                    }
+                    for adr in context_packet.relevant_adrs
+                ],
+                "guidance": [
+                    {
+                        "type": g.guidance_type,
+                        "priority": g.priority,
+                        "message": g.message,
+                        "source_adrs": g.source_adrs,
+                        "actionable": g.actionable
+                    }
+                    for g in context_packet.guidance
+                ],
+                "summary": context_packet.summary,
+                "token_estimate": context_packet.token_estimate,
+                "contract_hash": context_packet.contract_hash
+            },
+            "agent_prompt": context_packet.to_agent_prompt(),
+            "cited_adrs": context_packet.get_cited_adrs(),
+            "statistics": {
+                "total_relevant_adrs": len(context_packet.relevant_adrs),
+                "guidance_items": len(context_packet.guidance),
+                "hard_constraints": len(context_packet.hard_constraints),
+                "token_usage": context_packet.token_estimate,
+                "token_budget": request.max_tokens
+            },
+            "message": f"📋 Generated context for '{request.task_description}' with {len(context_packet.relevant_adrs)} relevant ADRs",
+            "workflow_guidance": [
+                "Use the agent_prompt directly in your planning context",
+                "Reference cited_adrs for detailed information when needed",
+                "Follow hard_constraints as non-negotiable requirements",
+                "Apply contextual guidance based on priority levels",
+                f"Token usage: {context_packet.token_estimate}/{request.max_tokens}"
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to generate planning context",
+            "guidance": [
+                "Ensure ADR directory exists and contains valid ADRs",
+                "Check that task description is clear and specific",
+                "Verify file paths in changed_files are valid if provided",
+                "Consider reducing max_relevant_adrs if encountering issues"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_planning_bulk(request: ADRPlanningBulkRequest) -> Dict[str, Any]:
+    """Generate planning context for multiple related tasks.
+    
+    🎯 BATCH PLANNING: Perfect for planning complex features with multiple
+    sub-tasks, or understanding architectural context across related work items.
+    
+    💡 WHEN TO USE:
+    - Planning complex features broken into multiple tasks
+    - Understanding context across related user stories or tickets
+    - Batch processing multiple development work items
+    - Getting consistent architectural guidance across a project phase
+    
+    📊 RETURNS:
+    - Individual context packets for each task
+    - Consolidated guidance across all tasks
+    - Common constraints that apply to all tasks
+    - Optimization recommendations for related work
+    
+    Args:
+        request: List of tasks and their details
+        
+    Returns:
+        Bulk context results with individual and consolidated guidance
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        config = PlanningConfig(adr_dir=adr_dir)
+        planner = PlanningContext(config)
+        
+        context_packets = []
+        all_cited_adrs = set()
+        all_technologies = set()
+        
+        # Generate context for each task
+        for task_data in request.tasks:
+            task_hint = TaskHint(
+                task_description=task_data["task_description"],
+                changed_files=task_data.get("changed_files"),
+                technologies_mentioned=task_data.get("technologies_mentioned"),
+                task_type=task_data.get("task_type"),
+                priority=task_data.get("priority", "medium")
+            )
+            
+            try:
+                context_packet = planner.create_context_packet(task_hint)
+                context_packets.append({
+                    "task_description": task_data["task_description"],
+                    "context_packet": context_packet,
+                    "success": True
+                })
+                all_cited_adrs.update(context_packet.get_cited_adrs())
+                for adr in context_packet.relevant_adrs:
+                    all_technologies.update(adr.related_technologies)
+                    
+            except Exception as e:
+                context_packets.append({
+                    "task_description": task_data["task_description"],
+                    "error": str(e),
+                    "success": False
+                })
+        
+        # Generate consolidated guidance
+        successful_packets = [cp for cp in context_packets if cp["success"]]
+        consolidated_guidance = self._consolidate_guidance(successful_packets)
+        
+        return {
+            "success": True,
+            "individual_contexts": [
+                {
+                    "task": cp["task_description"],
+                    "success": cp["success"],
+                    **({"agent_prompt": cp["context_packet"].to_agent_prompt(),
+                        "relevant_adrs": len(cp["context_packet"].relevant_adrs),
+                        "token_estimate": cp["context_packet"].token_estimate}
+                       if cp["success"] else {"error": cp.get("error")})
+                }
+                for cp in context_packets
+            ],
+            "consolidated": {
+                "common_adrs": list(all_cited_adrs),
+                "common_technologies": list(all_technologies),
+                "guidance": consolidated_guidance,
+                "total_tasks": len(request.tasks),
+                "successful_contexts": len(successful_packets)
+            },
+            "message": f"Generated planning context for {len(successful_packets)}/{len(request.tasks)} tasks",
+            "workflow_guidance": [
+                "Review individual contexts for task-specific guidance",
+                "Apply consolidated guidance across all related tasks",
+                "Reference common ADRs for consistent architectural decisions",
+                "Consider task dependencies based on shared constraints"
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Bulk planning context generation failed",
+            "guidance": [
+                "Check that all tasks have valid task_description fields",
+                "Ensure ADR directory is accessible",
+                "Verify task data structure matches expected format"
+            ]
+        }
+
+
+@mcp.tool()
+def adr_planning_status(request: ADRPlanningContextRequest) -> Dict[str, Any]:
+    """Get status of the planning context service.
+    
+    🎯 SERVICE HEALTH: Check the readiness and capabilities of the planning
+    context system, useful for debugging and understanding current state.
+    
+    💡 WHEN TO USE:
+    - Debugging planning context issues
+    - Understanding available ADRs and their status
+    - Checking service configuration
+    - Validating setup before using planning context tools
+    
+    Args:
+        request: Configuration for status check
+        
+    Returns:
+        Service status, statistics, and configuration details
+    """
+    try:
+        adr_dir = Path(request.adr_dir)
+        config = PlanningConfig(
+            adr_dir=adr_dir,
+            max_relevant_adrs=request.max_relevant_adrs,
+            max_token_budget=request.max_tokens
+        )
+        planner = PlanningContext(config)
+        
+        # Get service status
+        status = planner.get_service_status()
+        
+        return {
+            "success": True,
+            "service_status": status,
+            "capabilities": {
+                "task_analysis": "Understands task types and extracts technologies",
+                "relevance_ranking": "Scores ADRs by relevance to specific tasks",
+                "guidance_generation": "Creates contextual promptlets and warnings",
+                "token_optimization": "Fits context within specified budget",
+                "bulk_processing": "Handles multiple related tasks"
+            },
+            "configuration": {
+                "adr_directory": str(adr_dir),
+                "max_relevant_adrs": config.max_relevant_adrs,
+                "max_token_budget": config.max_token_budget,
+                "ranking_strategy": config.ranking_strategy.value,
+                "include_superseded": config.include_superseded
+            },
+            "message": "Planning context service status retrieved",
+            "guidance": [
+                "Service ready" if status["service_ready"] else "Service needs attention",
+                f"Found {status.get('statistics', {}).get('total_adrs', 0)} total ADRs",
+                f"Found {status.get('statistics', {}).get('accepted_adrs', 0)} accepted ADRs",
+                "Use adr_planning_context() to generate curated guidance for tasks"
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to get planning context service status",
+            "guidance": [
+                "Check ADR directory path and permissions",
+                "Ensure ADR directory contains valid ADR files",
+                "Verify planning context service dependencies are available"
+            ]
+        }
+
+
+def _consolidate_guidance(context_packets: List[Dict]) -> List[str]:
+    """Helper function to consolidate guidance across multiple context packets."""
+    guidance_counts = {}
+    
+    for packet_data in context_packets:
+        if packet_data["success"]:
+            context_packet = packet_data["context_packet"]
+            for guidance in context_packet.guidance:
+                key = f"{guidance.guidance_type}:{guidance.message}"
+                if key not in guidance_counts:
+                    guidance_counts[key] = {"count": 0, "guidance": guidance}
+                guidance_counts[key]["count"] += 1
+    
+    # Return most common guidance items
+    sorted_guidance = sorted(
+        guidance_counts.items(),
+        key=lambda x: x[1]["count"],
+        reverse=True
+    )
+    
+    return [
+        f"{item[1]['guidance'].message} (applies to {item[1]['count']} tasks)"
+        for item in sorted_guidance[:5]
+    ]
 
 
 # MCP Resources

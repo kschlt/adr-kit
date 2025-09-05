@@ -11,7 +11,11 @@ ADR Kit is purpose-built for AI agents like **Claude Code** to autonomously mana
 
 ## ✨ Features
 
-- **🧠 Comprehensive MCP Server** with 12 AI-optimized tools for autonomous operation
+- **🧠 Comprehensive MCP Server** with 18 AI-optimized tools for autonomous operation
+- **🏗️ Three-Phase Architecture** - Contract → Gate → Context for complete AI governance
+- **📋 Constraints Contract** - Single source of truth from all accepted ADR policies  
+- **🚪 Preflight Policy Gate** - Proactive decision interception before implementation
+- **🧠 Planning Context Service** - Curated architectural intelligence for agents
 - **🔄 Enforced Workflow** - Query → Create → Approve → Supersede with validation
 - **🔍 Semantic Search** - Vector-based intelligent ADR discovery and matching
 - **📝 MADR-compliant** ADR creation, validation, and policy enforcement
@@ -67,9 +71,24 @@ adr-kit mcp-server
 
 ### MCP Tools Available for AI Agents
 
-AI agents have access to 12 comprehensive tools for complete ADR lifecycle management:
+AI agents have access to 18 comprehensive tools organized by the three-phase architecture:
 
-**Core Workflow Tools:**
+**Phase 1: Constraints Contract System**
+- **`adr_contract_build()`** - Build constraints contract from accepted ADRs
+- **`adr_contract_status()`** - Get contract status and summary statistics  
+- **`adr_policy_merge()`** - Preview how policies would merge before creating ADRs
+
+**Phase 2: Preflight Policy Gate**  
+- **`adr_preflight()`** - Check if technical choice requires ADR approval
+- **`adr_gate_status()`** - Get policy gate configuration and statistics
+- **`adr_gate_config()`** - Update gate policies and technical choice mappings
+
+**Phase 3: Planning Context Service**
+- **`adr_planning_context()`** - Get curated architectural context for tasks
+- **`adr_planning_bulk()`** - Generate context for multiple related tasks  
+- **`adr_context_status()`** - Get planning context service status
+
+**Core ADR Workflow Tools:**
 - **`adr_init()`** - Initialize ADR system in repository
 - **`adr_query_related()`** - Find related ADRs before making decisions  
 - **`adr_create()`** - Create new ADRs with rich context
@@ -102,15 +121,25 @@ adr-kit info
 adr-kit validate
 ```
 
-## 🔄 Typical Workflow
+## 🔄 AI-First Workflow with Three-Phase Architecture
 
-1. **AI detects architectural decision**: "We should switch to PostgreSQL"
-2. **Query existing decisions**: Find related database ADRs to avoid conflicts
-3. **Create proposed ADR**: AI drafts the decision with context and rationale
-4. **Human review**: Developer reviews and approves the proposal  
-5. **Activate decision**: ADR becomes official, old decisions are superseded
-6. **Generate enforcement**: Create lint rules to prevent violations
-7. **Monitor compliance**: Guard system catches policy violations in code
+### Phase 1: Constraints Contract - "What are the rules?"
+1. **Build contract**: `adr_contract_build()` creates single source of truth from all accepted ADRs
+2. **Check status**: Contract includes all current policies, conflicts resolved with "deny beats allow"
+
+### Phase 2: Preflight Policy Gate - "Is this allowed?"  
+3. **Gate check**: `adr_preflight("postgresql")` - check if database changes require ADR approval
+4. **Decision routing**: ALLOWED → proceed | REQUIRES_ADR → create proposal | BLOCKED → show conflict
+
+### Phase 3: Planning Context - "What should I know?"
+5. **Get context**: `adr_planning_context()` provides curated list of relevant ADRs + guidance
+6. **Smart filtering**: Returns only relevant decisions, constraints, and contextual guidance
+
+### Standard ADR Workflow
+7. **Create proposed ADR**: AI drafts decision with full architectural context  
+8. **Human review**: Developer reviews and approves the proposal
+9. **Contract refresh**: System automatically rebuilds contract with new policies
+10. **Generate enforcement**: Lint rules and guards updated automatically
 
 ## 🛠️ Manual Usage (Optional)
 
@@ -273,7 +302,11 @@ your-project/
 
 ## 🤖 AI Agent Benefits
 
-- **🧠 Standardized Interface** - 12 comprehensive MCP tools with consistent behavior
+- **🏗️ Three-Phase Intelligence** - Contract → Gate → Context provides complete architectural governance
+- **🧠 Standardized Interface** - 18 comprehensive MCP tools with consistent behavior
+- **📋 Constraints Contract** - Single source of truth eliminates policy conflicts and ambiguity
+- **🚪 Preflight Gate** - Proactive decision routing prevents architectural drift before it starts  
+- **🧠 Planning Context** - Curated, token-efficient guidance tailored to specific tasks
 - **🔄 Enforced Workflow** - Prevents invalid architectural decisions and ensures compliance  
 - **⚡ Built-in Guardrails** - Mandatory conflict detection prevents inconsistent decisions
 - **💡 Rich Context** - Detailed guidance enables autonomous operation with minimal human oversight

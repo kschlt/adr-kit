@@ -429,6 +429,234 @@ def dual_setup():
         raise typer.Exit(code=1)
 
 
+@app.command()  
+def contract_build(
+    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
+    force_rebuild: bool = typer.Option(False, "--force", help="Force rebuild even if cache is valid"),
+    verbose: bool = typer.Option(False, "--verbose", help="Show detailed output")
+):
+    """Build the unified constraints contract from accepted ADRs.
+    
+    Creates constraints_accepted.json - the definitive source of truth
+    for all architectural decisions that agents must follow.
+    """
+    try:
+        from .contract import ConstraintsContractBuilder
+        
+        builder = ConstraintsContractBuilder(adr_dir)
+        contract = builder.build_contract(force_rebuild=force_rebuild)
+        summary = builder.get_contract_summary()
+        
+        console.print("✅ Constraints contract built successfully!")
+        console.print(f"   📁 Location: {builder.get_contract_file_path()}")
+        console.print(f"   🏷️  Hash: {contract.metadata.hash[:12]}...")
+        console.print(f"   📅 Generated: {contract.metadata.generated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        console.print(f"   📋 Source ADRs: {len(contract.metadata.source_adrs)}")
+        
+        if summary["success"]:
+            counts = summary["constraint_counts"]
+            total = summary["total_constraints"]
+            console.print(f"\n📊 Constraints Summary ({total} total):")
+            if counts["import_disallow"] > 0:
+                console.print(f"   🚫 Import disallow: {counts['import_disallow']}")
+            if counts["import_prefer"] > 0:
+                console.print(f"   ✅ Import prefer: {counts['import_prefer']}")
+            if counts["boundary_layers"] > 0:
+                console.print(f"   🏗️  Boundary layers: {counts['boundary_layers']}")
+            if counts["boundary_rules"] > 0:
+                console.print(f"   🛡️  Boundary rules: {counts['boundary_rules']}")
+            if counts["python_disallow"] > 0:
+                console.print(f"   🐍 Python disallow: {counts['python_disallow']}")
+        
+        if verbose and contract.metadata.source_adrs:
+            console.print(f"\n📋 Source ADRs:")
+            for adr_id in contract.metadata.source_adrs:
+                console.print(f"   • {adr_id}")
+        
+        if verbose and contract.provenance:
+            console.print(f"\n🔍 Policy Provenance:")
+            for rule_path, prov in contract.provenance.items():
+                console.print(f"   • {rule_path} ← {prov.adr_id}")
+        
+        console.print(f"\n💡 Next: Use [cyan]adr-kit export-lint[/cyan] to apply as enforcement rules")
+        sys.exit(0)
+        
+    except Exception as e:
+        console.print(f"❌ Failed to build contract: {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def contract_status(
+    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory")
+):
+    """Show current constraints contract status and metadata."""
+    try:
+        from .contract import ConstraintsContractBuilder
+        
+        builder = ConstraintsContractBuilder(adr_dir)
+        summary = builder.get_contract_summary()
+        contract_path = builder.get_contract_file_path()
+        
+        if summary["success"]:
+            console.print("📊 Constraints Contract Status")
+            console.print(f"   📁 File: {contract_path}")
+            console.print(f"   ✅ Exists: {contract_path.exists()}")
+            console.print(f"   🏷️  Hash: {summary['contract_hash'][:12]}...")
+            console.print(f"   📅 Generated: {summary['generated_at']}")
+            console.print(f"   📋 Source ADRs: {len(summary['source_adrs'])}")
+            console.print(f"   🔢 Total constraints: {summary['total_constraints']}")
+            
+            if summary.get("source_adrs"):
+                console.print(f"\n📋 Source ADRs:")
+                for adr_id in summary["source_adrs"]:
+                    console.print(f"   • {adr_id}")
+            
+            cache_info = summary.get("cache_info", {})
+            if cache_info.get("cached"):
+                console.print(f"\n💾 Cache Status:")
+                console.print(f"   ✅ Cached: {cache_info['cached']}")
+                if cache_info.get("cached_at"):
+                    console.print(f"   📅 Cached at: {cache_info['cached_at']}")
+        else:
+            console.print("❌ No constraints contract found")
+            console.print(f"   📁 Expected at: {contract_path}")
+            console.print(f"   💡 Run [cyan]adr-kit contract-build[/cyan] to create")
+        
+        sys.exit(0)
+        
+    except Exception as e:
+        console.print(f"❌ Failed to get contract status: {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def preflight(
+    choice_name: str = typer.Argument(..., help="Name of the technical choice to evaluate"),
+    context: str = typer.Option(..., "--context", help="Context or reason for this choice"),
+    choice_type: str = typer.Option("dependency", "--type", help="Type of choice: dependency, framework, tool"),
+    ecosystem: str = typer.Option("npm", "--ecosystem", help="Package ecosystem (npm, pypi, gem, etc.)"),
+    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
+    verbose: bool = typer.Option(False, "--verbose", help="Show detailed output")
+):
+    """Evaluate a technical choice through the preflight policy gate.
+    
+    This command checks if a technical decision requires human approval
+    before implementation, helping enforce architectural governance.
+    """
+    try:
+        from .gate import PolicyGate, create_technical_choice
+        
+        gate = PolicyGate(adr_dir)
+        
+        # Create and evaluate the choice
+        choice = create_technical_choice(
+            choice_type=choice_type,
+            name=choice_name,
+            context=context,
+            ecosystem=ecosystem
+        )
+        
+        result = gate.evaluate(choice)
+        
+        # Display result with appropriate styling
+        if result.decision.value == "allowed":
+            console.print(f"✅ [green]ALLOWED[/green]: '{choice_name}' may proceed")
+        elif result.decision.value == "requires_adr":
+            console.print(f"🛑 [yellow]REQUIRES ADR[/yellow]: '{choice_name}' needs approval")
+        elif result.decision.value == "blocked":
+            console.print(f"❌ [red]BLOCKED[/red]: '{choice_name}' is not permitted")
+        elif result.decision.value == "conflict":
+            console.print(f"⚠️ [red]CONFLICT[/red]: '{choice_name}' conflicts with existing ADRs")
+        
+        console.print(f"\n💭 Reasoning: {result.reasoning}")
+        
+        if verbose:
+            console.print(f"\n📊 Details:")
+            console.print(f"   Choice type: {result.choice.choice_type.value}")
+            console.print(f"   Category: {result.metadata.get('category')}")
+            console.print(f"   Normalized name: {result.metadata.get('normalized_name')}")
+            console.print(f"   Evaluated at: {result.evaluated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        console.print(f"\n🚀 Agent Guidance:")
+        console.print(f"   {result.get_agent_guidance()}")
+        
+        # Get recommendations
+        recommendations = gate.get_recommendations_for_choice(choice_name)
+        if recommendations.get("alternatives"):
+            console.print(f"\n💡 Recommended alternatives:")
+            for alt in recommendations["alternatives"]:
+                console.print(f"   • {alt['name']}: {alt['reason']}")
+        
+        # Exit with appropriate code
+        if result.should_proceed:
+            sys.exit(0)  # Success - may proceed
+        elif result.requires_human_approval:
+            sys.exit(2)  # Requires ADR
+        else:
+            sys.exit(1)  # Blocked/conflict
+        
+    except Exception as e:
+        console.print(f"❌ Preflight evaluation failed: {e}")
+        raise typer.Exit(code=3)
+
+
+@app.command()
+def gate_status(
+    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
+    verbose: bool = typer.Option(False, "--verbose", help="Show detailed configuration")
+):
+    """Show current preflight gate status and configuration."""
+    try:
+        from .gate import PolicyGate
+        
+        gate = PolicyGate(adr_dir)
+        status = gate.get_gate_status()
+        
+        console.print("🚪 Preflight Policy Gate Status")
+        console.print(f"   📁 ADR Directory: {status['adr_directory']}")
+        console.print(f"   ✅ Gate Ready: {status['gate_ready']}")
+        
+        config = status["config"]
+        console.print(f"\n⚙️ Configuration:")
+        console.print(f"   📄 Config file: {config['config_file']}")
+        console.print(f"   ✅ Config exists: {config['config_exists']}")
+        
+        console.print(f"\n🎯 Default Policies:")
+        policies = config["default_policies"]
+        console.print(f"   Dependencies: [cyan]{policies['dependency']}[/cyan]")
+        console.print(f"   Frameworks: [cyan]{policies['framework']}[/cyan]")
+        console.print(f"   Tools: [cyan]{policies['tool']}[/cyan]")
+        
+        if verbose:
+            console.print(f"\n📋 Lists:")
+            console.print(f"   Always allow: {len(config['always_allow'])} items")
+            if config['always_allow']:
+                for item in config['always_allow'][:5]:  # Show first 5
+                    console.print(f"     • {item}")
+                if len(config['always_allow']) > 5:
+                    console.print(f"     ... and {len(config['always_allow']) - 5} more")
+            
+            console.print(f"   Always deny: {len(config['always_deny'])} items")
+            if config['always_deny']:
+                for item in config['always_deny']:
+                    console.print(f"     • {item}")
+            
+            console.print(f"   Development tools: {config['development_tools']} items")
+            console.print(f"   Categories: {config['categories']} defined")
+            console.print(f"   Name mappings: {config['name_mappings']} defined")
+        
+        console.print(f"\n💡 Usage:")
+        console.print(f"   Test choices: [cyan]adr-kit preflight <choice> --context \"reason\"[/cyan]")
+        console.print(f"   For agents: Use [cyan]adr_preflight()[/cyan] MCP tool")
+        
+        sys.exit(0)
+        
+    except Exception as e:
+        console.print(f"❌ Failed to get gate status: {e}")
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def legacy():
     """Show legacy CLI commands (use MCP server instead).
