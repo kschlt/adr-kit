@@ -9,7 +9,7 @@ Design decisions:
 
 from datetime import date
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Annotated
 
 import sys
 import typer
@@ -183,6 +183,49 @@ def mcp_health():
     except Exception as e:
         console.print(f"❌ Health check failed: {e}")
         raise typer.Exit(code=1)
+
+
+@app.command()
+def mcp_server_v2(
+    stdio: bool = typer.Option(True, help="Use stdio mode for MCP client connection")
+):
+    """Start the new 6-entry-point MCP server (V2 Architecture).
+    
+    This is the refactored MCP server with the new simplified architecture:
+    - Only 6 entry points for agents to call
+    - Comprehensive internal workflows handle all automation
+    - Clear agent guidance with actionable next steps
+    
+    Entry Points:
+    1. adr_analyze_project() - Analyze existing projects
+    2. adr_preflight() - Check technical choices 
+    3. adr_create() - Create ADR proposals
+    4. adr_approve() - Approve ADRs (triggers all automation)
+    5. adr_supersede() - Replace existing ADRs
+    6. adr_planning_context() - Get architectural context for tasks
+    """
+    try:
+        if stdio:
+            # Stdio mode - clean output for MCP protocol
+            console.print("🚀 Starting ADR Kit MCP Server V2 (6-entry-point architecture)...", err=True)
+            from .mcp.server_v2 import run_server
+            run_server()
+        else:
+            console.print("🚀 Starting ADR Kit MCP Server V2 (HTTP mode)...")
+            console.print("🎯 New Architecture: 6 entry points + comprehensive internal workflows")
+            console.print("💡 Use MCP tools: adr_analyze_project, adr_preflight, adr_create, adr_approve, adr_supersede, adr_planning_context")
+            
+            try:
+                from .mcp.server_v2 import run_server
+                run_server()
+            except ImportError as e:
+                console.print(f"❌ MCP server dependencies not available: {e}")
+                console.print("💡 Install with: pip install 'adr-kit[mcp]'")
+            except KeyboardInterrupt:
+                console.print("\n👋 MCP Server V2 stopped")
+    except ImportError:
+        console.print("❌ MCP server dependencies not available")
+        console.print("💡 Install with: pip install 'adr-kit[mcp]'")
 
 
 @app.command()

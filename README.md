@@ -11,13 +11,13 @@ ADR Kit is purpose-built for AI agents like **Claude Code** to autonomously mana
 
 ## ✨ Features
 
-- **🧠 Comprehensive MCP Server** with 22 AI-optimized tools for autonomous operation
-- **🏗️ Four-Phase Architecture** - Contract → Gate → Context → Guardrail for complete AI governance
+- **🎯 6-Entry-Point Architecture** - Clean agent interface with comprehensive internal workflows
+- **🤖 Smart Agent Interface** - Agents make decisions, tools handle automation
+- **🔄 Enforced Workflow** - Analyze → Preflight → Create → Approve → Supersede → Plan
 - **📋 Constraints Contract** - Single source of truth from all accepted ADR policies  
 - **🚪 Preflight Policy Gate** - Proactive decision interception before implementation
 - **🧠 Planning Context Service** - Curated architectural intelligence for agents
 - **🛡️ Automatic Guardrail Manager** - Auto-apply configuration fragments from ADR policies
-- **🔄 Enforced Workflow** - Query → Create → Approve → Supersede with validation
 - **🔍 Semantic Search** - Vector-based intelligent ADR discovery and matching
 - **📝 MADR-compliant** ADR creation, validation, and policy enforcement
 - **⚡ Policy Guard System** - Automated code analysis for ADR policy violations
@@ -25,7 +25,7 @@ ADR Kit is purpose-built for AI agents like **Claude Code** to autonomously mana
 - **📊 Multi-format Indexing** - JSON and SQLite with automatic relationship tracking
 - **🎯 Structured Policies** - Extract and enforce architectural decisions as lint rules
 - **🌐 Static Site Generation** - Beautiful documentation via Log4brains integration
-- **🤖 AI-First Design** - Rich contextual guidance for autonomous coding agents
+- **🚀 Rich Internal Automation** - Comprehensive workflows triggered by simple entry points
 
 ## 🚀 Quick Start
 
@@ -46,8 +46,8 @@ pip install sentence-transformers
 cd your-project
 adr-kit init
 
-# Start the MCP server for AI integration
-adr-kit mcp-server
+# Start the new 6-entry-point MCP server for AI integration
+adr-kit mcp-server-v2
 ```
 
 ### 3. AI Agent Integration
@@ -58,7 +58,7 @@ adr-kit mcp-server
   "mcpServers": {
     "adr-kit": {
       "command": "adr-kit",
-      "args": ["mcp-server"],
+      "args": ["mcp-server-v2"],
       "env": {}
     }
   }
@@ -66,52 +66,64 @@ adr-kit mcp-server
 ```
 
 **Then in your AI chat:**
-- "Help me create an ADR for switching to React"
-- "Check if we have any database-related architectural decisions"
-- "Generate lint rules from our ADRs"
+- "Analyze my project for architectural decisions that need ADRs"
+- "Check if I can use PostgreSQL in this project" 
+- "Create an ADR for switching to React"
+- "Give me architectural context for implementing user authentication"
 
-### MCP Tools Available for AI Agents
+## 🎯 New 6-Entry-Point Architecture
 
-AI agents have access to 22 comprehensive tools organized by the four-phase architecture:
+ADR Kit V2 implements a revolutionary **6-entry-point architecture** where agents make intelligent decisions and comprehensive internal workflows handle all automation:
 
-**Phase 1: Constraints Contract System**
-- **`adr_contract_build()`** - Build constraints contract from accepted ADRs
-- **`adr_contract_status()`** - Get contract status and summary statistics  
-- **`adr_policy_merge()`** - Preview how policies would merge before creating ADRs
+### 🚪 The 6 Entry Points for AI Agents
 
-**Phase 2: Preflight Policy Gate**  
-- **`adr_preflight()`** - Check if technical choice requires ADR approval
-- **`adr_gate_status()`** - Get policy gate configuration and statistics
-- **`adr_gate_config()`** - Update gate policies and technical choice mappings
+#### 1. **`adr_analyze_project()`** - Analyze Existing Projects
+**Purpose:** Generate analysis prompt for existing codebases
+- 🤖 **Agent Intelligence:** Analyze project structure, identify architectural patterns
+- ⚡ **Internal Automation:** Scans technology stack, avoids duplicating existing ADRs
+- 📋 **Returns:** Structured prompt guiding agent to propose specific ADRs
 
-**Phase 3: Planning Context Service**
-- **`adr_planning_context()`** - Get curated architectural context for tasks
-- **`adr_planning_bulk()`** - Generate context for multiple related tasks  
-- **`adr_context_status()`** - Get planning context service status
+#### 2. **`adr_preflight(choice)`** - Validate Technical Choices  
+**Purpose:** Check if technical choice requires ADR or conflicts with existing decisions
+- 🤖 **Agent Intelligence:** Understanding implications and deciding next steps
+- ⚡ **Internal Automation:** Loads constraints, checks conflicts, ranks relevance
+- 📋 **Returns:** ALLOWED | REQUIRES_ADR | BLOCKED + actionable guidance
 
-**Phase 4: Automatic Guardrail Manager**
-- **`adr_guardrail_apply()`** - Apply configuration fragments from ADR policies
-- **`adr_guardrail_status()`** - Get guardrail system status and target analysis
-- **`adr_guardrail_config()`** - Manage guardrail configuration and targets
-- **`adr_guardrail_watch()`** - Monitor ADR changes and auto-apply guardrails
+#### 3. **`adr_create(proposal)`** - Create ADR Proposals
+**Purpose:** Generate comprehensive ADR with conflict detection and validation
+- 🤖 **Agent Intelligence:** Writing context, decision, consequences, structured policies  
+- ⚡ **Internal Automation:** ID generation, semantic search, conflict detection, MADR formatting
+- 📋 **Returns:** ADR ID, file path, conflicts detected, review guidance
 
-**Core ADR Workflow Tools:**
-- **`adr_init()`** - Initialize ADR system in repository
-- **`adr_query_related()`** - Find related ADRs before making decisions  
-- **`adr_create()`** - Create new ADRs with rich context
-- **`adr_approve()`** - Approve proposed ADRs with immutability protection
-- **`adr_supersede()`** - Replace existing decisions with automatic relationship management
-- **`adr_validate()`** - Validate ADRs for compliance and policy requirements
+#### 4. **`adr_approve(adr_id)`** - Approve ADRs (Triggers All Automation)
+**Purpose:** Activate ADR and trigger comprehensive automation pipeline
+- 🤖 **Agent Intelligence:** Understanding approval implications, handling partial failures
+- ⚡ **Internal Automation:** Contract rebuild, guardrails, enforcement rules, indexes, validation
+- 📋 **Returns:** Comprehensive automation report with policy enforcement status
 
-**Advanced AI Tools:**
-- **`adr_semantic_index()`** - Build vector embeddings for intelligent ADR discovery
-- **`adr_semantic_match()`** - Find semantically similar ADRs using vector search
-- **`adr_guard()`** - Analyze code changes for ADR policy violations
+#### 5. **`adr_supersede(old_adr, new_proposal)`** - Replace Existing ADRs
+**Purpose:** Replace architectural decisions while maintaining relationships
+- 🤖 **Agent Intelligence:** When to supersede vs. create new, comprehensive replacement content
+- ⚡ **Internal Automation:** Creates new ADR, updates relationships, optional auto-approval
+- 📋 **Returns:** Superseding results with relationship updates and automation status
 
-**Infrastructure Tools:**
-- **`adr_index()`** - Generate JSON/SQLite indexes with relationship tracking
-- **`adr_export_lint_config()`** - Generate ESLint/Ruff configs from ADR policies
-- **`adr_render_site()`** - Build static documentation site
+#### 6. **`adr_planning_context(task)`** - Get Architectural Context
+**Purpose:** Provide curated architectural context for specific agent tasks  
+- 🤖 **Agent Intelligence:** Interpreting guidance, applying patterns, following constraints
+- ⚡ **Internal Automation:** Task analysis, ADR relevance ranking, constraint extraction, guidance generation
+- 📋 **Returns:** Relevant ADRs, constraints, technology recommendations, compliance checklist
+
+### 🔧 Internal Workflow System
+
+Each entry point triggers comprehensive **internal workflows** that handle all the complexity:
+
+**Workflow Components:**
+- **AnalyzeWorkflow** - Project analysis and ADR opportunity identification
+- **PreflightWorkflow** - Technical choice validation with conflict detection  
+- **CreationWorkflow** - ADR creation with semantic search and validation
+- **ApprovalWorkflow** - Complete automation pipeline (contract, guardrails, enforcement)
+- **SupersedeWorkflow** - ADR replacement with relationship management
+- **PlanningWorkflow** - Context curation and guidance generation
 
 ### Manual CLI (Legacy)
 
@@ -128,24 +140,41 @@ adr-kit info
 adr-kit validate
 ```
 
-## 🔄 AI-First Workflow with Four-Phase Architecture
+## 🔄 Natural Agent Workflow with 6-Entry-Point Architecture
 
-### Phase 1: Constraints Contract - "What are the rules?"
-1. **Build contract**: `adr_contract_build()` creates single source of truth from all accepted ADRs
-2. **Check status**: Contract includes all current policies, conflicts resolved with "deny beats allow"
+### The Agent Journey
 
-### Phase 2: Preflight Policy Gate - "Is this allowed?"  
-3. **Gate check**: `adr_preflight("postgresql")` - check if database changes require ADR approval
-4. **Decision routing**: ALLOWED → proceed | REQUIRES_ADR → create proposal | BLOCKED → show conflict
+1. **🔍 Project Analysis** - `adr_analyze_project()` 
+   - Agent follows returned prompt to identify architectural decisions
+   - Creates comprehensive ADR proposals for each significant decision
 
-### Phase 3: Planning Context - "What should I know?"
-5. **Get context**: `adr_planning_context()` provides curated list of relevant ADRs + guidance
-6. **Smart filtering**: Returns only relevant decisions, constraints, and contextual guidance
+2. **🚦 Technical Choice Validation** - `adr_preflight(choice)`
+   - Before making any technical choice, agent checks requirements
+   - ALLOWED → proceed | REQUIRES_ADR → create first | BLOCKED → resolve conflicts
 
-### Phase 4: Automatic Guardrail Manager - "Make it automatic"
-7. **Auto-apply**: `adr_guardrail_apply()` generates ESLint/Ruff rules from ADR policies
-8. **Monitor changes**: `adr_guardrail_watch()` detects ADR updates and syncs configurations
-9. **Enforcement**: Lint tools automatically enforce architectural decisions
+3. **📝 ADR Creation** - `adr_create(proposal)`
+   - Agent writes comprehensive ADR with context, decision, consequences
+   - Tool handles conflict detection, validation, and file generation
+
+4. **✅ Human Review & Approval** - `adr_approve(adr_id)`
+   - Human reviews proposed ADR, agent handles approval process
+   - Triggers complete automation: policies, rules, configurations, indexes
+
+5. **🔄 Decision Evolution** - `adr_supersede(old, new)`
+   - When decisions need updating, agent replaces with proper relationships
+   - Maintains architectural history and updates all references
+
+6. **🗺️ Contextual Planning** - `adr_planning_context(task)`
+   - Before any significant task, agent gets relevant architectural context
+   - Follows recommendations, applies patterns, uses compliance checklist
+
+### Key Architectural Principles
+
+- **🎯 Single Responsibility**: Each entry point has one clear purpose
+- **🤖 Smart Boundaries**: Agents make decisions, tools handle automation  
+- **🔄 Natural Flow**: Tools guide agents toward correct next actions
+- **⚡ Rich Automation**: Complex orchestration happens internally and automatically
+- **📋 Clear Guidance**: Every response includes actionable next steps
 
 ### Standard ADR Workflow
 10. **Create proposed ADR**: AI drafts decision with full architectural context  
