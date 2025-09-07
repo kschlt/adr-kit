@@ -19,6 +19,7 @@ ADR Kit transforms architectural decisions into **enforceable code policies**. I
 - **🚪 Preflight Validation** - Check technical choices before implementation
 - **📝 MADR Format** - Industry standard with structured policy enforcement
 - **🔍 Semantic Search** - Vector-based ADR discovery and relationship detection
+- **🌐 Static Site Generation** - Beautiful documentation sites for developer transparency
 
 ## Quick Start for AI Agents
 
@@ -161,18 +162,6 @@ Use React Query for all data fetching operations.
   }
 }
 ```
-
-## Value Proposition
-
-**For Development Teams:**
-- **Prevent Architectural Drift** - Catch violations automatically in CI/pre-commit
-- **Enforce Decisions** - Turn ADRs into actionable lint rules
-- **Maintain Context** - Rich documentation with relationship tracking
-
-**For AI Agents:**  
-- **Autonomous Operation** - Clear workflows with built-in conflict prevention
-- **Structured Decision Making** - Prevent invalid architectural changes
-- **Rich Context** - Curated guidance enables self-directed operation
 
 ## Directory Structure
 
