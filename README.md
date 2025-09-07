@@ -11,11 +11,12 @@ ADR Kit is purpose-built for AI agents like **Claude Code** to autonomously mana
 
 ## ✨ Features
 
-- **🧠 Comprehensive MCP Server** with 18 AI-optimized tools for autonomous operation
-- **🏗️ Three-Phase Architecture** - Contract → Gate → Context for complete AI governance
+- **🧠 Comprehensive MCP Server** with 22 AI-optimized tools for autonomous operation
+- **🏗️ Four-Phase Architecture** - Contract → Gate → Context → Guardrail for complete AI governance
 - **📋 Constraints Contract** - Single source of truth from all accepted ADR policies  
 - **🚪 Preflight Policy Gate** - Proactive decision interception before implementation
 - **🧠 Planning Context Service** - Curated architectural intelligence for agents
+- **🛡️ Automatic Guardrail Manager** - Auto-apply configuration fragments from ADR policies
 - **🔄 Enforced Workflow** - Query → Create → Approve → Supersede with validation
 - **🔍 Semantic Search** - Vector-based intelligent ADR discovery and matching
 - **📝 MADR-compliant** ADR creation, validation, and policy enforcement
@@ -71,7 +72,7 @@ adr-kit mcp-server
 
 ### MCP Tools Available for AI Agents
 
-AI agents have access to 18 comprehensive tools organized by the three-phase architecture:
+AI agents have access to 22 comprehensive tools organized by the four-phase architecture:
 
 **Phase 1: Constraints Contract System**
 - **`adr_contract_build()`** - Build constraints contract from accepted ADRs
@@ -87,6 +88,12 @@ AI agents have access to 18 comprehensive tools organized by the three-phase arc
 - **`adr_planning_context()`** - Get curated architectural context for tasks
 - **`adr_planning_bulk()`** - Generate context for multiple related tasks  
 - **`adr_context_status()`** - Get planning context service status
+
+**Phase 4: Automatic Guardrail Manager**
+- **`adr_guardrail_apply()`** - Apply configuration fragments from ADR policies
+- **`adr_guardrail_status()`** - Get guardrail system status and target analysis
+- **`adr_guardrail_config()`** - Manage guardrail configuration and targets
+- **`adr_guardrail_watch()`** - Monitor ADR changes and auto-apply guardrails
 
 **Core ADR Workflow Tools:**
 - **`adr_init()`** - Initialize ADR system in repository
@@ -121,7 +128,7 @@ adr-kit info
 adr-kit validate
 ```
 
-## 🔄 AI-First Workflow with Three-Phase Architecture
+## 🔄 AI-First Workflow with Four-Phase Architecture
 
 ### Phase 1: Constraints Contract - "What are the rules?"
 1. **Build contract**: `adr_contract_build()` creates single source of truth from all accepted ADRs
@@ -135,11 +142,15 @@ adr-kit validate
 5. **Get context**: `adr_planning_context()` provides curated list of relevant ADRs + guidance
 6. **Smart filtering**: Returns only relevant decisions, constraints, and contextual guidance
 
+### Phase 4: Automatic Guardrail Manager - "Make it automatic"
+7. **Auto-apply**: `adr_guardrail_apply()` generates ESLint/Ruff rules from ADR policies
+8. **Monitor changes**: `adr_guardrail_watch()` detects ADR updates and syncs configurations
+9. **Enforcement**: Lint tools automatically enforce architectural decisions
+
 ### Standard ADR Workflow
-7. **Create proposed ADR**: AI drafts decision with full architectural context  
-8. **Human review**: Developer reviews and approves the proposal
-9. **Contract refresh**: System automatically rebuilds contract with new policies
-10. **Generate enforcement**: Lint rules and guards updated automatically
+10. **Create proposed ADR**: AI drafts decision with full architectural context  
+11. **Human review**: Developer reviews and approves the proposal
+12. **System automation**: Contract rebuilds, guardrails update, enforcement activates
 
 ## 🛠️ Manual Usage (Optional)
 
@@ -302,12 +313,13 @@ your-project/
 
 ## 🤖 AI Agent Benefits
 
-- **🏗️ Three-Phase Intelligence** - Contract → Gate → Context provides complete architectural governance
-- **🧠 Standardized Interface** - 18 comprehensive MCP tools with consistent behavior
+- **🏗️ Four-Phase Intelligence** - Contract → Gate → Context → Guardrail provides complete governance
+- **🧠 Standardized Interface** - 22 comprehensive MCP tools with consistent behavior
 - **📋 Constraints Contract** - Single source of truth eliminates policy conflicts and ambiguity
 - **🚪 Preflight Gate** - Proactive decision routing prevents architectural drift before it starts  
 - **🧠 Planning Context** - Curated, token-efficient guidance tailored to specific tasks
-- **🔄 Enforced Workflow** - Prevents invalid architectural decisions and ensures compliance  
+- **🛡️ Automatic Guardrails** - ADR policies become lint rules automatically without human intervention
+- **🔄 Complete Automation** - From human decision to automatic enforcement with zero manual steps
 - **⚡ Built-in Guardrails** - Mandatory conflict detection prevents inconsistent decisions
 - **💡 Rich Context** - Detailed guidance enables autonomous operation with minimal human oversight
 - **📋 Automatic Management** - Handles complex relationship logic and validation reliably
@@ -350,7 +362,7 @@ jobs:
 
 ### Policy Enforcement Examples
 
-ADR Kit automatically extracts and enforces policies from your architectural decisions:
+ADR Kit automatically extracts and enforces policies from your architectural decisions with full automation:
 
 **Structured Policy Definition:**
 ```yaml
@@ -395,6 +407,18 @@ banned-api = [
     "flask = Use FastAPI instead (ADR-0001)",
     "django = Use FastAPI instead (ADR-0001)"
 ]
+```
+
+**Automatic Guardrail Application:**
+```bash
+# Triggered automatically when ADRs are approved
+adr_guardrail_apply()  # Generates all configuration files
+
+# Manual application
+adr-kit guardrail-apply  # CLI command
+
+# Monitor for changes
+adr_guardrail_watch()  # Continuously sync configurations
 ```
 
 **Real-time Policy Guard:**
