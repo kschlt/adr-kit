@@ -207,7 +207,7 @@ def mcp_server_v2(
     try:
         if stdio:
             # Stdio mode - clean output for MCP protocol
-            console.print("🚀 Starting ADR Kit MCP Server V2 (6-entry-point architecture)...", err=True)
+            print("🚀 Starting ADR Kit MCP Server V2 (6-entry-point architecture)...", file=sys.stderr)
             from .mcp.server_v2 import run_server
             run_server()
         else:
