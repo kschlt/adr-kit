@@ -124,21 +124,20 @@ class ApprovalWorkflow(BaseWorkflow):
             )
             
             return WorkflowResult(
+                success=True,
                 status=WorkflowStatus.SUCCESS,
                 message=f"ADR {input_data.adr_id} approved and automation completed",
                 data={"approval_result": result, "full_report": approval_report}
             )
             
         except Exception as e:
-            return WorkflowResult(
+            result = WorkflowResult(
+                success=False,
                 status=WorkflowStatus.FAILED,
-                message=f"Approval workflow failed: {str(e)}",
-                error=WorkflowError(
-                    error_type="ApprovalError",
-                    error_message=str(e),
-                    context={"input": input_data, "automation_results": automation_results}
-                )
+                message=f"Approval workflow failed: {str(e)}"
             )
+            result.add_error(f"ApprovalError: {str(e)}")
+            return result
     
     def _load_adr_for_approval(self, adr_id: str) -> tuple[ADR, str]:
         """Load the ADR that needs to be approved."""

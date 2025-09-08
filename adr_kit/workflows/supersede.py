@@ -119,21 +119,20 @@ class SupersedeWorkflow(BaseWorkflow):
             )
             
             return WorkflowResult(
+                success=True,
                 status=WorkflowStatus.SUCCESS,
                 message=f"ADR {input_data.old_adr_id} superseded by {new_adr_id}",
                 data={"supersede_result": result}
             )
             
         except Exception as e:
-            return WorkflowResult(
+            result = WorkflowResult(
+                success=False,
                 status=WorkflowStatus.FAILED,
-                message=f"Supersede workflow failed: {str(e)}",
-                error=WorkflowError(
-                    error_type="SupersedeError",
-                    error_message=str(e),
-                    context={"input": input_data}
-                )
+                message=f"Supersede workflow failed: {str(e)}"
             )
+            result.add_error(f"SupersedeError: {str(e)}")
+            return result
     
     def _validate_supersede_preconditions(self, old_adr_id: str) -> tuple[ADR, str]:
         """Validate that the old ADR exists and can be superseded."""

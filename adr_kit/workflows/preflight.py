@@ -88,21 +88,20 @@ class PreflightWorkflow(BaseWorkflow):
             }
             
             return WorkflowResult(
+                success=True,
                 status=WorkflowStatus.SUCCESS,
                 message=f"Preflight check completed: {decision.status}",
                 data=result_data
             )
             
         except Exception as e:
-            return WorkflowResult(
+            result = WorkflowResult(
+                success=False,
                 status=WorkflowStatus.FAILED,
-                message=f"Preflight workflow failed: {str(e)}",
-                error=WorkflowError(
-                    error_type="PreflightError",
-                    error_message=str(e),
-                    context={"input": input_data}
-                )
+                message=f"Preflight workflow failed: {str(e)}"
             )
+            result.add_error(f"PreflightError: {str(e)}")
+            return result
     
     def _load_constraints_contract(self) -> ConstraintsContract:
         """Load current constraints contract from approved ADRs."""

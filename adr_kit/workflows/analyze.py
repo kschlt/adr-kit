@@ -74,6 +74,18 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
                 detected_technologies, existing_adr_info, focus_areas
             )
             
+            # Build project context summary
+            project_context = {
+                "technologies": detected_technologies["technologies"],
+                "confidence_scores": detected_technologies["confidence_scores"],
+                "project_structure": project_structure,
+                "existing_adrs": {
+                    "count": existing_adr_info["adr_count"],
+                    "directory": str(existing_adr_info["adr_directory"]) if existing_adr_info["adr_directory"] else None
+                },
+                "suggested_focus": analysis_prompt["suggested_focus"]
+            }
+
             # Set workflow output data
             self._set_workflow_data(
                 detected_technologies=detected_technologies["technologies"],
@@ -81,7 +93,8 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
                 existing_adr_count=existing_adr_info["adr_count"],
                 existing_adr_directory=str(existing_adr_info["adr_directory"]) if existing_adr_info["adr_directory"] else None,
                 analysis_prompt=analysis_prompt["prompt"],
-                suggested_focus=analysis_prompt["suggested_focus"]
+                suggested_focus=analysis_prompt["suggested_focus"],
+                project_context=project_context
             )
             
             # Add agent guidance

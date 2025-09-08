@@ -102,21 +102,20 @@ class PlanningWorkflow(BaseWorkflow):
             )
             
             return WorkflowResult(
+                success=True,
                 status=WorkflowStatus.SUCCESS,
                 message=f"Planning context generated for {input_data.context_type} task",
                 data={"architectural_context": context, "task_analysis": task_analysis}
             )
             
         except Exception as e:
-            return WorkflowResult(
+            result = WorkflowResult(
+                success=False,
                 status=WorkflowStatus.FAILED,
-                message=f"Planning workflow failed: {str(e)}",
-                error=WorkflowError(
-                    error_type="PlanningError",
-                    error_message=str(e),
-                    context={"input": input_data}
-                )
+                message=f"Planning workflow failed: {str(e)}"
             )
+            result.add_error(f"PlanningError: {str(e)}")
+            return result
     
     def _analyze_task_description(self, input_data: PlanningInput) -> Dict[str, Any]:
         """Analyze task description to extract key concepts and domains."""

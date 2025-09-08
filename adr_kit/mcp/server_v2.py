@@ -110,43 +110,52 @@ def adr_analyze_project(
     4. Present your findings to user for confirmation before creating ADRs
     
     **PARAMETERS:**
-    - project_path: Path to analyze (default: current directory)  
-    - focus_areas: ["frontend", "backend", "database", "deployment"] to narrow scope
-    - adr_dir: Where ADR files live (default: "docs/adr")
+    - project_path (string, optional): Path to analyze (default: current directory)  
+    - focus_areas (array of strings, optional): ["frontend", "backend", "database", "deployment"] to narrow scope
+    - adr_dir (string): Where ADR files live (default: "docs/adr")
     
-    **RETURNS:** 
-    - analysis_prompt: Specific questions to guide your codebase analysis
-    - project_context: Technical stack details discovered
-    - guidance: Step-by-step instructions for your analysis
+    **RETURNS (object):** 
+    - analysis_prompt (string): Specific questions to guide your codebase analysis
+    - project_context (object): Technical stack details discovered
+    - guidance (string): Step-by-step instructions for your analysis
+    - next_steps (array of strings): List of actions to take after analysis
+    
+    **ERROR RESPONSE (object):**
+    - error (string): Brief error description
+    - details (string): Detailed error message
+    - suggested_action (string): What agent should try next
     """
     try:
-        workflow = AnalyzeProjectWorkflow(adr_dir=adr_dir)
+        # Handle string inputs for focus_areas (convert to list)
+        if isinstance(focus_areas, str):
+            focus_areas = [area.strip() for area in focus_areas.split(",") if area.strip()]
         
+        workflow = AnalyzeProjectWorkflow(adr_dir=adr_dir)
         result = workflow.execute(
             project_path=project_path or str(Path.cwd()),
             focus_areas=focus_areas or []
         )
         
-        if result.status.value == "success":
+        if result.success:
             return {
-                "success": True,
                 "analysis_prompt": result.data["analysis_prompt"],
                 "project_context": result.data["project_context"],
-                "guidance": result.data["guidance"],
-                "message": result.message
+                "guidance": result.guidance,
+                "next_steps": result.next_steps
             }
         else:
+            # Return error in simple format for agents
             return {
-                "success": False,
-                "error": result.error.error_message if result.error else result.message,
-                "message": "Failed to generate project analysis"
+                "error": "Analysis failed",
+                "details": result.errors[0] if result.errors else result.message,
+                "suggested_action": "Check that the project directory exists and is accessible"
             }
             
     except Exception as e:
         return {
-            "success": False,
-            "error": str(e),
-            "message": "Project analysis failed"
+            "error": "Analysis failed",
+            "details": str(e),
+            "suggested_action": "Verify project path and permissions"
         }
 
 
@@ -185,20 +194,21 @@ def adr_preflight(
     - BLOCKED: Present conflicts to user, suggest alternatives from guidance
     
     **PARAMETERS:**
-    - choice: Technology/pattern name (e.g., "PostgreSQL", "microservices", "React")
-    - context: Additional details about intended use
-    - category: Hint like "database", "frontend", "architecture" 
-    - adr_dir: Where ADR files live (default: "docs/adr")
+    - choice (string, required): Technology/pattern name (e.g., "PostgreSQL", "microservices", "React")
+    - context (object, optional): Additional details about intended use
+    - category (string, optional): Hint like "database", "frontend", "architecture" 
+    - adr_dir (string): Where ADR files live (default: "docs/adr")
     
-    **RETURNS:**
-    - decision: ALLOWED/REQUIRES_ADR/BLOCKED
-    - guidance: Specific next steps for your decision
-    - conflicts: Any conflicting ADRs found
-    - related_adrs: Relevant existing decisions
+    **RETURNS (object):**
+    - decision (string): ALLOWED/REQUIRES_ADR/BLOCKED
+    - reasoning (string): Why this decision was made
+    - next_steps (string): What the agent should do next
+    - conflicting_adrs (array of strings): ADR IDs that conflict with this choice
+    - related_adrs (array of strings): ADR IDs that are related but don't conflict
+    - urgency (string): Priority level (LOW/MEDIUM/HIGH)
     """
     try:
         workflow = PreflightWorkflow(adr_dir=adr_dir)
-        
         preflight_input = PreflightInput(
             choice=choice,
             context=context,
@@ -207,31 +217,32 @@ def adr_preflight(
         
         result = workflow.execute(preflight_input)
         
-        if result.status.value == "success":
+        if result.success:
             decision = result.data["decision"]
+            
+            # Return clean decision for agent
             return {
-                "success": True,
-                "status": decision.status,
+                "decision": decision.status,  # ALLOWED, REQUIRES_ADR, or BLOCKED
                 "reasoning": decision.reasoning,
                 "next_steps": decision.next_steps,
-                "urgency": decision.urgency,
                 "conflicting_adrs": decision.conflicting_adrs,
                 "related_adrs": decision.related_adrs,
-                "guidance": result.data["guidance"],
-                "message": result.message
+                "urgency": decision.urgency
             }
         else:
             return {
-                "success": False,
-                "error": result.error.error_message if result.error else result.message,
-                "message": "Preflight check failed"
+                "decision": "ERROR",
+                "error": "Preflight check failed",
+                "details": result.errors[0] if result.errors else result.message,
+                "suggested_action": "Check ADR directory exists and contains valid ADRs"
             }
             
     except Exception as e:
         return {
-            "success": False,
-            "error": str(e),
-            "message": "Preflight check failed"
+            "decision": "ERROR", 
+            "error": "Preflight check failed",
+            "details": str(e),
+            "suggested_action": "Verify technical choice name and ADR directory"
         }
 
 
@@ -274,22 +285,24 @@ def adr_create(
     4. If conflicts exist, discuss alternatives or superseding with user
     
     **PARAMETERS:**
-    - title: Clear decision title (e.g., "Use PostgreSQL for primary database")
-    - context: WHY this decision is needed (problem/situation)
-    - decision: WHAT was decided (the actual choice made)
-    - consequences: Expected positive/negative outcomes
-    - deciders: People who made the decision (optional)
-    - tags: Categorization tags like ["database", "backend"] (optional)
-    - policy: Enforcement rules (optional, see docs for format)
-    - alternatives: Other options considered (optional)
-    - adr_dir: Where ADR files live (default: "docs/adr")
+    - title (string, required): Clear decision title (e.g., "Use PostgreSQL for primary database")
+    - context (string, required): WHY this decision is needed (problem/situation)
+    - decision (string, required): WHAT was decided (the actual choice made)
+    - consequences (string, required): Expected positive/negative outcomes
+    - deciders (array of strings, optional): People who made the decision
+    - tags (array of strings, optional): Categorization tags like ["database", "backend"]
+    - policy (object, optional): Enforcement rules (see docs for format)
+    - alternatives (string, optional): Other options considered
+    - adr_dir (string): Where ADR files live (default: "docs/adr")
     
-    **RETURNS:**
-    - adr_id: Generated unique ID (e.g., "ADR-0005")
-    - file_path: Path to created ADR file
-    - conflicts: Any conflicting ADRs detected
-    - related_adrs: Similar existing ADRs found
-    - next_steps: What to do next (always includes human review)
+    **RETURNS (object):**
+    - adr_id (string): Generated unique ID (e.g., "ADR-0005")
+    - file_path (string): Path to created ADR file
+    - status (string): Always "proposed" (requires approval)
+    - conflicts (array of strings): Any conflicting ADRs detected
+    - related_adrs (array of strings): Similar existing ADRs found
+    - warnings (array of strings): Validation warnings if any
+    - next_steps (array of strings): What to do next (always includes human review)
     """
     try:
         workflow = CreationWorkflow(adr_dir=adr_dir)
@@ -307,31 +320,31 @@ def adr_create(
         
         result = workflow.execute(creation_input)
         
-        if result.status.value == "success":
+        if result.success:
             creation_result = result.data["creation_result"]
+            
+            # Return clean creation result for agent
             return {
-                "success": True,
                 "adr_id": creation_result.adr_id,
-                "file_path": creation_result.file_path,
-                "conflicts_detected": creation_result.conflicts_detected,
-                "related_adrs": creation_result.related_adrs,
-                "validation_warnings": creation_result.validation_warnings,
-                "review_required": creation_result.review_required,
-                "next_steps": creation_result.next_steps,
-                "message": result.message
+                "file_path": str(creation_result.file_path),
+                "status": "proposed",  # Always proposed initially
+                "conflicts": creation_result.conflicts_detected,
+                "related_adrs": creation_result.related_adrs, 
+                "warnings": creation_result.validation_warnings,
+                "next_steps": creation_result.next_steps
             }
         else:
             return {
-                "success": False,
-                "error": result.error.error_message if result.error else result.message,
-                "message": "ADR creation failed"
+                "error": "ADR creation failed",
+                "details": result.errors[0] if result.errors else result.message,
+                "suggested_action": "Check title, context, decision, and consequences are provided"
             }
             
     except Exception as e:
         return {
-            "success": False,
-            "error": str(e),
-            "message": "ADR creation failed"
+            "error": "ADR creation failed",
+            "details": str(e),
+            "suggested_action": "Verify ADR directory exists and is writable"
         }
 
 
@@ -370,18 +383,18 @@ def adr_approve(
     4. If automation failed partially, guide user on fixes needed
     
     **PARAMETERS:**
-    - adr_id: The ADR ID to approve (e.g., "ADR-0005")
-    - approval_notes: Human's approval comments (optional)
-    - force_approve: Override conflicts/warnings (use carefully)
-    - adr_dir: Where ADR files live (default: "docs/adr")
+    - adr_id (string, required): The ADR ID to approve (e.g., "ADR-0005")
+    - approval_notes (string, optional): Human's approval comments
+    - force_approve (boolean, optional): Override conflicts/warnings (use carefully)
+    - adr_dir (string): Where ADR files live (default: "docs/adr")
     
-    **RETURNS:**
-    - status: approval success/failure
-    - automation_results: All automation that was triggered
-    - policy_activation: Which policies are now active
-    - enforcement_files: Generated config files (ESLint, Ruff, etc.)
-    - warnings: Any issues encountered during automation
-    - next_steps: What user should do next
+    **RETURNS (object):**
+    - adr_id (string): The approved ADR ID
+    - status (string): Always "approved" after successful approval
+    - policies_activated (array of strings): List of policy rules now active
+    - configurations_updated (array of strings): Config files that were updated
+    - warnings (array of strings): Any issues encountered during automation
+    - next_steps (array of strings): What user should do next
     """
     try:
         workflow = ApprovalWorkflow(adr_dir=adr_dir)
@@ -394,35 +407,30 @@ def adr_approve(
         
         result = workflow.execute(approval_input)
         
-        if result.status.value == "success":
+        if result.success:
             approval_result = result.data["approval_result"]
+            
+            # Return clean approval result for agent
             return {
-                "success": True,
                 "adr_id": approval_result.adr_id,
-                "previous_status": approval_result.previous_status,
-                "new_status": approval_result.new_status,
-                "content_digest": approval_result.content_digest,
-                "policy_rules_applied": approval_result.policy_rules_applied,
+                "status": "approved",  # Always approved after this
+                "policies_activated": approval_result.policy_rules_applied,
                 "configurations_updated": approval_result.configurations_updated,
                 "warnings": approval_result.warnings,
-                "next_steps": approval_result.next_steps,
-                "automation_summary": result.data["full_report"]["automation_summary"],
-                "policy_enforcement": result.data["full_report"]["policy_enforcement"],
-                "message": result.message
+                "next_steps": approval_result.next_steps
             }
         else:
             return {
-                "success": False,
-                "error": result.error.error_message if result.error else result.message,
-                "automation_results": result.error.context.get("automation_results", {}) if result.error else {},
-                "message": "ADR approval failed"
+                "error": "ADR approval failed",
+                "details": result.errors[0] if result.errors else result.message,
+                "suggested_action": "Check that the ADR ID exists and is in 'proposed' status"
             }
             
     except Exception as e:
         return {
-            "success": False,
-            "error": str(e),
-            "message": "ADR approval failed"
+            "error": "ADR approval failed", 
+            "details": str(e),
+            "suggested_action": "Verify ADR exists and you have write permissions"
         }
 
 
@@ -469,25 +477,26 @@ def adr_supersede(
     4. Verify that dependent systems are updated to follow new decision
     
     **PARAMETERS:**
-    - old_adr_id: ID of ADR being replaced (e.g., "ADR-0003")
-    - new_title: Title of the replacement decision
-    - new_context: WHY the replacement is needed 
-    - new_decision: WHAT the new decision is
-    - new_consequences: Expected outcomes of the new decision
-    - supersede_reason: WHY the old ADR is being replaced
-    - new_deciders: Who made the new decision (optional)
-    - new_tags: Tags for the new ADR (optional)
-    - new_policy: Policy rules for the new decision (optional)
-    - new_alternatives: Other options considered (optional)
-    - auto_approve: Automatically approve new ADR without human review
-    - adr_dir: Where ADR files live (default: "docs/adr")
+    - old_adr_id (string, required): ID of ADR being replaced (e.g., "ADR-0003")
+    - new_title (string, required): Title of the replacement decision
+    - new_context (string, required): WHY the replacement is needed 
+    - new_decision (string, required): WHAT the new decision is
+    - new_consequences (string, required): Expected outcomes of the new decision
+    - supersede_reason (string, required): WHY the old ADR is being replaced
+    - new_deciders (array of strings, optional): Who made the new decision
+    - new_tags (array of strings, optional): Tags for the new ADR
+    - new_policy (object, optional): Policy rules for the new decision
+    - new_alternatives (string, optional): Other options considered
+    - auto_approve (boolean, optional): Automatically approve new ADR without human review
+    - adr_dir (string): Where ADR files live (default: "docs/adr")
     
-    **RETURNS:**
-    - old_adr_id: The superseded ADR ID
-    - new_adr_id: The new replacement ADR ID  
-    - relationship_updates: What links were updated
-    - approval_status: Whether new ADR was auto-approved
-    - next_steps: What to do next
+    **RETURNS (object):**
+    - old_adr_id (string): The superseded ADR ID
+    - new_adr_id (string): The new replacement ADR ID  
+    - old_status (string): Status of the old ADR (now "superseded")
+    - new_status (string): Status of the new ADR (usually "proposed")
+    - relationships_updated (array of strings): What links were updated
+    - next_steps (array of strings): What to do next
     """
     try:
         workflow = SupersedeWorkflow(adr_dir=adr_dir)
@@ -513,32 +522,30 @@ def adr_supersede(
         
         result = workflow.execute(supersede_input)
         
-        if result.status.value == "success":
+        if result.success:
             supersede_result = result.data["supersede_result"]
+            
+            # Return clean supersede result for agent
             return {
-                "success": True,
                 "old_adr_id": supersede_result.old_adr_id,
                 "new_adr_id": supersede_result.new_adr_id,
-                "old_adr_status": supersede_result.old_adr_status,
-                "new_adr_status": supersede_result.new_adr_status,
+                "old_status": supersede_result.old_adr_status,
+                "new_status": supersede_result.new_adr_status,
                 "relationships_updated": supersede_result.relationships_updated,
-                "automation_triggered": supersede_result.automation_triggered,
-                "conflicts_resolved": supersede_result.conflicts_resolved,
-                "next_steps": supersede_result.next_steps,
-                "message": result.message
+                "next_steps": supersede_result.next_steps
             }
         else:
             return {
-                "success": False,
-                "error": result.error.error_message if result.error else result.message,
-                "message": "ADR superseding failed"
+                "error": "Supersede failed",
+                "details": result.errors[0] if result.errors else result.message,
+                "suggested_action": "Check that the old ADR ID exists and is valid"
             }
             
     except Exception as e:
         return {
-            "success": False,
-            "error": str(e),
-            "message": "ADR superseding failed"
+            "error": "Supersede failed",
+            "details": str(e),
+            "suggested_action": "Verify the old ADR exists and new ADR details are valid"
         }
 
 
@@ -580,19 +587,21 @@ def adr_planning_context(
     5. If you make new significant decisions, call `adr_create()`
     
     **PARAMETERS:**
-    - task_description: What you're trying to implement (be specific)
-    - context_type: "implementation", "refactoring", "debugging", "feature"
-    - domain_hints: Areas involved like ["frontend", "database", "api"]
-    - priority_level: "low", "normal", "high" (affects detail level)
-    - adr_dir: Where ADR files live (default: "docs/adr")
+    - task_description (string, required): What you're trying to implement (be specific)
+    - context_type (string, optional): "implementation", "refactoring", "debugging", "feature"
+    - domain_hints (array of strings, optional): Areas involved like ["frontend", "database", "api"]
+    - priority_level (string, optional): "low", "normal", "high" (affects detail level)
+    - adr_dir (string): Where ADR files live (default: "docs/adr")
     
-    **RETURNS:**
-    - relevant_adrs: ADRs that apply to your task
-    - technology_recommendations: What to use/avoid
-    - architectural_patterns: Suggested patterns for your task
-    - constraints: Hard restrictions from approved ADRs  
-    - compliance_checklist: Steps to ensure ADR compliance
-    - guidance: Specific advice for your task context
+    **RETURNS (object):**
+    - relevant_adrs (array of objects): ADRs that apply to your task
+    - constraints (array of strings): Hard restrictions from approved ADRs  
+    - guidance (string): Specific advice for your task context
+    - use_technologies (array of strings): Technologies recommended for your task
+    - avoid_technologies (array of strings): Technologies to avoid based on ADRs
+    - patterns (array of strings): Architectural patterns suggested for your task
+    - checklist (array of strings): Steps to ensure ADR compliance
+    - related_decisions (array of objects): Other related architectural decisions
     """
     try:
         workflow = PlanningWorkflow(adr_dir=adr_dir)
@@ -606,32 +615,36 @@ def adr_planning_context(
         
         result = workflow.execute(planning_input)
         
-        if result.status.value == "success":
+        if result.success:
             context = result.data["architectural_context"]
+            
+            # Handle string inputs for domain_hints (convert to list)
+            if isinstance(domain_hints, str):
+                domain_hints = [hint.strip() for hint in domain_hints.split(",") if hint.strip()]
+            
+            # Return clean planning context for agent
             return {
-                "success": True,
                 "relevant_adrs": context.relevant_adrs,
-                "applicable_constraints": context.applicable_constraints,
-                "guidance_prompts": context.guidance_prompts,
-                "technology_recommendations": context.technology_recommendations,
-                "architecture_patterns": context.architecture_patterns,
-                "compliance_checklist": context.compliance_checklist,
-                "related_decisions": context.related_decisions,
-                "task_analysis": result.data["task_analysis"],
-                "message": result.message
+                "constraints": context.applicable_constraints,
+                "guidance": context.guidance_prompts,
+                "use_technologies": context.technology_recommendations.get("use", []),
+                "avoid_technologies": context.technology_recommendations.get("avoid", []),
+                "patterns": context.architecture_patterns,
+                "checklist": context.compliance_checklist,
+                "related_decisions": context.related_decisions
             }
         else:
             return {
-                "success": False,
-                "error": result.error.error_message if result.error else result.message,
-                "message": "Planning context generation failed"
+                "error": "Planning context failed",
+                "details": result.errors[0] if result.errors else result.message,
+                "suggested_action": "Provide a clear task description and verify ADR directory exists"
             }
             
     except Exception as e:
         return {
-            "success": False,
-            "error": str(e),
-            "message": "Planning context generation failed"
+            "error": "Planning context failed",
+            "details": str(e),
+            "suggested_action": "Check task description format and ADR directory access"
         }
 
 

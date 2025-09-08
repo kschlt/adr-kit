@@ -94,21 +94,20 @@ class CreationWorkflow(BaseWorkflow):
             )
             
             return WorkflowResult(
+                success=True,
                 status=WorkflowStatus.SUCCESS,
                 message=f"ADR {adr_id} created successfully",
                 data={"creation_result": result}
             )
             
         except Exception as e:
-            return WorkflowResult(
+            result = WorkflowResult(
+                success=False,
                 status=WorkflowStatus.FAILED,
-                message=f"ADR creation failed: {str(e)}",
-                error=WorkflowError(
-                    error_type="CreationError",
-                    error_message=str(e),
-                    context={"input": input_data}
-                )
+                message=f"ADR creation failed: {str(e)}"
             )
+            result.add_error(f"CreationError: {str(e)}")
+            return result
     
     def _generate_adr_id(self) -> str:
         """Generate next available ADR ID."""
