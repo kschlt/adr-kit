@@ -109,6 +109,31 @@ def init(
         except Exception as e:
             console.print(f"⚠️  Could not generate initial JSON index: {e}")
         
+        # Interactive setup prompt
+        console.print("\n🤖 [bold]Setup AI Agent Integration?[/bold]")
+        console.print("1. Cursor IDE - Set up MCP server for Cursor's built-in AI")
+        console.print("2. Claude Code - Set up MCP server for Claude Code terminal")
+        console.print("3. Skip - Set up later with 'adr-kit setup-cursor' or 'adr-kit setup-claude'")
+        
+        choice = typer.prompt("Choose option (1/2/3)", default="3")
+        
+        if choice == "1":
+            console.print("\n🎯 Setting up for Cursor IDE...")
+            try:
+                _setup_cursor_impl()
+            except Exception as e:
+                console.print(f"⚠️  Setup failed: {e}")
+                console.print("You can run 'adr-kit setup-cursor' later")
+        elif choice == "2":
+            console.print("\n🤖 Setting up for Claude Code...")
+            try:
+                _setup_claude_impl()
+            except Exception as e:
+                console.print(f"⚠️  Setup failed: {e}")
+                console.print("You can run 'adr-kit setup-claude' later")
+        else:
+            console.print("✅ Skipped AI setup. Run 'adr-kit setup-cursor' or 'adr-kit setup-claude' when ready.")
+        
         sys.exit(0)
         
     except Exception as e:
@@ -452,105 +477,134 @@ def info():
 
 
 # Keep only essential manual commands
-@app.command()
-def dual_setup():
-    """Set up ADR Kit for both Cursor IDE and Claude Code terminal access.
-    
-    Creates configuration files for both Cursor's built-in AI and Claude Code
-    running in terminals within Cursor IDE.
-    """
+def _setup_cursor_impl():
+    """Implementation for Cursor setup that can be called from commands or init."""
     from pathlib import Path
     import json
     
-    console.print("🤖 Setting up Dual Agent Access (Cursor IDE + Claude Code)")
+    console.print("🎯 Setting up ADR Kit for Cursor IDE")
     
+    # Detect the correct adr-kit command path
+    import shutil
+    import os
+    
+    adr_kit_command = shutil.which("adr-kit")
+    if not adr_kit_command:
+        # Fallback to simple command name
+        adr_kit_command = "adr-kit"
+    
+    # Check if we're in a virtual environment
+    venv_path = os.environ.get('VIRTUAL_ENV')
+    if venv_path:
+        console.print(f"📍 Detected virtual environment: {venv_path}")
+        console.print(f"📍 Using adr-kit from: {adr_kit_command}")
+    
+    # Create Cursor config in proper location
+    cursor_dir = Path(".cursor")
+    cursor_dir.mkdir(exist_ok=True)
+    
+    cursor_config = {
+        "mcpServers": {
+            "adr-kit": {
+                "command": adr_kit_command,
+                "args": ["mcp-server"],
+                "env": {
+                    "PYTHONPATH": ".",
+                    "ADR_DIR": "docs/adr"
+                }
+            }
+        }
+    }
+    
+    cursor_config_file = cursor_dir / "mcp.json"
+    with open(cursor_config_file, 'w') as f:
+        json.dump(cursor_config, f, indent=2)
+        
+    console.print(f"✅ Created {cursor_config_file}")
+    
+    # Test MCP server health
+    console.print("\n🔍 Testing MCP server health...")
+    from .mcp.server_v2 import mcp
+    console.print("✅ MCP server ready")
+    
+    console.print("\n🎯 Next Steps:")
+    console.print("1. [bold]Restart:[/bold] Restart Cursor IDE to load the new MCP configuration")
+    console.print("2. [bold]Test:[/bold] Ask Cursor AI 'What ADR tools do you have?'")
+    console.print("3. [bold]Use:[/bold] Try 'Analyze my project for architectural decisions'")
+
+
+@app.command()
+def setup_cursor():
+    """Set up ADR Kit MCP server for Cursor IDE."""
     try:
-        # Detect the correct adr-kit command path
-        import shutil
-        import os
-        
-        adr_kit_command = shutil.which("adr-kit")
-        if not adr_kit_command:
-            # Fallback to simple command name
-            adr_kit_command = "adr-kit"
-        
-        # Check if we're in a virtual environment
-        venv_path = os.environ.get('VIRTUAL_ENV')
-        if venv_path:
-            console.print(f"📍 Detected virtual environment: {venv_path}")
-            console.print(f"📍 Using adr-kit from: {adr_kit_command}")
-        
-        # Create Claude Code config
-        claude_config = {
-            "servers": {
-                "adr-kit": {
-                    "command": adr_kit_command,
-                    "args": ["mcp-server"],
-                    "description": "AI-first Architectural Decision Records management",
-                    "tools": [
-                        "adr_init", "adr_query_related", "adr_create", "adr_approve",
-                        "adr_supersede", "adr_validate", "adr_index", 
-                        "adr_export_lint_config", "adr_render_site"
-                    ]
-                }
-            }
-        }
-        
-        claude_config_file = Path(".claude-mcp-config.json")
-        with open(claude_config_file, 'w') as f:
-            json.dump(claude_config, f, indent=2)
-        
-        console.print(f"✅ Created {claude_config_file} (for Claude Code terminals)")
-        
-        # Create Cursor config in proper location
-        cursor_dir = Path(".cursor")
-        cursor_dir.mkdir(exist_ok=True)
-        
-        cursor_config = {
-            "mcpServers": {
-                "adr-kit": {
-                    "command": adr_kit_command,
-                    "args": ["mcp-server"],
-                    "env": {
-                        "PYTHONPATH": ".",
-                        "ADR_DIR": "docs/adr"
-                    }
-                }
-            }
-        }
-        
-        cursor_config_file = cursor_dir / "mcp.json"
-        with open(cursor_config_file, 'w') as f:
-            json.dump(cursor_config, f, indent=2)
-            
-        console.print(f"✅ Created {cursor_config_file} (for Cursor IDE)")
-        
-        # Also create the example config file for manual setup
-        cursor_example_file = Path("cursor-mcp-config.json") 
-        with open(cursor_example_file, 'w') as f:
-            json.dump(cursor_config, f, indent=2)
-        console.print(f"✅ Created {cursor_example_file} (example for manual setup)")
-        
-        # Test MCP server health
-        console.print("\n🔍 Testing MCP server health...")
-        from .mcp.server_v2 import mcp
-        console.print("✅ MCP server ready")
-        
-        console.print("\n🎯 Next Steps:")
-        console.print("1. [bold]Cursor IDE:[/bold] Configuration auto-created in .cursor/mcp.json ✨")
-        console.print("2. [bold]Claude Code:[/bold] Will auto-detect .claude-mcp-config.json in this directory")
-        console.print("3. [bold]Restart:[/bold] Restart Cursor IDE to load the new MCP configuration")
-        console.print("4. [bold]Test:[/bold] Both agents can now use adr_* tools!")
-        
-        console.print(f"\n💡 [bold]Verification:[/bold]")
-        console.print("   • Cursor AI: Ask 'What ADR tools do you have?'")
-        console.print("   • Claude Code: Run 'claude' and ask about ADR capabilities")
-        console.print("   • Both should have access to the same 6 ADR management tools")
-        
-        console.print(f"\n📚 [bold]Full Guide:[/bold] See DUAL_AGENT_SETUP.md for detailed instructions")
-        
+        _setup_cursor_impl()
     except Exception as e:
-        console.print(f"❌ Setup failed: {e}")
+        console.print(f"❌ Cursor setup failed: {e}")
+        raise typer.Exit(code=1)
+
+
+def _setup_claude_impl():
+    """Implementation for Claude Code setup that can be called from commands or init."""
+    from pathlib import Path
+    import json
+    
+    console.print("🤖 Setting up ADR Kit for Claude Code")
+    
+    # Detect the correct adr-kit command path
+    import shutil
+    import os
+    
+    adr_kit_command = shutil.which("adr-kit")
+    if not adr_kit_command:
+        # Fallback to simple command name
+        adr_kit_command = "adr-kit"
+    
+    # Check if we're in a virtual environment
+    venv_path = os.environ.get('VIRTUAL_ENV')
+    if venv_path:
+        console.print(f"📍 Detected virtual environment: {venv_path}")
+        console.print(f"📍 Using adr-kit from: {adr_kit_command}")
+    
+    # Create Claude Code config
+    claude_config = {
+        "servers": {
+            "adr-kit": {
+                "command": adr_kit_command,
+                "args": ["mcp-server"],
+                "description": "AI-first Architectural Decision Records management",
+                "tools": [
+                    "adr_init", "adr_query_related", "adr_create", "adr_approve",
+                    "adr_supersede", "adr_validate", "adr_index", 
+                    "adr_export_lint_config", "adr_render_site"
+                ]
+            }
+        }
+    }
+    
+    claude_config_file = Path(".claude-mcp-config.json")
+    with open(claude_config_file, 'w') as f:
+        json.dump(claude_config, f, indent=2)
+    
+    console.print(f"✅ Created {claude_config_file}")
+    
+    # Test MCP server health
+    console.print("\n🔍 Testing MCP server health...")
+    from .mcp.server_v2 import mcp
+    console.print("✅ MCP server ready")
+    
+    console.print("\n🎯 Next Steps:")
+    console.print("1. [bold]Restart:[/bold] Restart your terminal session")
+    console.print("2. [bold]Test:[/bold] Run 'claude' and ask about ADR capabilities")
+    console.print("3. [bold]Use:[/bold] Try 'Create an ADR for switching to PostgreSQL'")
+
+
+@app.command()
+def setup_claude():
+    """Set up ADR Kit MCP server for Claude Code."""
+    try:
+        _setup_claude_impl()
+    except Exception as e:
+        console.print(f"❌ Claude Code setup failed: {e}")
         raise typer.Exit(code=1)
 
 

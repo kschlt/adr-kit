@@ -667,17 +667,12 @@ def adr_index_resource() -> str:
 
 def run_stdio_server():
     """Run the MCP server over stdio for Cursor/Claude Code integration."""
-    import asyncio
     import sys
-    
-    # Set up stdio transport for MCP
-    async def stdio_server():
-        # FastMCP automatically handles stdio when no port is specified
-        await mcp.run(transport="stdio")
     
     # Ensure clean stdio handling
     try:
-        asyncio.run(stdio_server())
+        # FastMCP automatically handles stdio when no transport is specified
+        mcp.run()
     except KeyboardInterrupt:
         # Clean exit on Ctrl+C
         sys.exit(0)

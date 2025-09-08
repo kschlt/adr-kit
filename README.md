@@ -76,8 +76,11 @@ Add to your MCP settings.json:
 
 **Quick Setup:**
 ```bash
-# Auto-generate MCP configuration for Cursor and Claude Code
-adr-kit dual-setup
+# For Cursor IDE
+adr-kit setup-cursor
+
+# For Claude Code  
+adr-kit setup-claude
 ```
 
 ### 3. Start Using with Your AI Agent
