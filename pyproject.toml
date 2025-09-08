@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adr-kit"
-version = "0.2.0"
+version = "0.2.1"
 description = "A toolkit for managing Architectural Decision Records (ADRs) in MADR format"
 authors = [{name = "ADR Kit Contributors"}]
 readme = "README.md"
@@ -47,7 +47,6 @@ dev = [
 
 [project.scripts]
 adr-kit = "adr_kit.cli:app"
-adr-kit-mcp = "adr_kit.mcp.server:run_stdio_server"
 
 [project.urls]
 Homepage = "https://github.com/your-org/adr-kit"

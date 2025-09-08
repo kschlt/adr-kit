@@ -1,6 +1,6 @@
 """ADR Kit - A toolkit for managing Architectural Decision Records (ADRs) in MADR format."""
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from .core.model import ADR, ADRFrontMatter
 from .core.parse import parse_adr_file, parse_front_matter
