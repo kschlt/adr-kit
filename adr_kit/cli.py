@@ -149,7 +149,7 @@ def mcp_server(
     """Start the MCP server for AI agent integration.
     
     This is the primary interface for ADR Kit. The MCP server provides
-    rich contextual tools for AI agents to create, manage, and validate ADRs.
+    agent-friendly tools that call the full workflow automation backend.
     
     By default, uses stdio transport which is compatible with Cursor and Claude Code.
     """
@@ -159,11 +159,11 @@ def mcp_server(
             # Check for updates in background (non-blocking)
             check_for_updates_async()
             
-            from .mcp.server_v2 import run_stdio_server
+            from .mcp.server import run_stdio_server
             run_stdio_server()
         except ImportError as e:
             console.print(f"❌ MCP server dependencies not available: {e}", err=True)
-            console.print("💡 Install with: pip install 'adr-kit[mcp]'", err=True)
+            console.print("💡 Install with: pip install fastmcp", err=True)
             raise typer.Exit(code=1)
         except KeyboardInterrupt:
             raise typer.Exit(code=0)
@@ -171,14 +171,14 @@ def mcp_server(
         # HTTP mode - with user feedback
         console.print("🚀 Starting ADR Kit MCP Server (HTTP mode)...")
         console.print("📡 AI agents can now access ADR management tools")
-        console.print("💡 Use MCP tools: adr_create, adr_query_related, adr_approve, etc.")
+        console.print("💡 Use MCP tools: adr_analyze_project, adr_preflight, adr_create, adr_approve, etc.")
         
         try:
-            from .mcp.server_v2 import run_server
+            from .mcp.server import run_server
             run_server()
         except ImportError as e:
             console.print(f"❌ MCP server dependencies not available: {e}")
-            console.print("💡 Install with: pip install 'adr-kit[mcp]'")
+            console.print("💡 Install with: pip install fastmcp")
             raise typer.Exit(code=1)
         except KeyboardInterrupt:
             console.print("\n👋 MCP server stopped")
@@ -198,45 +198,70 @@ def mcp_health():
     check_for_updates_async()
     
     try:
-        # Test imports
-        from .mcp.server_v2 import mcp
-        console.print("✅ MCP server dependencies: OK")
+        # Test FastMCP dependency
+        import fastmcp
+        console.print(f"✅ FastMCP dependency: OK (v{fastmcp.__version__})")
         
-        # Test core functionality without calling MCP tools directly
-        from .core.model import ADR, ADRFrontMatter, ADRStatus, PolicyModel
+        # Test main MCP server imports
+        from .mcp.server import mcp
+        from .mcp.models import MCPResponse, MCPErrorResponse
+        console.print("✅ MCP server: OK")
+        
+        # Test workflow system (the real business logic)
+        try:
+            from .workflows.analyze import AnalyzeProjectWorkflow
+            from .workflows.preflight import PreflightWorkflow
+            from .workflows.creation import CreationWorkflow
+            from .workflows.approval import ApprovalWorkflow
+            console.print("✅ Workflow backend system: OK")
+            workflow_available = True
+        except ImportError as e:
+            console.print(f"⚠️  Workflow system: Not available ({e})")
+            workflow_available = False
+        
+        # Test core functionality
+        from .core.model import ADR, ADRFrontMatter, ADRStatus
+        from .core.parse import find_adr_files, parse_adr_file
         from .core.policy_extractor import PolicyExtractor
-        from .enforce.eslint import StructuredESLintGenerator
+        console.print("✅ Core ADR functionality: OK")
         
-        # Test policy system
-        extractor = PolicyExtractor()
-        generator = StructuredESLintGenerator()
-        console.print("✅ Core policy system: OK")
-        
-        # List available tools by inspecting MCP server
-        console.print("📡 Available MCP Tools (V2 Architecture - 6 Entry Points):")
+        # List available tools
+        console.print("📡 Available MCP Tools (Agent-First Interface + Full Workflow Backend):")
         tools = [
             "adr_analyze_project", "adr_preflight", "adr_create", 
             "adr_approve", "adr_supersede", "adr_planning_context"
         ]
         for tool in tools:
-            console.print(f"   • {tool}()")
+            console.print(f"   • {tool}() - Clean interface → Full workflow automation")
         
-        console.print("✅ Enhanced MCP features:")
-        console.print("   • Structured policy extraction (hybrid approach)")
-        console.print("   • Automatic lint rule generation")
-        console.print("   • Policy validation with V3 requirements")
-        console.print("   • AI-first contextual guidance")
+        console.print("📚 Available Resources:")
+        console.print("   • adr://index - Structured ADR index")
+        
+        console.print("\n✅ MCP Features:")
+        console.print("   • Agent-friendly interfaces with proper FastMCP patterns")
+        console.print("   • Full workflow automation backend (semantic search, policy extraction)")
+        console.print("   • Consistent response formats with structured errors")
+        console.print("   • Advanced features: conflict detection, policy enforcement")
+        console.print("   • Structured logging for debugging")
         
         console.print("\n🎯 Integration Instructions:")
-        console.print("1. In your project: adr-kit mcp-server")
-        console.print("2. In Cursor: Add MCP server config (see 'adr-kit info')")
-        console.print("3. In Claude Code: Point to the stdio server")
+        console.print("1. Start server: adr-kit mcp-server")
+        console.print("2. For Claude Code: Point MCP client to the stdio server")
+        console.print("3. For Cursor: Add MCP server config (see 'adr-kit info')")
+        
+        if workflow_available:
+            console.print("\n🚀 Full Feature Set Available:")
+            console.print("   • Intelligent project analysis with technology detection")
+            console.print("   • Smart preflight checks with policy conflict detection")
+            console.print("   • Advanced ADR creation with semantic similarity detection")
+            console.print("   • Policy automation with lint rule generation")
+            console.print("   • Contextual guidance for agent task planning")
         
         console.print("\n✅ MCP Server is ready for AI agent integration!")
         
     except ImportError as e:
         console.print(f"❌ Missing dependencies: {e}")
-        console.print("💡 Install with: pip install 'adr-kit[mcp]'")
+        console.print("💡 Install with: pip install fastmcp")
         raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"❌ Health check failed: {e}")
@@ -524,7 +549,7 @@ def _setup_cursor_impl():
     
     # Test MCP server health
     console.print("\n🔍 Testing MCP server health...")
-    from .mcp.server_v2 import mcp
+    from .mcp.server import mcp
     console.print("✅ MCP server ready")
     
     console.print("\n🎯 Next Steps:")
@@ -589,7 +614,7 @@ def _setup_claude_impl():
     
     # Test MCP server health
     console.print("\n🔍 Testing MCP server health...")
-    from .mcp.server_v2 import mcp
+    from .mcp.server import mcp
     console.print("✅ MCP server ready")
     
     console.print("\n🎯 Next Steps:")

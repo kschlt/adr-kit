@@ -1,15 +1,31 @@
 # ADR Kit
 
-**AI-First Architectural Decision Records** - A toolkit designed for autonomous AI agents like Claude Code to manage ADRs with intelligent automation and policy enforcement.
+**AI-First Architectural Decision Records** - A production-ready toolkit designed for AI agents to manage ADRs with sophisticated workflow automation and policy enforcement.
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-comprehensive-green)](#testing--validation)
 
 ## What is ADR Kit?
 
-ADR Kit transforms architectural decisions into **enforceable code policies**. It's built specifically for AI agents to autonomously manage your project's architectural decisions while preventing drift and conflicts.
+ADR Kit transforms architectural decisions into **enforceable code policies** through a sophisticated workflow system. It provides **clean agent-friendly interfaces** backed by **comprehensive Python automation workflows**.
 
-**Key Philosophy:** Agents make smart decisions, tools handle reliable automation.
+**Key Philosophy:** Simple entry points for agents, sophisticated automation underneath.
+
+## Architecture: Clean Separation of Concerns
+
+```
+Agent Request → Clean MCP Interface → Sophisticated Workflow → Business Logic
+     ↑               ↑                      ↑                    ↑
+  FastMCP        Agent-Friendly       Step-by-Step         Core Components
+ Compatible        Interfaces         Automation           & Intelligence  
+```
+
+**Perfect for:**
+- **Agent Integration**: Clean, predictable MCP interfaces
+- **Business Logic Evolution**: Sophisticated workflows can evolve independently  
+- **Debugging & Maintenance**: Clear separation, comprehensive logging
+- **Testing**: Each component tested thoroughly
 
 ## Core Features
 
@@ -91,9 +107,18 @@ Tell your AI agent:
 - *"Create an ADR for switching to React Query"*
 - *"Give me architectural context for implementing authentication"*
 
-## How It Works: 6-Entry-Point Architecture
+## How It Works: 6 MCP Entry Points → Sophisticated Workflows
 
-ADR Kit provides **6 intelligent entry points** that trigger comprehensive internal workflows:
+ADR Kit provides **6 clean MCP interfaces** that trigger **comprehensive internal workflows**:
+
+| MCP Tool | Workflow Backend | Purpose |
+|----------|------------------|---------|
+| `adr_analyze_project()` | AnalyzeProjectWorkflow | Technology detection, project scanning |
+| `adr_preflight()` | PreflightWorkflow | Policy conflict detection, decision validation |
+| `adr_create()` | CreationWorkflow | Semantic analysis, ADR generation |
+| `adr_approve()` | ApprovalWorkflow | Policy activation, automation triggers |
+| `adr_supersede()` | SupersedeWorkflow | Relationship management, history tracking |
+| `adr_planning_context()` | PlanningWorkflow | Contextual guidance, constraint extraction |
 
 ### 🔍 1. `adr_analyze_project()` - Discover Missing ADRs
 Scans your codebase and generates prompts for the agent to identify architectural decisions that need documentation.
@@ -195,6 +220,37 @@ Use React Query for all data fetching operations.
 }
 ```
 
+## Testing & Validation
+
+ADR Kit includes **comprehensive test coverage** for reliable production use:
+
+### Quick Validation
+```bash
+# Test core functionality
+python run_workflow_tests.py
+
+# Quick component check
+adr-kit mcp-health
+```
+
+### Test Coverage
+- **Unit Tests**: Individual workflow components and business logic
+- **Integration Tests**: MCP server ↔ workflow integration 
+- **End-to-End Tests**: Complete workflow chains (analyze → create → approve)
+- **Error Scenarios**: Permission errors, disk full, concurrent execution
+- **Performance Tests**: Large projects, memory efficiency, timing
+- **Edge Cases**: Unicode handling, malformed input, corruption recovery
+
+### Test Architecture Benefits
+```python
+# Each workflow is a testable Python function
+workflow = CreationWorkflow(adr_dir="/test")
+result = workflow.execute(creation_input)
+
+assert result.success is True
+assert result.data["creation_result"].adr_id.startswith("ADR-")
+```
+
 ## Directory Structure
 
 ```
@@ -203,8 +259,12 @@ your-project/
 │   ├── ADR-0001-react-query.md
 │   └── adr-index.json          # Generated index
 ├── .eslintrc.adrs.json         # Generated lint rules
-└── .adr-kit/                   # System files
-    └── constraints.json        # Policy contract
+├── .adr-kit/                   # System files
+│   └── constraints.json        # Policy contract
+└── tests/                      # Comprehensive test suite
+    ├── test_workflow_base.py    # Workflow infrastructure tests
+    ├── test_workflow_*.py       # Individual workflow tests
+    └── test_mcp_integration.py  # MCP ↔ workflow integration
 ```
 
 ## Manual Usage (Optional)
