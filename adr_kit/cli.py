@@ -465,11 +465,26 @@ def dual_setup():
     console.print("🤖 Setting up Dual Agent Access (Cursor IDE + Claude Code)")
     
     try:
+        # Detect the correct adr-kit command path
+        import shutil
+        import os
+        
+        adr_kit_command = shutil.which("adr-kit")
+        if not adr_kit_command:
+            # Fallback to simple command name
+            adr_kit_command = "adr-kit"
+        
+        # Check if we're in a virtual environment
+        venv_path = os.environ.get('VIRTUAL_ENV')
+        if venv_path:
+            console.print(f"📍 Detected virtual environment: {venv_path}")
+            console.print(f"📍 Using adr-kit from: {adr_kit_command}")
+        
         # Create Claude Code config
         claude_config = {
             "servers": {
                 "adr-kit": {
-                    "command": "adr-kit",
+                    "command": adr_kit_command,
                     "args": ["mcp-server"],
                     "description": "AI-first Architectural Decision Records management",
                     "tools": [
@@ -487,11 +502,14 @@ def dual_setup():
         
         console.print(f"✅ Created {claude_config_file} (for Claude Code terminals)")
         
-        # Create Cursor config  
+        # Create Cursor config in proper location
+        cursor_dir = Path(".cursor")
+        cursor_dir.mkdir(exist_ok=True)
+        
         cursor_config = {
             "mcpServers": {
                 "adr-kit": {
-                    "command": "adr-kit",
+                    "command": adr_kit_command,
                     "args": ["mcp-server"],
                     "env": {
                         "PYTHONPATH": ".",
@@ -501,11 +519,17 @@ def dual_setup():
             }
         }
         
-        cursor_config_file = Path("cursor-mcp-config.json")
+        cursor_config_file = cursor_dir / "mcp.json"
         with open(cursor_config_file, 'w') as f:
             json.dump(cursor_config, f, indent=2)
             
         console.print(f"✅ Created {cursor_config_file} (for Cursor IDE)")
+        
+        # Also create the example config file for manual setup
+        cursor_example_file = Path("cursor-mcp-config.json") 
+        with open(cursor_example_file, 'w') as f:
+            json.dump(cursor_config, f, indent=2)
+        console.print(f"✅ Created {cursor_example_file} (example for manual setup)")
         
         # Test MCP server health
         console.print("\n🔍 Testing MCP server health...")
@@ -513,14 +537,15 @@ def dual_setup():
         console.print("✅ MCP server ready")
         
         console.print("\n🎯 Next Steps:")
-        console.print("1. [bold]Cursor IDE:[/bold] Add config from cursor-mcp-config.json to Cursor settings")
+        console.print("1. [bold]Cursor IDE:[/bold] Configuration auto-created in .cursor/mcp.json ✨")
         console.print("2. [bold]Claude Code:[/bold] Will auto-detect .claude-mcp-config.json in this directory")
-        console.print("3. [bold]Test:[/bold] Both agents can now use adr_* tools!")
+        console.print("3. [bold]Restart:[/bold] Restart Cursor IDE to load the new MCP configuration")
+        console.print("4. [bold]Test:[/bold] Both agents can now use adr_* tools!")
         
         console.print(f"\n💡 [bold]Verification:[/bold]")
         console.print("   • Cursor AI: Ask 'What ADR tools do you have?'")
         console.print("   • Claude Code: Run 'claude' and ask about ADR capabilities")
-        console.print("   • Both should have access to the same 9 ADR management tools")
+        console.print("   • Both should have access to the same 6 ADR management tools")
         
         console.print(f"\n📚 [bold]Full Guide:[/bold] See DUAL_AGENT_SETUP.md for detailed instructions")
         
