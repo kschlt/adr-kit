@@ -33,6 +33,34 @@ app = typer.Typer(
 console = Console()
 
 
+def check_for_updates_async():
+    """Check for updates in the background and show notification if available."""
+    import threading
+    
+    def _check():
+        try:
+            import requests
+            from . import __version__
+            
+            response = requests.get("https://pypi.org/pypi/adr-kit/json", timeout=5)
+            response.raise_for_status()
+            
+            latest_version = response.json()["info"]["version"]
+            current_version = __version__
+            
+            if current_version != latest_version:
+                console.print(f"🔄 [yellow]Update available:[/yellow] v{current_version} → v{latest_version}", err=True)
+                console.print(f"💡 [dim]Run 'adr-kit update' to upgrade[/dim]", err=True)
+                
+        except Exception:
+            # Silently ignore update check failures
+            pass
+    
+    # Run in background thread to avoid blocking
+    thread = threading.Thread(target=_check, daemon=True)
+    thread.start()
+
+
 def get_next_adr_id(adr_dir: Path = Path("docs/adr")) -> str:
     """Get the next available ADR ID."""
     if not adr_dir.exists():
@@ -103,7 +131,10 @@ def mcp_server(
     if stdio and not http:
         # Stdio mode - clean output for MCP protocol
         try:
-            from .mcp.server import run_stdio_server
+            # Check for updates in background (non-blocking)
+            check_for_updates_async()
+            
+            from .mcp.server_v2 import run_stdio_server
             run_stdio_server()
         except ImportError as e:
             console.print(f"❌ MCP server dependencies not available: {e}", err=True)
@@ -118,7 +149,7 @@ def mcp_server(
         console.print("💡 Use MCP tools: adr_create, adr_query_related, adr_approve, etc.")
         
         try:
-            from .mcp.server import run_server
+            from .mcp.server_v2 import run_server
             run_server()
         except ImportError as e:
             console.print(f"❌ MCP server dependencies not available: {e}")
@@ -138,9 +169,12 @@ def mcp_health():
     """
     console.print("🔍 Checking ADR Kit MCP Server Health...")
     
+    # Check for updates in background
+    check_for_updates_async()
+    
     try:
         # Test imports
-        from .mcp.server import mcp
+        from .mcp.server_v2 import mcp
         console.print("✅ MCP server dependencies: OK")
         
         # Test core functionality without calling MCP tools directly
@@ -154,11 +188,10 @@ def mcp_health():
         console.print("✅ Core policy system: OK")
         
         # List available tools by inspecting MCP server
-        console.print("📡 Available MCP Tools:")
+        console.print("📡 Available MCP Tools (V2 Architecture - 6 Entry Points):")
         tools = [
-            "adr_init", "adr_create", "adr_query_related", "adr_approve", 
-            "adr_supersede", "adr_validate", "adr_index", "adr_export_lint_config", 
-            "adr_render_site"
+            "adr_analyze_project", "adr_preflight", "adr_create", 
+            "adr_approve", "adr_supersede", "adr_planning_context"
         ]
         for tool in tools:
             console.print(f"   • {tool}()")
@@ -185,47 +218,71 @@ def mcp_health():
         raise typer.Exit(code=1)
 
 
+
 @app.command()
-def mcp_server_v2(
-    stdio: bool = typer.Option(True, help="Use stdio mode for MCP client connection")
+def update(
+    check_only: bool = typer.Option(False, "--check", "-c", help="Only check for updates, don't install"),
+    force: bool = typer.Option(False, "--force", "-f", help="Force update even if up to date")
 ):
-    """Start the new 6-entry-point MCP server (V2 Architecture).
+    """Check for and install adr-kit updates.
     
-    This is the refactored MCP server with the new simplified architecture:
-    - Only 6 entry points for agents to call
-    - Comprehensive internal workflows handle all automation
-    - Clear agent guidance with actionable next steps
-    
-    Entry Points:
-    1. adr_analyze_project() - Analyze existing projects
-    2. adr_preflight() - Check technical choices 
-    3. adr_create() - Create ADR proposals
-    4. adr_approve() - Approve ADRs (triggers all automation)
-    5. adr_supersede() - Replace existing ADRs
-    6. adr_planning_context() - Get architectural context for tasks
+    This command checks PyPI for newer versions of adr-kit and optionally
+    installs them using pip. Useful for staying current with new features
+    and bug fixes.
     """
+    import subprocess
+    import sys
     try:
-        if stdio:
-            # Stdio mode - clean output for MCP protocol
-            print("🚀 Starting ADR Kit MCP Server V2 (6-entry-point architecture)...", file=sys.stderr)
-            from .mcp.server_v2 import run_server
-            run_server()
-        else:
-            console.print("🚀 Starting ADR Kit MCP Server V2 (HTTP mode)...")
-            console.print("🎯 New Architecture: 6 entry points + comprehensive internal workflows")
-            console.print("💡 Use MCP tools: adr_analyze_project, adr_preflight, adr_create, adr_approve, adr_supersede, adr_planning_context")
-            
-            try:
-                from .mcp.server_v2 import run_server
-                run_server()
-            except ImportError as e:
-                console.print(f"❌ MCP server dependencies not available: {e}")
-                console.print("💡 Install with: pip install 'adr-kit[mcp]'")
-            except KeyboardInterrupt:
-                console.print("\n👋 MCP Server V2 stopped")
+        import requests
     except ImportError:
-        console.print("❌ MCP server dependencies not available")
-        console.print("💡 Install with: pip install 'adr-kit[mcp]'")
+        console.print("❌ requests library not available for update checking")
+        console.print("💡 Install manually: pip install --upgrade adr-kit")
+        raise typer.Exit(code=1)
+    
+    from . import __version__
+    
+    console.print(f"🔍 Checking for adr-kit updates... (current: v{__version__})")
+    
+    try:
+        # Check PyPI for latest version
+        response = requests.get("https://pypi.org/pypi/adr-kit/json", timeout=10)
+        response.raise_for_status()
+        
+        latest_version = response.json()["info"]["version"]
+        current_version = __version__
+        
+        if current_version == latest_version and not force:
+            console.print(f"✅ Already up to date (v{current_version})")
+            return
+        
+        console.print(f"📦 Update available: v{current_version} → v{latest_version}")
+        
+        if check_only:
+            console.print("💡 Run 'adr-kit update' to install the update")
+            return
+        
+        # Perform the update
+        console.print("⬇️ Installing update...")
+        result = subprocess.run([
+            sys.executable, "-m", "pip", "install", "--upgrade", "adr-kit"
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            console.print(f"✅ Successfully updated to v{latest_version}")
+            console.print("💡 Restart your MCP server to use the new version")
+        else:
+            console.print(f"❌ Update failed: {result.stderr}")
+            console.print("💡 Try manually: pip install --upgrade adr-kit")
+            raise typer.Exit(code=1)
+            
+    except requests.RequestException:
+        console.print("❌ Failed to check for updates (network error)")
+        console.print("💡 Try manually: pip install --upgrade adr-kit")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"❌ Update check failed: {e}")
+        console.print("💡 Try manually: pip install --upgrade adr-kit")
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -452,7 +509,7 @@ def dual_setup():
         
         # Test MCP server health
         console.print("\n🔍 Testing MCP server health...")
-        from .mcp.server import mcp
+        from .mcp.server_v2 import mcp
         console.print("✅ MCP server ready")
         
         console.print("\n🎯 Next Steps:")

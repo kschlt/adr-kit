@@ -2,7 +2,7 @@
 
 **AI-First Architectural Decision Records** - A toolkit designed for autonomous AI agents like Claude Code to manage ADRs with intelligent automation and policy enforcement.
 
-[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## What is ADR Kit?
@@ -25,16 +25,39 @@ ADR Kit transforms architectural decisions into **enforceable code policies**. I
 
 ### 1. Installation & Setup
 
+**Recommended Installation (Virtual Environment):**
 ```bash
-# Install ADR Kit
-pip install adr-kit sentence-transformers
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install ADR Kit with all dependencies
+pip install adr-kit
 
 # Initialize in your project
 cd your-project
 adr-kit init
 
 # Start MCP server for AI integration  
-adr-kit mcp-server-v2
+adr-kit mcp-server
+```
+
+**Alternative Installation (Global with pipx):**
+```bash
+# Install globally with pipx (recommended for CLI tools)
+pipx install adr-kit
+
+# Or upgrade if already installed
+pipx upgrade adr-kit
+```
+
+**Built-in Updates:**
+```bash
+# Check for and install updates
+adr-kit update
+
+# Just check for updates
+adr-kit update --check
 ```
 
 ### 2. Configure Your AI Agent (Claude Code/Cursor)
@@ -45,10 +68,16 @@ Add to your MCP settings.json:
   "mcpServers": {
     "adr-kit": {
       "command": "adr-kit", 
-      "args": ["mcp-server-v2"]
+      "args": ["mcp-server"]
     }
   }
 }
+```
+
+**Quick Setup:**
+```bash
+# Auto-generate MCP configuration for Cursor and Claude Code
+adr-kit dual-setup
 ```
 
 ### 3. Start Using with Your AI Agent

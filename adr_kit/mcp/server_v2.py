@@ -83,46 +83,48 @@ mcp = FastMCP("ADR Kit V2")
 
 @mcp.tool()
 def adr_analyze_project(
-    request: AnalyzeProjectRequest, 
+    project_path: Optional[str] = None,
+    focus_areas: Optional[List[str]] = None,
     adr_dir: str = "docs/adr"
 ) -> Dict[str, Any]:
     """
-    🔍 **Entry Point 1: Analyze Existing Project**
+    **WHEN TO USE:** Start here when user asks to "analyze project for ADRs", "identify architectural decisions", or "document existing architecture decisions".
     
-    Triggers agent analysis of existing codebase to identify architectural decisions
-    that should be documented as ADRs. This is the starting point for existing projects
-    wanting to adopt ADR governance.
+    **WHAT THIS DOES:** Scans project files and generates a customized analysis prompt for you to identify architectural decisions that should become ADRs.
     
-    🎯 **AGENT INTELLIGENCE REQUIRED:**
-    - Analyze codebase for architectural patterns
-    - Identify significant technical decisions
-    - Propose specific ADRs for each decision
-    - Wait for human confirmation before creating ADRs
+    **CALL THIS WHEN:**
+    - User mentions documenting existing architecture
+    - Starting ADR adoption in an established codebase  
+    - User wants to identify what decisions need ADRs
     
-    ⚡ **INTERNAL AUTOMATION:**
-    - Scans project structure and technology stack
-    - Identifies existing ADRs to avoid duplication
-    - Generates analysis prompt with specific guidance
+    **BACKGROUND PROCESSING:**
+    - Scans package.json, requirements.txt, Cargo.toml, etc.
+    - Detects frameworks, databases, cloud services
+    - Identifies existing ADR files to avoid duplicates
+    - Generates project-specific analysis questions
     
-    📋 **Agent Workflow:**
-    1. Call this tool to get analysis prompt
-    2. Follow the prompt to analyze the project
-    3. Use adr_create() for each proposed ADR
-    4. Wait for human review and approval
+    **YOUR NEXT STEPS AFTER CALLING:**
+    1. Read the returned `analysis_prompt` carefully
+    2. Examine the codebase following the prompt's guidance
+    3. For each architectural decision you identify, call `adr_create()`
+    4. Present your findings to user for confirmation before creating ADRs
     
-    Args:
-        request: Analysis configuration
-        adr_dir: Directory for ADR files (default: docs/adr)
-        
-    Returns:
-        Analysis prompt and project context for agent to act on
+    **PARAMETERS:**
+    - project_path: Path to analyze (default: current directory)  
+    - focus_areas: ["frontend", "backend", "database", "deployment"] to narrow scope
+    - adr_dir: Where ADR files live (default: "docs/adr")
+    
+    **RETURNS:** 
+    - analysis_prompt: Specific questions to guide your codebase analysis
+    - project_context: Technical stack details discovered
+    - guidance: Step-by-step instructions for your analysis
     """
     try:
         workflow = AnalyzeProjectWorkflow(adr_dir=adr_dir)
         
         result = workflow.execute(
-            project_path=request.project_path or str(Path.cwd()),
-            focus_areas=request.focus_areas or []
+            project_path=project_path or str(Path.cwd()),
+            focus_areas=focus_areas or []
         )
         
         if result.status.value == "success":
@@ -150,46 +152,57 @@ def adr_analyze_project(
 
 @mcp.tool()
 def adr_preflight(
-    request: PreflightCheckRequest,
+    choice: str,
+    context: Optional[Dict[str, Any]] = None,
+    category: Optional[str] = None,
     adr_dir: str = "docs/adr"
 ) -> Dict[str, Any]:
     """
-    🚦 **Entry Point 2: Preflight Check**
+    **WHEN TO USE:** Call BEFORE implementing any technical choice. Think of this as "asking permission" from existing architectural decisions.
     
-    Validates technical choices against existing ADRs before implementation.
-    This prevents architectural violations and guides agents toward compliant choices.
+    **WHAT THIS DOES:** Checks if your intended technical choice conflicts with existing ADRs and provides guidance on how to proceed.
     
-    🎯 **AGENT INTELLIGENCE REQUIRED:**
-    - Understanding technical choice implications
-    - Deciding whether to proceed, create ADR, or find alternatives
-    - Interpreting conflict guidance and taking appropriate action
+    **CALL THIS WHEN:**
+    - About to add a new dependency/library
+    - Choosing database, framework, or architecture pattern  
+    - User asks "can we use X technology?"
+    - Before making any significant technical decision
     
-    ⚡ **INTERNAL AUTOMATION:**
-    - Loads constraints contract from approved ADRs
-    - Checks policy gates and existing decisions
-    - Detects conflicts and related ADRs
-    - Generates decision with actionable guidance
+    **BACKGROUND PROCESSING:**
+    - Scans all approved ADRs for relevant policies
+    - Checks import restrictions and architectural boundaries
+    - Identifies conflicting decisions and related ADRs
+    - Generates specific guidance based on conflicts found
     
-    📋 **Agent Workflow:**
-    1. Call this before making technical choices
-    2. If ALLOWED → proceed with implementation
-    3. If REQUIRES_ADR → use adr_create() first
-    4. If BLOCKED → review conflicts and consider alternatives
+    **DECISION RESPONSES:**
+    - **ALLOWED**: Go ahead, no conflicts detected
+    - **REQUIRES_ADR**: Choice is significant, create ADR first with `adr_create()`
+    - **BLOCKED**: Conflicts with existing decisions, review alternatives
     
-    Args:
-        request: Technical choice to evaluate
-        adr_dir: Directory for ADR files (default: docs/adr)
-        
-    Returns:
-        Decision (ALLOWED/REQUIRES_ADR/BLOCKED) with guidance and context
+    **YOUR NEXT STEPS AFTER CALLING:**
+    - ALLOWED: Proceed with implementation
+    - REQUIRES_ADR: Call `adr_create()` to document the decision first
+    - BLOCKED: Present conflicts to user, suggest alternatives from guidance
+    
+    **PARAMETERS:**
+    - choice: Technology/pattern name (e.g., "PostgreSQL", "microservices", "React")
+    - context: Additional details about intended use
+    - category: Hint like "database", "frontend", "architecture" 
+    - adr_dir: Where ADR files live (default: "docs/adr")
+    
+    **RETURNS:**
+    - decision: ALLOWED/REQUIRES_ADR/BLOCKED
+    - guidance: Specific next steps for your decision
+    - conflicts: Any conflicting ADRs found
+    - related_adrs: Relevant existing decisions
     """
     try:
         workflow = PreflightWorkflow(adr_dir=adr_dir)
         
         preflight_input = PreflightInput(
-            choice=request.choice,
-            context=request.context,
-            category=request.category
+            choice=choice,
+            context=context,
+            category=category
         )
         
         result = workflow.execute(preflight_input)
@@ -224,54 +237,72 @@ def adr_preflight(
 
 @mcp.tool()
 def adr_create(
-    request: CreateADRRequest,
+    title: str,
+    context: str,
+    decision: str,
+    consequences: str,
+    deciders: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+    policy: Optional[Dict[str, Any]] = None,
+    alternatives: Optional[str] = None,
     adr_dir: str = "docs/adr"
 ) -> Dict[str, Any]:
     """
-    📝 **Entry Point 3: Create ADR Proposal**
+    **WHEN TO USE:** Create a new architectural decision record when making any significant technical choice.
     
-    Creates new ADR proposal with conflict detection and validation.
-    Always creates ADRs in 'proposed' status requiring human review.
+    **WHAT THIS DOES:** Creates a proposed ADR file with unique ID, validates against existing decisions, and prepares for human approval.
     
-    🎯 **AGENT INTELLIGENCE REQUIRED:**
-    - Writing comprehensive ADR content (context, decision, consequences)
-    - Understanding architectural implications
-    - Structuring policies for enforcement
-    - Responding to conflict detection results
+    **CALL THIS WHEN:**
+    - `adr_preflight()` returned "REQUIRES_ADR"
+    - User makes architectural decisions (database choice, framework, patterns)
+    - You identified decisions during `adr_analyze_project()`
+    - User explicitly asks to document a decision
     
-    ⚡ **INTERNAL AUTOMATION:**
-    - Generates unique ADR ID
-    - Queries related ADRs using semantic search
-    - Detects conflicts with existing decisions
-    - Validates ADR structure and policy format
-    - Creates MADR-formatted file
+    **BACKGROUND PROCESSING:**
+    - Auto-generates unique ADR-NNNN ID
+    - Performs semantic search against existing ADRs
+    - Detects conflicts with approved decisions
+    - Validates MADR format and policy structure
+    - Creates proposed ADR file (NOT approved yet)
     
-    📋 **Agent Workflow:**
-    1. Always check adr_preflight() first
-    2. Create comprehensive ADR content
-    3. Include structured policy for enforceable decisions
-    4. Review conflict detection results
-    5. Use adr_approve() after human review
+    **CRITICAL:** ADRs start as "proposed" status. Use `adr_approve()` after human review.
     
-    Args:
-        request: ADR creation data
-        adr_dir: Directory for ADR files (default: docs/adr)
-        
-    Returns:
-        ADR ID, file path, conflicts detected, and next steps guidance
+    **YOUR NEXT STEPS AFTER CALLING:**
+    1. Review any conflicts reported in the response
+    2. Present the ADR file path to user for review
+    3. If user approves, call `adr_approve()` with the ADR ID
+    4. If conflicts exist, discuss alternatives or superseding with user
+    
+    **PARAMETERS:**
+    - title: Clear decision title (e.g., "Use PostgreSQL for primary database")
+    - context: WHY this decision is needed (problem/situation)
+    - decision: WHAT was decided (the actual choice made)
+    - consequences: Expected positive/negative outcomes
+    - deciders: People who made the decision (optional)
+    - tags: Categorization tags like ["database", "backend"] (optional)
+    - policy: Enforcement rules (optional, see docs for format)
+    - alternatives: Other options considered (optional)
+    - adr_dir: Where ADR files live (default: "docs/adr")
+    
+    **RETURNS:**
+    - adr_id: Generated unique ID (e.g., "ADR-0005")
+    - file_path: Path to created ADR file
+    - conflicts: Any conflicting ADRs detected
+    - related_adrs: Similar existing ADRs found
+    - next_steps: What to do next (always includes human review)
     """
     try:
         workflow = CreationWorkflow(adr_dir=adr_dir)
         
         creation_input = CreationInput(
-            title=request.title,
-            context=request.context,
-            decision=request.decision,
-            consequences=request.consequences,
-            deciders=request.deciders,
-            tags=request.tags,
-            policy=request.policy,
-            alternatives=request.alternatives
+            title=title,
+            context=context,
+            decision=decision,
+            consequences=consequences,
+            deciders=deciders,
+            tags=tags,
+            policy=policy,
+            alternatives=alternatives
         )
         
         result = workflow.execute(creation_input)
@@ -306,48 +337,59 @@ def adr_create(
 
 @mcp.tool()
 def adr_approve(
-    request: ApproveADRRequest,
+    adr_id: str,
+    approval_notes: Optional[str] = None,
+    force_approve: bool = False,
     adr_dir: str = "docs/adr"
 ) -> Dict[str, Any]:
     """
-    ✅ **Entry Point 4: Approve ADR (Trigger All Automation)**
+    **WHEN TO USE:** Only after human has reviewed and approved a proposed ADR. This finalizes the decision and activates all policies.
     
-    Approves ADR and triggers comprehensive automation pipeline.
-    This is where all the policy enforcement and configuration updates happen.
+    **WHAT THIS DOES:** Changes ADR status to "accepted", activates all policies, and triggers automation to enforce the decision.
     
-    🎯 **AGENT INTELLIGENCE REQUIRED:**
-    - Understanding approval workflow and its implications
-    - Interpreting automation results and warnings
-    - Deciding how to handle partial automation failures
+    **CALL THIS WHEN:**
+    - User explicitly approves a proposed ADR
+    - User says "yes, approve that ADR" or similar confirmation
+    - **NEVER call without explicit human approval**
     
-    ⚡ **INTERNAL AUTOMATION:**
-    - Updates ADR status to 'accepted'
-    - Rebuilds constraints contract with new ADR
-    - Applies guardrails and updates configurations
-    - Generates enforcement rules (ESLint, Ruff, etc.)
-    - Updates indexes and catalogs
-    - Validates codebase compliance (lightweight check)
+    **BACKGROUND PROCESSING (LOTS OF AUTOMATION):**
+    - Changes ADR status from "proposed" to "accepted" 
+    - Activates all policy rules defined in the ADR
+    - Generates ESLint/Ruff configuration files for enforcement
+    - Updates architectural constraint contracts
+    - Rebuilds ADR indexes with new decision
+    - Validates existing codebase against new policies
+    - Creates content digest for tamper detection
     
-    📋 **Agent Workflow:**
-    1. Only use after human has reviewed proposed ADR
-    2. Monitor automation results for failures
-    3. Review any warnings or partial failures
-    4. All policies are now active and enforced
+    **CRITICAL:** This activates real policy enforcement. Only use with explicit human approval.
     
-    Args:
-        request: Approval configuration
-        adr_dir: Directory for ADR files (default: docs/adr)
-        
-    Returns:
-        Comprehensive approval report with automation results and next steps
+    **YOUR NEXT STEPS AFTER CALLING:**
+    1. Review all automation results reported
+    2. Check for any warnings or enforcement failures
+    3. Inform user that policies are now active
+    4. If automation failed partially, guide user on fixes needed
+    
+    **PARAMETERS:**
+    - adr_id: The ADR ID to approve (e.g., "ADR-0005")
+    - approval_notes: Human's approval comments (optional)
+    - force_approve: Override conflicts/warnings (use carefully)
+    - adr_dir: Where ADR files live (default: "docs/adr")
+    
+    **RETURNS:**
+    - status: approval success/failure
+    - automation_results: All automation that was triggered
+    - policy_activation: Which policies are now active
+    - enforcement_files: Generated config files (ESLint, Ruff, etc.)
+    - warnings: Any issues encountered during automation
+    - next_steps: What user should do next
     """
     try:
         workflow = ApprovalWorkflow(adr_dir=adr_dir)
         
         approval_input = ApprovalInput(
-            adr_id=request.adr_id,
-            approval_notes=request.approval_notes,
-            force_approve=request.force_approve
+            adr_id=adr_id,
+            approval_notes=approval_notes,
+            force_approve=force_approve
         )
         
         result = workflow.execute(approval_input)
@@ -386,61 +428,87 @@ def adr_approve(
 
 @mcp.tool()
 def adr_supersede(
-    request: SupersedeADRRequest,
+    old_adr_id: str,
+    new_title: str,
+    new_context: str,
+    new_decision: str,
+    new_consequences: str,
+    supersede_reason: str,
+    new_deciders: Optional[List[str]] = None,
+    new_tags: Optional[List[str]] = None,
+    new_policy: Optional[Dict[str, Any]] = None,
+    new_alternatives: Optional[str] = None,
+    auto_approve: bool = False,
     adr_dir: str = "docs/adr"
 ) -> Dict[str, Any]:
     """
-    🔄 **Entry Point 5: Supersede ADR**
+    **WHEN TO USE:** Replace an existing ADR when the architectural decision has fundamentally changed.
     
-    Replaces existing ADR with new decision while maintaining proper relationships
-    and optionally triggering approval automation.
+    **WHAT THIS DOES:** Creates a new ADR that replaces an old one, maintaining proper relationships and optionally auto-approving.
     
-    🎯 **AGENT INTELLIGENCE REQUIRED:**
-    - Understanding when superseding is appropriate vs. creating new ADR
-    - Writing comprehensive replacement decision
-    - Deciding whether to auto-approve or require human review
+    **CALL THIS WHEN:**
+    - User wants to change an existing architectural decision
+    - Technology choice has evolved (e.g., migrating from MySQL to PostgreSQL)
+    - Original ADR no longer applies but the decision area is still relevant
+    - **NOT when adding new unrelated decisions** (use `adr_create()` instead)
     
-    ⚡ **INTERNAL AUTOMATION:**
-    - Creates new ADR proposal using CreationWorkflow
-    - Updates old ADR status to 'superseded'
-    - Maintains bidirectional relationships (supersedes/superseded_by)
-    - Updates related ADR references
-    - Optionally triggers ApprovalWorkflow
+    **BACKGROUND PROCESSING:**
+    - Creates new ADR with fresh ID using all the new_* parameters
+    - Marks old ADR as "superseded" (but keeps it for history)
+    - Creates bidirectional links: old ADR ← superseded_by → new ADR
+    - Updates any other ADRs that reference the old one
+    - Optionally auto-approves if auto_approve=True
+    - Transfers relevant policies from old to new ADR
     
-    📋 **Agent Workflow:**
-    1. Use when replacing existing architectural decisions
-    2. Provide clear reasoning for superseding
-    3. Include comprehensive new decision content
-    4. Consider auto_approve=true for minor updates
-    5. Monitor relationship updates and automation results
+    **SUPERSEDE vs. NEW ADR:** Use supersede when replacing a decision in the same problem domain.
     
-    Args:
-        request: Superseding configuration with old ADR ID and new proposal
-        adr_dir: Directory for ADR files (default: docs/adr)
-        
-    Returns:
-        Superseding results with new ADR ID, relationship updates, and automation status
+    **YOUR NEXT STEPS AFTER CALLING:**
+    1. Review the relationship updates reported
+    2. Check that old ADR is properly marked as superseded
+    3. If auto_approve=False, call `adr_approve()` after human review
+    4. Verify that dependent systems are updated to follow new decision
+    
+    **PARAMETERS:**
+    - old_adr_id: ID of ADR being replaced (e.g., "ADR-0003")
+    - new_title: Title of the replacement decision
+    - new_context: WHY the replacement is needed 
+    - new_decision: WHAT the new decision is
+    - new_consequences: Expected outcomes of the new decision
+    - supersede_reason: WHY the old ADR is being replaced
+    - new_deciders: Who made the new decision (optional)
+    - new_tags: Tags for the new ADR (optional)
+    - new_policy: Policy rules for the new decision (optional)
+    - new_alternatives: Other options considered (optional)
+    - auto_approve: Automatically approve new ADR without human review
+    - adr_dir: Where ADR files live (default: "docs/adr")
+    
+    **RETURNS:**
+    - old_adr_id: The superseded ADR ID
+    - new_adr_id: The new replacement ADR ID  
+    - relationship_updates: What links were updated
+    - approval_status: Whether new ADR was auto-approved
+    - next_steps: What to do next
     """
     try:
         workflow = SupersedeWorkflow(adr_dir=adr_dir)
         
-        # Convert request to workflow inputs
+        # Convert parameters to workflow inputs
         new_proposal = CreationInput(
-            title=request.new_proposal.title,
-            context=request.new_proposal.context,
-            decision=request.new_proposal.decision,
-            consequences=request.new_proposal.consequences,
-            deciders=request.new_proposal.deciders,
-            tags=request.new_proposal.tags,
-            policy=request.new_proposal.policy,
-            alternatives=request.new_proposal.alternatives
+            title=new_title,
+            context=new_context,
+            decision=new_decision,
+            consequences=new_consequences,
+            deciders=new_deciders,
+            tags=new_tags,
+            policy=new_policy,
+            alternatives=new_alternatives
         )
         
         supersede_input = SupersedeInput(
-            old_adr_id=request.old_adr_id,
+            old_adr_id=old_adr_id,
             new_proposal=new_proposal,
-            supersede_reason=request.supersede_reason,
-            auto_approve=request.auto_approve
+            supersede_reason=supersede_reason,
+            auto_approve=auto_approve
         )
         
         result = workflow.execute(supersede_input)
@@ -476,52 +544,64 @@ def adr_supersede(
 
 @mcp.tool()
 def adr_planning_context(
-    request: PlanningContextRequest,
+    task_description: str,
+    context_type: str = "implementation",
+    domain_hints: Optional[List[str]] = None,
+    priority_level: str = "normal",
     adr_dir: str = "docs/adr"
 ) -> Dict[str, Any]:
     """
-    🗺️ **Entry Point 6: Get Architectural Planning Context**
+    **WHEN TO USE:** Before starting any technical implementation to understand architectural constraints and get guidance.
     
-    Provides curated architectural context for agent tasks. This helps agents
-    make informed decisions that align with existing architectural decisions.
+    **WHAT THIS DOES:** Analyzes your task and provides relevant architectural context, constraints, and guidance from existing ADRs.
     
-    🎯 **AGENT INTELLIGENCE REQUIRED:**
-    - Understanding task context and architectural implications
-    - Following guidance prompts and compliance checklists
-    - Making technology choices based on recommendations
-    - Applying architectural patterns appropriately
+    **CALL THIS WHEN:**
+    - About to implement a new feature or component
+    - User gives you a technical task to complete
+    - Need to understand architectural constraints before coding
+    - Want to ensure your approach aligns with existing decisions
+    - Starting refactoring or system changes
     
-    ⚡ **INTERNAL AUTOMATION:**
-    - Analyzes task description to extract key concepts
-    - Loads constraints contract and finds relevant ADRs
-    - Ranks ADRs by relevance to the specific task
-    - Generates technology recommendations and constraints
-    - Creates task-specific guidance prompts
-    - Builds compliance checklist for the task
+    **BACKGROUND PROCESSING:**
+    - Analyzes your task description using semantic matching
+    - Finds ADRs most relevant to your specific task
+    - Extracts technology recommendations and restrictions
+    - Builds a compliance checklist tailored to your task
+    - Generates actionable guidance based on existing decisions
+    - Creates technology "use/avoid" lists from ADR policies
     
-    📋 **Agent Workflow:**
-    1. Call this before starting any significant technical task
-    2. Review relevant ADRs and their guidance
-    3. Follow technology recommendations (use/avoid lists)
-    4. Apply suggested architectural patterns
-    5. Use compliance checklist to verify alignment
-    6. Create new ADRs if significant decisions emerge
+    **PLANNING vs. PREFLIGHT:** Use this for broad planning context, use `adr_preflight()` for specific tech choices.
     
-    Args:
-        request: Task description and context preferences
-        adr_dir: Directory for ADR files (default: docs/adr)
-        
-    Returns:
-        Curated architectural context with ADRs, constraints, guidance, and checklist
+    **YOUR NEXT STEPS AFTER CALLING:**
+    1. Review the relevant_adrs to understand existing decisions
+    2. Follow the technology_recommendations (use/avoid lists)
+    3. Apply architectural_patterns suggested for your task type
+    4. Use compliance_checklist to validate your implementation
+    5. If you make new significant decisions, call `adr_create()`
+    
+    **PARAMETERS:**
+    - task_description: What you're trying to implement (be specific)
+    - context_type: "implementation", "refactoring", "debugging", "feature"
+    - domain_hints: Areas involved like ["frontend", "database", "api"]
+    - priority_level: "low", "normal", "high" (affects detail level)
+    - adr_dir: Where ADR files live (default: "docs/adr")
+    
+    **RETURNS:**
+    - relevant_adrs: ADRs that apply to your task
+    - technology_recommendations: What to use/avoid
+    - architectural_patterns: Suggested patterns for your task
+    - constraints: Hard restrictions from approved ADRs  
+    - compliance_checklist: Steps to ensure ADR compliance
+    - guidance: Specific advice for your task context
     """
     try:
         workflow = PlanningWorkflow(adr_dir=adr_dir)
         
         planning_input = PlanningInput(
-            task_description=request.task_description,
-            context_type=request.context_type,
-            domain_hints=request.domain_hints,
-            priority_level=request.priority_level
+            task_description=task_description,
+            context_type=context_type,
+            domain_hints=domain_hints,
+            priority_level=priority_level
         )
         
         result = workflow.execute(planning_input)
@@ -583,6 +663,24 @@ def adr_index_resource() -> str:
             "adrs": [],
             "metadata": {"error": True}
         }, indent=2)
+
+
+def run_stdio_server():
+    """Run the MCP server over stdio for Cursor/Claude Code integration."""
+    import asyncio
+    import sys
+    
+    # Set up stdio transport for MCP
+    async def stdio_server():
+        # FastMCP automatically handles stdio when no port is specified
+        await mcp.run(transport="stdio")
+    
+    # Ensure clean stdio handling
+    try:
+        asyncio.run(stdio_server())
+    except KeyboardInterrupt:
+        # Clean exit on Ctrl+C
+        sys.exit(0)
 
 
 # Main server instance
