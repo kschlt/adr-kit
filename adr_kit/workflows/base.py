@@ -10,7 +10,7 @@ from pathlib import Path
 
 class WorkflowStatus(str, Enum):
     """Status of workflow execution."""
-    
+
     SUCCESS = "success"
     PARTIAL_SUCCESS = "partial_success"  # Some steps succeeded, some failed
     FAILED = "failed"
@@ -21,7 +21,7 @@ class WorkflowStatus(str, Enum):
 @dataclass
 class WorkflowStep:
     """Represents a single step in a workflow."""
-    
+
     name: str
     status: WorkflowStatus
     message: str
@@ -31,35 +31,35 @@ class WorkflowStep:
     warnings: List[str] = field(default_factory=list)
 
 
-@dataclass  
+@dataclass
 class WorkflowResult:
     """Result of workflow execution."""
-    
+
     success: bool
     status: WorkflowStatus
     message: str
-    
+
     # Execution details
     steps: List[WorkflowStep] = field(default_factory=list)
     duration_ms: int = 0
     executed_at: datetime = field(default_factory=datetime.now)
-    
+
     # Output data (workflow-specific)
     data: Dict[str, Any] = field(default_factory=dict)
-    
-    # Agent guidance 
+
+    # Agent guidance
     next_steps: List[str] = field(default_factory=list)
     guidance: str = ""
-    
+
     # Error handling
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
-    
-    def add_step(self, step: WorkflowStep):
+
+    def add_step(self, step: WorkflowStep) -> None:
         """Add a workflow step result."""
         self.steps.append(step)
-        
-    def add_error(self, error: str, step_name: Optional[str] = None):
+
+    def add_error(self, error: str, step_name: Optional[str] = None) -> None:
         """Add an error to the result."""
         self.errors.append(error)
         if step_name:
@@ -68,25 +68,29 @@ class WorkflowResult:
                 if step.name == step_name:
                     step.errors.append(error)
                     break
-    
-    def add_warning(self, warning: str, step_name: Optional[str] = None):
-        """Add a warning to the result."""  
+
+    def add_warning(self, warning: str, step_name: Optional[str] = None) -> None:
+        """Add a warning to the result."""
         self.warnings.append(warning)
         if step_name:
             for step in self.steps:
                 if step.name == step_name:
                     step.warnings.append(warning)
                     break
-    
+
     def get_summary(self) -> str:
         """Get human-readable summary of workflow execution."""
         if self.success:
-            successful_steps = len([s for s in self.steps if s.status == WorkflowStatus.SUCCESS])
+            successful_steps = len(
+                [s for s in self.steps if s.status == WorkflowStatus.SUCCESS]
+            )
             return f"✅ {self.message} ({successful_steps}/{len(self.steps)} steps completed)"
         else:
-            failed_steps = len([s for s in self.steps if s.status == WorkflowStatus.FAILED])
+            failed_steps = len(
+                [s for s in self.steps if s.status == WorkflowStatus.FAILED]
+            )
             return f"❌ {self.message} ({failed_steps}/{len(self.steps)} steps failed)"
-    
+
     def to_agent_response(self) -> Dict[str, Any]:
         """Convert to agent-friendly response format."""
         return {
@@ -94,21 +98,28 @@ class WorkflowResult:
             "status": self.status.value,
             "message": self.message,
             "data": self.data,
-            "steps_completed": len([s for s in self.steps if s.status == WorkflowStatus.SUCCESS]),
+            "steps_completed": len(
+                [s for s in self.steps if s.status == WorkflowStatus.SUCCESS]
+            ),
             "total_steps": len(self.steps),
             "duration_ms": self.duration_ms,
             "next_steps": self.next_steps,
             "guidance": self.guidance,
             "errors": self.errors,
             "warnings": self.warnings,
-            "summary": self.get_summary()
+            "summary": self.get_summary(),
         }
 
 
 class WorkflowError(Exception):
     """Exception raised during workflow execution."""
-    
-    def __init__(self, message: str, step_name: Optional[str] = None, details: Optional[Dict] = None):
+
+    def __init__(
+        self,
+        message: str,
+        step_name: Optional[str] = None,
+        details: Optional[Dict] = None,
+    ):
         super().__init__(message)
         self.message = message
         self.step_name = step_name
@@ -117,24 +128,22 @@ class WorkflowError(Exception):
 
 class BaseWorkflow(ABC):
     """Base class for all internal workflows.
-    
+
     Workflows are pure automation/orchestration that use existing components
     to accomplish complex tasks triggered by agent entry points.
     """
-    
+
     def __init__(self, adr_dir: Union[Path, str]):
         self.adr_dir = Path(adr_dir)
         self.result = WorkflowResult(
-            success=False,
-            status=WorkflowStatus.FAILED, 
-            message=""
+            success=False, status=WorkflowStatus.FAILED, message=""
         )
-        self._start_time = None
-        
+        self._start_time: Optional[datetime] = None
+
     @abstractmethod
-    def execute(self, **kwargs) -> WorkflowResult:
+    def execute(self, **kwargs: Any) -> WorkflowResult:
         """Execute the workflow with given parameters.
-        
+
         This is the main entry point that agents call through MCP tools.
         Implementations should:
         1. Validate inputs
@@ -143,65 +152,71 @@ class BaseWorkflow(ABC):
         4. Return comprehensive results with agent guidance
         """
         pass
-    
-    def _start_workflow(self, workflow_name: str):
+
+    def _start_workflow(self, workflow_name: str) -> None:
         """Initialize workflow execution."""
         self._start_time = datetime.now()
         self.result = WorkflowResult(
             success=False,
             status=WorkflowStatus.FAILED,
-            message=f"{workflow_name} workflow started"
+            message=f"{workflow_name} workflow started",
         )
-    
-    def _complete_workflow(self, success: bool, message: str, status: Optional[WorkflowStatus] = None):
+
+    def _complete_workflow(
+        self, success: bool, message: str, status: Optional[WorkflowStatus] = None
+    ) -> None:
         """Complete workflow execution."""
         if self._start_time:
-            self.result.duration_ms = int((datetime.now() - self._start_time).total_seconds() * 1000)
-        
+            self.result.duration_ms = int(
+                (datetime.now() - self._start_time).total_seconds() * 1000
+            )
+
         self.result.success = success
         self.result.message = message
-        
+
         if status:
             self.result.status = status
         else:
-            self.result.status = WorkflowStatus.SUCCESS if success else WorkflowStatus.FAILED
-    
-    def _execute_step(self, step_name: str, step_func, *args, **kwargs) -> Any:
+            self.result.status = (
+                WorkflowStatus.SUCCESS if success else WorkflowStatus.FAILED
+            )
+
+    def _execute_step(self, step_name: str, step_func: Any, *args: Any, **kwargs: Any) -> Any:
         """Execute a single workflow step with error handling."""
         start_time = datetime.now()
         step = WorkflowStep(
-            name=step_name,
-            status=WorkflowStatus.FAILED,
-            message="Step started"
+            name=step_name, status=WorkflowStatus.FAILED, message="Step started"
         )
-        
+
         try:
             result = step_func(*args, **kwargs)
-            
+
             step.status = WorkflowStatus.SUCCESS
             step.message = f"{step_name} completed successfully"
             step.duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            
+
             self.result.add_step(step)
             return result
-            
+
         except Exception as e:
             step.status = WorkflowStatus.FAILED
             step.message = f"{step_name} failed: {str(e)}"
             step.duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
             step.errors.append(str(e))
-            
+
             self.result.add_step(step)
-            raise WorkflowError(f"{step_name} failed: {str(e)}", step_name, {"exception": str(e)})
-    
-    def _validate_adr_directory(self):
-        """Validate that ADR directory exists and is accessible.""" 
+            raise WorkflowError(
+                f"{step_name} failed: {str(e)}", step_name, {"exception": str(e)}
+            )
+
+    def _validate_adr_directory(self) -> None:
+        """Validate that ADR directory exists and is accessible."""
         if not self.adr_dir.exists():
             raise WorkflowError(f"ADR directory does not exist: {self.adr_dir}")
-        
+
         if not self.adr_dir.is_dir():
             raise WorkflowError(f"ADR path is not a directory: {self.adr_dir}")
-            
+
         # Check if we can write to the directory
         try:
             test_file = self.adr_dir / ".adr_kit_test"
@@ -209,12 +224,12 @@ class BaseWorkflow(ABC):
             test_file.unlink()
         except Exception as e:
             raise WorkflowError(f"Cannot write to ADR directory: {self.adr_dir} - {e}")
-    
-    def _add_agent_guidance(self, guidance: str, next_steps: List[str]):
+
+    def _add_agent_guidance(self, guidance: str, next_steps: List[str]) -> None:
         """Add guidance for the agent on what to do next."""
         self.result.guidance = guidance
         self.result.next_steps = next_steps
-    
-    def _set_workflow_data(self, **data):
+
+    def _set_workflow_data(self, **data: Any) -> None:
         """Set workflow-specific output data."""
         self.result.data.update(data)

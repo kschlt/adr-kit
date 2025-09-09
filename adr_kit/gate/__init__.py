@@ -12,22 +12,28 @@ Key components:
 """
 
 from .policy_gate import PolicyGate, GateResult
-from .technical_choice import TechnicalChoice, ChoiceType, DependencyChoice, FrameworkChoice, create_technical_choice
+from .technical_choice import (
+    TechnicalChoice,
+    ChoiceType,
+    DependencyChoice,
+    FrameworkChoice,
+    create_technical_choice,
+)
 from .policy_engine import PolicyEngine, PolicyConfig
 from .models import GateConfig, CategoryRule, NameMapping, GateDecision
 
 __all__ = [
     "PolicyGate",
-    "GateDecision", 
+    "GateDecision",
     "GateResult",
     "TechnicalChoice",
     "ChoiceType",
     "DependencyChoice",
     "FrameworkChoice",
-    "create_technical_choice", 
+    "create_technical_choice",
     "PolicyEngine",
     "PolicyConfig",
     "GateConfig",
     "CategoryRule",
-    "NameMapping"
+    "NameMapping",
 ]

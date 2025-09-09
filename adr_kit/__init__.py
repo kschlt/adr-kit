@@ -8,7 +8,7 @@ from .core.validate import validate_adr, ValidationResult
 
 __all__ = [
     "ADR",
-    "ADRFrontMatter", 
+    "ADRFrontMatter",
     "parse_adr_file",
     "parse_front_matter",
     "validate_adr",

@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field
 
 class FragmentType(str, Enum):
     """Types of configuration fragments."""
-    
+
     ESLINT = "eslint"
-    RUFF = "ruff" 
+    RUFF = "ruff"
     IMPORT_LINTER = "import_linter"
     PRETTIER = "prettier"
     MYPY = "mypy"
@@ -22,7 +22,7 @@ class FragmentType(str, Enum):
 
 class ApplicationStatus(str, Enum):
     """Status of configuration fragment application."""
-    
+
     SUCCESS = "success"
     FAILED = "failed"
     SKIPPED = "skipped"
@@ -32,72 +32,76 @@ class ApplicationStatus(str, Enum):
 @dataclass
 class FragmentTarget:
     """Target configuration for applying a fragment."""
-    
+
     file_path: Path
     fragment_type: FragmentType
     section_name: Optional[str] = None  # For multi-section configs
     backup_enabled: bool = True
-    
+
 
 class ConfigFragment(BaseModel):
     """A configuration fragment to be applied to a target file."""
-    
+
     fragment_type: FragmentType
     content: str = Field(..., description="The configuration content")
     source_adr_ids: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
-    
+
 
 class SentinelBlock(BaseModel):
     """Sentinel block markers for tool-owned configuration sections."""
-    
+
     start_marker: str
     end_marker: str
     description: Optional[str] = None
-    
+
     @classmethod
-    def for_fragment_type(cls, fragment_type: FragmentType, tool_name: str = "adr-kit") -> "SentinelBlock":
+    def for_fragment_type(
+        cls, fragment_type: FragmentType, tool_name: str = "adr-kit"
+    ) -> "SentinelBlock":
         """Create standard sentinel block for a fragment type."""
         markers = {
             FragmentType.ESLINT: (
                 f"/* === {tool_name.upper()} ADR RULES START === */",
-                f"/* === {tool_name.upper()} ADR RULES END === */"
+                f"/* === {tool_name.upper()} ADR RULES END === */",
             ),
             FragmentType.RUFF: (
                 f"# === {tool_name.upper()} ADR RULES START ===",
-                f"# === {tool_name.upper()} ADR RULES END ==="
+                f"# === {tool_name.upper()} ADR RULES END ===",
             ),
             FragmentType.IMPORT_LINTER: (
                 f"# === {tool_name.upper()} ADR CONTRACTS START ===",
-                f"# === {tool_name.upper()} ADR CONTRACTS END ==="
+                f"# === {tool_name.upper()} ADR CONTRACTS END ===",
             ),
             FragmentType.PRETTIER: (
                 f"// === {tool_name.upper()} ADR RULES START ===",
-                f"// === {tool_name.upper()} ADR RULES END ==="
+                f"// === {tool_name.upper()} ADR RULES END ===",
             ),
             FragmentType.MYPY: (
                 f"# === {tool_name.upper()} ADR RULES START ===",
-                f"# === {tool_name.upper()} ADR RULES END ==="
+                f"# === {tool_name.upper()} ADR RULES END ===",
             ),
             FragmentType.CUSTOM: (
                 f"# === {tool_name.upper()} START ===",
-                f"# === {tool_name.upper()} END ==="
-            )
+                f"# === {tool_name.upper()} END ===",
+            ),
         }
-        
-        start_marker, end_marker = markers.get(fragment_type, markers[FragmentType.CUSTOM])
-        
+
+        start_marker, end_marker = markers.get(
+            fragment_type, markers[FragmentType.CUSTOM]
+        )
+
         return cls(
             start_marker=start_marker,
             end_marker=end_marker,
-            description=f"Auto-managed {fragment_type.value} rules from ADR policies"
+            description=f"Auto-managed {fragment_type.value} rules from ADR policies",
         )
 
 
 class ApplyResult(BaseModel):
     """Result of applying configuration fragments."""
-    
+
     target: FragmentTarget
     status: ApplicationStatus
     message: str
@@ -109,11 +113,11 @@ class ApplyResult(BaseModel):
 
 class ConfigTemplate(BaseModel):
     """Template for generating configuration fragments."""
-    
+
     fragment_type: FragmentType
     template_content: str
     variables: Dict[str, Any] = Field(default_factory=dict)
-    
+
     def render(self, **kwargs) -> str:
         """Render template with provided variables."""
         merged_vars = {**self.variables, **kwargs}
@@ -125,33 +129,37 @@ class ConfigTemplate(BaseModel):
 
 class GuardrailConfig(BaseModel):
     """Configuration for the guardrail management system."""
-    
+
     enabled: bool = True
     auto_apply: bool = True  # Whether to automatically apply changes
     backup_enabled: bool = True
     backup_dir: Optional[Path] = None
-    
+
     # Target configurations
     targets: List[FragmentTarget] = Field(default_factory=list)
-    
+
     # Fragment type settings
     fragment_settings: Dict[FragmentType, Dict[str, Any]] = Field(default_factory=dict)
-    
+
     # Templates for different configuration types
     templates: List[ConfigTemplate] = Field(default_factory=list)
-    
+
     # Notification settings
     notify_on_apply: bool = True
     notify_on_error: bool = True
-    
+
     class Config:
         use_enum_values = True
-        
+
     def get_targets_for_type(self, fragment_type: FragmentType) -> List[FragmentTarget]:
         """Get all targets for a specific fragment type."""
-        return [target for target in self.targets if target.fragment_type == fragment_type]
-    
-    def get_template_for_type(self, fragment_type: FragmentType) -> Optional[ConfigTemplate]:
+        return [
+            target for target in self.targets if target.fragment_type == fragment_type
+        ]
+
+    def get_template_for_type(
+        self, fragment_type: FragmentType
+    ) -> Optional[ConfigTemplate]:
         """Get template for a specific fragment type."""
         for template in self.templates:
             if template.fragment_type == fragment_type:

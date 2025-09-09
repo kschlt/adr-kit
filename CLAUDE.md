@@ -205,3 +205,6 @@ The MCP server (`adr-kit mcp-server`) is the primary interface for AI agents, pr
 - **Rich error context**: detailed validation messages with actionable guidance for AI agents
 - **Automatic relationship management**: bidirectional supersede logic with immutability
 - **Content digest tracking**: SHA-256 hashes for tamper detection and approval workflow
+- Always use most modern Python approaches
+  - Maximize type safety and typing
+  - Leverage FastAPI and FastMCP type safety features

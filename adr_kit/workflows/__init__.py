@@ -14,7 +14,7 @@ Key Design Principles:
 
 from .base import BaseWorkflow, WorkflowResult, WorkflowError, WorkflowStatus
 from .approval import ApprovalWorkflow
-from .creation import CreationWorkflow  
+from .creation import CreationWorkflow
 from .preflight import PreflightWorkflow
 from .planning import PlanningWorkflow
 from .supersede import SupersedeWorkflow
@@ -23,15 +23,14 @@ from .analyze import AnalyzeProjectWorkflow
 __all__ = [
     # Base classes
     "BaseWorkflow",
-    "WorkflowResult", 
+    "WorkflowResult",
     "WorkflowError",
     "WorkflowStatus",
-    
     # Workflow implementations
     "ApprovalWorkflow",
     "CreationWorkflow",
-    "PreflightWorkflow", 
+    "PreflightWorkflow",
     "PlanningWorkflow",
     "SupersedeWorkflow",
-    "AnalyzeProjectWorkflow"
+    "AnalyzeProjectWorkflow",
 ]

@@ -8,19 +8,25 @@ from the architectural vision.
 from .manager import GuardrailManager
 from .config_writer import ConfigWriter, ConfigFragment, SentinelBlock
 from .file_monitor import FileMonitor, ChangeEvent, ChangeType
-from .models import GuardrailConfig, FragmentTarget, ApplyResult, ConfigTemplate, FragmentType
+from .models import (
+    GuardrailConfig,
+    FragmentTarget,
+    ApplyResult,
+    ConfigTemplate,
+    FragmentType,
+)
 
 __all__ = [
     "GuardrailManager",
-    "ConfigWriter", 
+    "ConfigWriter",
     "ConfigFragment",
     "SentinelBlock",
     "FileMonitor",
-    "ChangeEvent", 
+    "ChangeEvent",
     "ChangeType",
     "GuardrailConfig",
     "FragmentTarget",
     "ApplyResult",
     "ConfigTemplate",
-    "FragmentType"
+    "FragmentType",
 ]
