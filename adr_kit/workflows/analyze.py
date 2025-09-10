@@ -1,13 +1,12 @@
 """Analyze Project Workflow - For existing projects wanting to adopt ADR-Kit."""
 
 import os
-import json
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 from collections import Counter
+from pathlib import Path
+from typing import Any
 
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus, WorkflowError
 from ..core.parse import find_adr_files
+from .base import BaseWorkflow, WorkflowError, WorkflowResult, WorkflowStatus
 
 
 class AnalyzeProjectWorkflow(BaseWorkflow):
@@ -33,8 +32,8 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
             WorkflowResult with detected technologies and analysis prompt for agent
         """
         # Extract parameters from kwargs
-        project_path = kwargs.get('project_path')
-        focus_areas = kwargs.get('focus_areas')
+        project_path = kwargs.get("project_path")
+        focus_areas = kwargs.get("focus_areas")
 
         self._start_workflow("Analyze Project")
 
@@ -144,7 +143,7 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
 
         return self.result
 
-    def _validate_inputs(self, project_path: Optional[str]) -> Path:
+    def _validate_inputs(self, project_path: str | None) -> Path:
         """Validate inputs and return project root path."""
         if project_path:
             project_root = Path(project_path)
@@ -159,10 +158,10 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
 
         return project_root
 
-    def _scan_project_structure(self, project_root: Path) -> Dict[str, Any]:
+    def _scan_project_structure(self, project_root: Path) -> dict[str, Any]:
         """Scan project structure to understand layout and files."""
 
-        structure = {
+        structure: dict[str, Any] = {
             "total_files": 0,
             "directories": [],
             "file_types": Counter(),
@@ -245,13 +244,13 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
                         )
 
         except Exception as e:
-            raise WorkflowError(f"Failed to scan project structure: {e}")
+            raise WorkflowError(f"Failed to scan project structure: {e}") from e
 
         return structure
 
     def _detect_technologies(
-        self, project_root: Path, structure: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, project_root: Path, structure: dict[str, Any]
+    ) -> dict[str, Any]:
         """Detect technologies based on project structure and files."""
 
         technologies = []
@@ -359,7 +358,7 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
                                     for pattern in patterns["content_patterns"]:
                                         if pattern in content:
                                             confidence += 0.2
-                                except:
+                                except Exception:
                                     pass  # Skip file read errors
 
             # Check content patterns in all relevant files
@@ -372,7 +371,7 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
                             if pattern in content:
                                 confidence += 0.1
                                 break
-                except:
+                except Exception:
                     pass
 
             # Add technology if confidence is high enough
@@ -382,7 +381,7 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
 
         return {"technologies": technologies, "confidence_scores": confidence_scores}
 
-    def _check_existing_adrs(self, project_root: Path) -> Dict[str, Any]:
+    def _check_existing_adrs(self, project_root: Path) -> dict[str, Any]:
         """Check if project already has ADRs set up."""
 
         # Common ADR directory locations
@@ -396,28 +395,28 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
             project_root / "architecture" / "decisions",
         ]
 
-        existing_adr_info = {"adr_directory": None, "adr_count": 0, "adr_files": []}
+        existing_adr_info: dict[str, Any] = {"adr_directory": None, "adr_count": 0, "adr_files": []}
 
         for adr_dir in possible_adr_dirs:
             if adr_dir.exists() and adr_dir.is_dir():
                 try:
                     adr_files = find_adr_files(adr_dir)
                     if adr_files:
-                        existing_adr_info["adr_directory"] = adr_dir
+                        existing_adr_info["adr_directory"] = str(adr_dir)
                         existing_adr_info["adr_count"] = len(adr_files)
                         existing_adr_info["adr_files"] = [str(f) for f in adr_files]
                         break
-                except:
+                except Exception:
                     continue  # Skip directories we can't read
 
         return existing_adr_info
 
     def _generate_analysis_prompt(
         self,
-        detected_technologies: Dict[str, Any],
-        existing_adr_info: Dict[str, Any],
-        focus_areas: Optional[List[str]],
-    ) -> Dict[str, Any]:
+        detected_technologies: dict[str, Any],
+        existing_adr_info: dict[str, Any],
+        focus_areas: list[str] | None,
+    ) -> dict[str, Any]:
         """Generate analysis prompt for the agent."""
 
         technologies = detected_technologies["technologies"]
@@ -427,7 +426,7 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
         prompt_parts = [
             "Please analyze this project for architectural decisions that should be documented as ADRs.",
             "",
-            f"**Project Context:**",
+            "**Project Context:**",
             f"- Detected technologies: {', '.join(technologies) if technologies else 'Unable to detect specific technologies'}",
             (
                 f"- Existing ADRs: {adr_count} found"

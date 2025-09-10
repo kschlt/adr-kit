@@ -1,12 +1,11 @@
 """Policy engine for evaluating technical choices against gate rules."""
 
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+from pathlib import Path
 
-from .models import GateConfig, GateDecision
-from .technical_choice import TechnicalChoice, ChoiceType
 from ..contract import ConstraintsContractBuilder
+from .models import GateConfig, GateDecision
+from .technical_choice import ChoiceType, TechnicalChoice
 
 
 @dataclass
@@ -14,7 +13,7 @@ class PolicyConfig:
     """Configuration for the policy engine."""
 
     adr_dir: Path
-    gate_config_path: Optional[Path] = None
+    gate_config_path: Path | None = None
 
     def __post_init__(self):
         if self.gate_config_path is None:
@@ -54,7 +53,7 @@ class PolicyEngine:
 
     def evaluate_choice(
         self, choice: TechnicalChoice
-    ) -> Tuple[GateDecision, str, Dict[str, any]]:
+    ) -> tuple[GateDecision, str, dict[str, any]]:
         """Evaluate a technical choice and return decision with reasoning.
 
         Returns:
@@ -101,7 +100,7 @@ class PolicyEngine:
 
     def _check_contract_conflicts(
         self, choice: TechnicalChoice, normalized_name: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Check if choice conflicts with existing constraints contract."""
         try:
             # Get current constraints contract
@@ -221,7 +220,7 @@ class PolicyEngine:
         else:
             return f"Default policy decision: {decision.value}"
 
-    def get_config_summary(self) -> Dict[str, any]:
+    def get_config_summary(self) -> dict[str, any]:
         """Get summary of current gate configuration."""
         return {
             "config_file": str(self.config.gate_config_path),

@@ -1,7 +1,8 @@
 """Models for representing technical choices that need gate evaluation."""
 
 from enum import Enum
-from typing import Dict, List, Optional, Any, Union
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -27,10 +28,10 @@ class TechnicalChoice(BaseModel):
         ..., description="Name of the choice (e.g., 'react', 'postgresql')"
     )
     context: str = Field(..., description="Context or reason for the choice")
-    alternatives_considered: List[str] = Field(
+    alternatives_considered: list[str] = Field(
         default_factory=list, description="Other options that were considered"
     )
-    metadata: Dict[str, Any] = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata about the choice"
     )
 
@@ -39,7 +40,7 @@ class TechnicalChoice(BaseModel):
         # This will be overridden in subclasses for specific normalization
         return self.name.lower().strip()
 
-    def get_search_terms(self) -> List[str]:
+    def get_search_terms(self) -> list[str]:
         """Get terms for searching existing ADRs."""
         terms = [self.name, self.get_canonical_name()]
         terms.extend(self.alternatives_considered)
@@ -64,16 +65,14 @@ class DependencyChoice(TechnicalChoice):
         default=ChoiceType.DEPENDENCY, description="Always dependency"
     )
     package_name: str = Field(..., description="Package/library name")
-    version_constraint: Optional[str] = Field(
+    version_constraint: str | None = Field(
         None, description="Version constraint (e.g., '^1.0.0')"
     )
     ecosystem: str = Field(..., description="Package ecosystem (npm, pypi, gem, etc.)")
     is_dev_dependency: bool = Field(
         False, description="Whether this is a development dependency"
     )
-    replaces: Optional[List[str]] = Field(
-        None, description="Dependencies this replaces"
-    )
+    replaces: list[str] | None = Field(None, description="Dependencies this replaces")
 
     def get_canonical_name(self) -> str:
         """Get canonical package name with ecosystem normalization."""
@@ -88,7 +87,7 @@ class DependencyChoice(TechnicalChoice):
 
         return self.package_name.lower()
 
-    def get_search_terms(self) -> List[str]:
+    def get_search_terms(self) -> list[str]:
         """Get dependency-specific search terms."""
         terms = super().get_search_terms()
 
@@ -119,7 +118,7 @@ class FrameworkChoice(TechnicalChoice):
     migration_required: bool = Field(
         False, description="Whether migration from existing solution is needed"
     )
-    current_solution: Optional[str] = Field(
+    current_solution: str | None = Field(
         None, description="What this framework replaces"
     )
 
@@ -140,7 +139,7 @@ class FrameworkChoice(TechnicalChoice):
         normalized = self.framework_name.lower().strip()
         return mappings.get(normalized, normalized)
 
-    def get_search_terms(self) -> List[str]:
+    def get_search_terms(self) -> list[str]:
         """Get framework-specific search terms."""
         terms = super().get_search_terms()
 
@@ -162,7 +161,7 @@ class FrameworkChoice(TechnicalChoice):
 
 # Factory function for creating technical choices
 def create_technical_choice(
-    choice_type: Union[str, ChoiceType], name: str, context: str, **kwargs
+    choice_type: str | ChoiceType, name: str, context: str, **kwargs: Any
 ) -> TechnicalChoice:
     """Factory function to create the appropriate TechnicalChoice subclass."""
 

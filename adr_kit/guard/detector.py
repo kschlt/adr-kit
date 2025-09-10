@@ -8,17 +8,15 @@ Design decisions:
 - Support multiple languages (Python, JavaScript, TypeScript, etc.)
 """
 
-import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Any, Union
-import difflib
+from typing import Any
 
-from ..core.model import ADR, ADRStatus
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
-from ..semantic.retriever import SemanticIndex, SemanticMatch
+from ..core.model import ADR
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 from ..core.policy_extractor import PolicyExtractor
+from ..semantic.retriever import SemanticIndex, SemanticMatch
 
 
 @dataclass
@@ -31,20 +29,20 @@ class PolicyViolation:
     severity: str  # 'error', 'warning', 'info'
     message: str  # Human-readable description
     file_path: str  # File where violation occurred
-    line_number: Optional[int] = None  # Line number if applicable
-    adr_id: Optional[str] = None  # ADR that defines the violated policy
-    adr_title: Optional[str] = None  # Title of the relevant ADR
-    suggested_fix: Optional[str] = None  # Suggested resolution
-    context: Optional[str] = None  # Additional context
+    line_number: int | None = None  # Line number if applicable
+    adr_id: str | None = None  # ADR that defines the violated policy
+    adr_title: str | None = None  # Title of the relevant ADR
+    suggested_fix: str | None = None  # Suggested resolution
+    context: str | None = None  # Additional context
 
 
 @dataclass
 class CodeAnalysisResult:
     """Result of analyzing code changes for policy violations."""
 
-    violations: List[PolicyViolation]
-    analyzed_files: List[str]
-    relevant_adrs: List[SemanticMatch]
+    violations: list[PolicyViolation]
+    analyzed_files: list[str]
+    relevant_adrs: list[SemanticMatch]
     summary: str
 
     @property
@@ -77,7 +75,7 @@ class DiffParser:
             ],
         }
 
-    def parse_diff(self, diff_text: str) -> Dict[str, List[str]]:
+    def parse_diff(self, diff_text: str) -> dict[str, list[str]]:
         """Parse a git diff and extract added imports per file.
 
         Args:
@@ -108,7 +106,7 @@ class DiffParser:
 
         return file_changes
 
-    def _extract_imports_from_line(self, line: str, file_path: str) -> List[str]:
+    def _extract_imports_from_line(self, line: str, file_path: str) -> list[str]:
         """Extract import statements from a single line of code."""
         line = line.strip()
         if not line:
@@ -146,8 +144,8 @@ class SemanticPolicyMatcher:
         self.semantic_index = semantic_index
 
     def find_relevant_adrs(
-        self, file_changes: Dict[str, List[str]], context_lines: Optional[List[str]] = None
-    ) -> List[SemanticMatch]:
+        self, file_changes: dict[str, list[str]], context_lines: list[str] | None = None
+    ) -> list[SemanticMatch]:
         """Find ADRs that are semantically relevant to the code changes.
 
         Args:
@@ -192,7 +190,7 @@ class SemanticPolicyMatcher:
 class GuardSystem:
     """Main guard system for detecting ADR policy violations in code changes."""
 
-    def __init__(self, project_root: Optional[Path] = None, adr_dir: str = "docs/adr"):
+    def __init__(self, project_root: Path | None = None, adr_dir: str = "docs/adr"):
         """Initialize guard system with semantic index and policy extractor.
 
         Args:
@@ -306,8 +304,8 @@ class GuardSystem:
         )
 
     def _check_file_violations(
-        self, file_path: str, imports: List[str], relevant_adrs: List[SemanticMatch]
-    ) -> List[PolicyViolation]:
+        self, file_path: str, imports: list[str], relevant_adrs: list[SemanticMatch]
+    ) -> list[PolicyViolation]:
         """Check a single file for policy violations."""
         violations = []
 
@@ -337,8 +335,8 @@ class GuardSystem:
         return violations
 
     def _check_import_violations(
-        self, file_path: str, imports: List[str], adr: ADR, policy: Any, language: str
-    ) -> List[PolicyViolation]:
+        self, file_path: str, imports: list[str], adr: ADR, policy: Any, language: str
+    ) -> list[PolicyViolation]:
         """Check for import policy violations."""
         violations = []
 
@@ -385,15 +383,15 @@ class GuardSystem:
                             adr_id=adr.front_matter.id,
                             adr_title=adr.front_matter.title,
                             suggested_fix=f"Replace with: {preferred_alternative}",
-                            context=f"Preferred by ADR policy",
+                            context="Preferred by ADR policy",
                         )
                     )
 
         return violations
 
     def _check_boundary_violations(
-        self, file_path: str, imports: List[str], adr: ADR, policy: Any
-    ) -> List[PolicyViolation]:
+        self, file_path: str, imports: list[str], adr: ADR, policy: Any
+    ) -> list[PolicyViolation]:
         """Check for architectural boundary violations."""
         violations = []
 
@@ -437,9 +435,7 @@ class GuardSystem:
             # Exact match or prefix match
             return import_name == pattern or import_name.startswith(pattern + ".")
 
-    def _suggest_import_alternative(
-        self, import_name: str, policy: Any
-    ) -> Optional[str]:
+    def _suggest_import_alternative(self, import_name: str, policy: Any) -> str | None:
         """Suggest an alternative import based on policy preferences."""
         if policy.imports and policy.imports.prefer:
             # Find a preferred import that might replace this one
@@ -449,8 +445,8 @@ class GuardSystem:
         return None
 
     def _find_preferred_alternative(
-        self, import_name: str, preferred_imports: List[str]
-    ) -> Optional[str]:
+        self, import_name: str, preferred_imports: list[str]
+    ) -> str | None:
         """Find if there's a preferred alternative to the current import."""
         for preferred in preferred_imports:
             if self._are_similar_imports(import_name, preferred):
@@ -479,7 +475,7 @@ class GuardSystem:
 
         return False
 
-    def _determine_file_layer(self, file_path: str) -> Optional[str]:
+    def _determine_file_layer(self, file_path: str) -> str | None:
         """Determine architectural layer from file path."""
         path_parts = file_path.lower().split("/")
 
@@ -496,7 +492,7 @@ class GuardSystem:
 
         return None
 
-    def _determine_import_layer(self, import_name: str) -> Optional[str]:
+    def _determine_import_layer(self, import_name: str) -> str | None:
         """Determine architectural layer from import name."""
         import_lower = import_name.lower()
 
@@ -530,9 +526,9 @@ class GuardSystem:
 
     def _generate_summary(
         self,
-        violations: List[PolicyViolation],
-        file_changes: Dict[str, List[str]],
-        relevant_adrs: List[SemanticMatch],
+        violations: list[PolicyViolation],
+        file_changes: dict[str, list[str]],
+        relevant_adrs: list[SemanticMatch],
     ) -> str:
         """Generate human-readable summary of the analysis."""
         if not violations:
@@ -541,7 +537,7 @@ class GuardSystem:
         error_count = sum(1 for v in violations if v.severity == "error")
         warning_count = sum(1 for v in violations if v.severity == "warning")
 
-        summary_parts = [f"🛡️ Policy analysis complete:"]
+        summary_parts = ["🛡️ Policy analysis complete:"]
 
         if error_count > 0:
             summary_parts.append(

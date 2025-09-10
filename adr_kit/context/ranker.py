@@ -1,13 +1,12 @@
 """ADR relevance ranking system for contextual planning."""
 
 import re
+from datetime import date
 from enum import Enum
-from typing import Dict, List, Set, Tuple
-from datetime import date, datetime
 
 from ..core.model import ADR, ADRStatus
-from .models import RelevanceScore
 from .analyzer import TaskContext
+from .models import RelevanceScore
 
 
 class RankingStrategy(str, Enum):
@@ -94,8 +93,8 @@ class RelevanceRanker:
         }
 
     def rank_adrs_for_task(
-        self, adrs: List[ADR], task_context: TaskContext
-    ) -> List[RelevanceScore]:
+        self, adrs: list[ADR], task_context: TaskContext
+    ) -> list[RelevanceScore]:
         """Rank ADRs by relevance to a specific task context."""
         scores = []
 
@@ -165,7 +164,7 @@ class RelevanceRanker:
 
     def _score_technology_overlap(
         self, adr: ADR, task_context: TaskContext
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """Score based on technology overlap."""
         adr_text = f"{adr.front_matter.title} {adr.content}".lower()
         adr_technologies = set()
@@ -201,7 +200,7 @@ class RelevanceRanker:
 
     def _score_keyword_overlap(
         self, adr: ADR, task_context: TaskContext
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """Score based on keyword overlap."""
         adr_text = f"{adr.front_matter.title} {adr.content}".lower()
         adr_keywords = set(re.findall(r"\b[a-zA-Z]{3,}\b", adr_text))
@@ -250,7 +249,7 @@ class RelevanceRanker:
 
     def _score_policy_relevance(
         self, adr: ADR, task_context: TaskContext
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """Score based on whether ADR has policies relevant to the task."""
         if not adr.front_matter.policy:
             return 0.0, []
@@ -280,7 +279,7 @@ class RelevanceRanker:
 
     def _score_task_type_alignment(
         self, adr: ADR, task_context: TaskContext
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """Score based on how well ADR aligns with task type."""
         adr_text = f"{adr.front_matter.title} {adr.content}".lower()
         task_type = task_context.task_type.value
@@ -307,7 +306,7 @@ class RelevanceRanker:
 
         return 0.0, []
 
-    def _compute_weighted_score(self, factors: Dict[str, float]) -> float:
+    def _compute_weighted_score(self, factors: dict[str, float]) -> float:
         """Compute final weighted relevance score."""
         # Weights for different factors
         weights = {
@@ -335,8 +334,8 @@ class RelevanceRanker:
         return max(0.0, min(1.0, weighted_sum))  # Clamp to [0,1]
 
     def get_top_n_relevant(
-        self, adrs: List[ADR], task_context: TaskContext, n: int = 5
-    ) -> List[Tuple[ADR, RelevanceScore]]:
+        self, adrs: list[ADR], task_context: TaskContext, n: int = 5
+    ) -> list[tuple[ADR, RelevanceScore]]:
         """Get top N most relevant ADRs with their scores."""
         scores = self.rank_adrs_for_task(adrs, task_context)
 

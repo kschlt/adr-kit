@@ -1,23 +1,21 @@
 """Main Guardrail Manager - orchestrates automatic configuration application."""
 
-from pathlib import Path
-from typing import List, Dict, Optional, Any
 import json
+from pathlib import Path
+from typing import Any
 
 from ..contract import ConstraintsContractBuilder
-from ..core.parse import find_adr_files, parse_adr_file
-from ..core.model import ADRStatus
+from .config_writer import ConfigWriter
+from .file_monitor import ChangeEvent, ChangeType, FileMonitor
 from .models import (
-    GuardrailConfig,
+    ApplicationStatus,
+    ApplyResult,
+    ConfigFragment,
+    ConfigTemplate,
     FragmentTarget,
     FragmentType,
-    ConfigFragment,
-    ApplyResult,
-    ApplicationStatus,
-    ConfigTemplate,
+    GuardrailConfig,
 )
-from .config_writer import ConfigWriter
-from .file_monitor import FileMonitor, ChangeEvent, ChangeType
 
 
 class GuardrailManager:
@@ -28,7 +26,7 @@ class GuardrailManager:
     from the architectural vision.
     """
 
-    def __init__(self, adr_dir: Path, config: Optional[GuardrailConfig] = None):
+    def __init__(self, adr_dir: Path, config: GuardrailConfig | None = None):
         self.adr_dir = Path(adr_dir)
         self.config = config or self._create_default_config()
 
@@ -89,7 +87,7 @@ banned-api = [
 
         return GuardrailConfig(targets=targets, templates=templates)
 
-    def apply_guardrails(self, force: bool = False) -> List[ApplyResult]:
+    def apply_guardrails(self, force: bool = False) -> list[ApplyResult]:
         """Apply guardrails based on current ADR policies."""
 
         results = []
@@ -132,7 +130,7 @@ banned-api = [
 
         return results
 
-    def watch_and_apply(self) -> List[ApplyResult]:
+    def watch_and_apply(self) -> list[ApplyResult]:
         """Watch for ADR changes and apply guardrails automatically."""
 
         results = []
@@ -153,7 +151,7 @@ banned-api = [
 
         return results
 
-    def _generate_fragments(self, contract) -> Dict[FragmentType, List[ConfigFragment]]:
+    def _generate_fragments(self, contract) -> dict[FragmentType, list[ConfigFragment]]:
         """Generate configuration fragments from constraints contract."""
 
         fragments = {
@@ -185,7 +183,7 @@ banned-api = [
 
         return fragments
 
-    def _generate_eslint_fragment(self, contract) -> Optional[ConfigFragment]:
+    def _generate_eslint_fragment(self, contract) -> ConfigFragment | None:
         """Generate ESLint configuration fragment."""
 
         if (
@@ -238,7 +236,7 @@ banned-api = [
             source_adr_ids=list(contract.provenance.keys()),
         )
 
-    def _generate_ruff_fragment(self, contract) -> Optional[ConfigFragment]:
+    def _generate_ruff_fragment(self, contract) -> ConfigFragment | None:
         """Generate Ruff configuration fragment."""
 
         if (
@@ -277,7 +275,7 @@ banned-api = [
             source_adr_ids=list(contract.provenance.keys()),
         )
 
-    def _generate_import_linter_fragment(self, contract) -> Optional[ConfigFragment]:
+    def _generate_import_linter_fragment(self, contract) -> ConfigFragment | None:
         """Generate import-linter configuration fragment."""
 
         if (
@@ -307,7 +305,7 @@ forbidden_modules = ["{rule.forbid}"]"""
         )
 
     def _log_policy_changes(
-        self, changes: List[ChangeEvent], results: List[ApplyResult]
+        self, changes: list[ChangeEvent], results: list[ApplyResult]
     ):
         """Log policy changes for audit purposes."""
 
@@ -330,7 +328,7 @@ forbidden_modules = ["{rule.forbid}"]"""
         )
         print(f"  ✅ {success_count}/{len(results)} configurations updated")
 
-    def remove_all_guardrails(self) -> List[ApplyResult]:
+    def remove_all_guardrails(self) -> list[ApplyResult]:
         """Remove all managed guardrail sections from target files."""
 
         results = []
@@ -342,7 +340,7 @@ forbidden_modules = ["{rule.forbid}"]"""
 
         return results
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current status of the guardrail management system."""
 
         try:

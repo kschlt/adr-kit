@@ -1,11 +1,11 @@
 """Base classes for internal workflow orchestration."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
-from enum import Enum
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
+from typing import Any
 
 
 class WorkflowStatus(str, Enum):
@@ -25,10 +25,10 @@ class WorkflowStep:
     name: str
     status: WorkflowStatus
     message: str
-    duration_ms: Optional[int] = None
-    details: Dict[str, Any] = field(default_factory=dict)
-    errors: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    duration_ms: int | None = None
+    details: dict[str, Any] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -40,26 +40,26 @@ class WorkflowResult:
     message: str
 
     # Execution details
-    steps: List[WorkflowStep] = field(default_factory=list)
+    steps: list[WorkflowStep] = field(default_factory=list)
     duration_ms: int = 0
     executed_at: datetime = field(default_factory=datetime.now)
 
     # Output data (workflow-specific)
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
 
     # Agent guidance
-    next_steps: List[str] = field(default_factory=list)
+    next_steps: list[str] = field(default_factory=list)
     guidance: str = ""
 
     # Error handling
-    errors: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def add_step(self, step: WorkflowStep) -> None:
         """Add a workflow step result."""
         self.steps.append(step)
 
-    def add_error(self, error: str, step_name: Optional[str] = None) -> None:
+    def add_error(self, error: str, step_name: str | None = None) -> None:
         """Add an error to the result."""
         self.errors.append(error)
         if step_name:
@@ -69,7 +69,7 @@ class WorkflowResult:
                     step.errors.append(error)
                     break
 
-    def add_warning(self, warning: str, step_name: Optional[str] = None) -> None:
+    def add_warning(self, warning: str, step_name: str | None = None) -> None:
         """Add a warning to the result."""
         self.warnings.append(warning)
         if step_name:
@@ -91,7 +91,7 @@ class WorkflowResult:
             )
             return f"❌ {self.message} ({failed_steps}/{len(self.steps)} steps failed)"
 
-    def to_agent_response(self) -> Dict[str, Any]:
+    def to_agent_response(self) -> dict[str, Any]:
         """Convert to agent-friendly response format."""
         return {
             "success": self.success,
@@ -117,8 +117,8 @@ class WorkflowError(Exception):
     def __init__(
         self,
         message: str,
-        step_name: Optional[str] = None,
-        details: Optional[Dict] = None,
+        step_name: str | None = None,
+        details: dict | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -133,12 +133,12 @@ class BaseWorkflow(ABC):
     to accomplish complex tasks triggered by agent entry points.
     """
 
-    def __init__(self, adr_dir: Union[Path, str]):
+    def __init__(self, adr_dir: Path | str):
         self.adr_dir = Path(adr_dir)
         self.result = WorkflowResult(
             success=False, status=WorkflowStatus.FAILED, message=""
         )
-        self._start_time: Optional[datetime] = None
+        self._start_time: datetime | None = None
 
     @abstractmethod
     def execute(self, **kwargs: Any) -> WorkflowResult:
@@ -163,7 +163,7 @@ class BaseWorkflow(ABC):
         )
 
     def _complete_workflow(
-        self, success: bool, message: str, status: Optional[WorkflowStatus] = None
+        self, success: bool, message: str, status: WorkflowStatus | None = None
     ) -> None:
         """Complete workflow execution."""
         if self._start_time:
@@ -181,7 +181,9 @@ class BaseWorkflow(ABC):
                 WorkflowStatus.SUCCESS if success else WorkflowStatus.FAILED
             )
 
-    def _execute_step(self, step_name: str, step_func: Any, *args: Any, **kwargs: Any) -> Any:
+    def _execute_step(
+        self, step_name: str, step_func: Any, *args: Any, **kwargs: Any
+    ) -> Any:
         """Execute a single workflow step with error handling."""
         start_time = datetime.now()
         step = WorkflowStep(
@@ -207,7 +209,7 @@ class BaseWorkflow(ABC):
             self.result.add_step(step)
             raise WorkflowError(
                 f"{step_name} failed: {str(e)}", step_name, {"exception": str(e)}
-            )
+            ) from e
 
     def _validate_adr_directory(self) -> None:
         """Validate that ADR directory exists and is accessible."""
@@ -223,9 +225,11 @@ class BaseWorkflow(ABC):
             test_file.touch()
             test_file.unlink()
         except Exception as e:
-            raise WorkflowError(f"Cannot write to ADR directory: {self.adr_dir} - {e}")
+            raise WorkflowError(
+                f"Cannot write to ADR directory: {self.adr_dir} - {e}"
+            ) from e
 
-    def _add_agent_guidance(self, guidance: str, next_steps: List[str]) -> None:
+    def _add_agent_guidance(self, guidance: str, next_steps: list[str]) -> None:
         """Add guidance for the agent on what to do next."""
         self.result.guidance = guidance
         self.result.next_steps = next_steps

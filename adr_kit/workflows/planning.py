@@ -1,13 +1,12 @@
 """Planning Workflow - Provide architectural context for agent tasks."""
 
 import re
-from typing import Dict, List, Any, Optional, Set
 from dataclasses import dataclass
-from pathlib import Path
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus, WorkflowError
-from ..core.model import ADR
-from ..core.parse import find_adr_files, parse_adr_file
+from typing import Any
+
 from ..contract.builder import ConstraintsContractBuilder
+from ..core.model import ADR
+from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
 
 
 @dataclass
@@ -18,7 +17,7 @@ class PlanningInput:
     context_type: str = (
         "implementation"  # implementation, refactoring, debugging, feature
     )
-    domain_hints: Optional[List[str]] = None  # frontend, backend, database, etc.
+    domain_hints: list[str] | None = None  # frontend, backend, database, etc.
     priority_level: str = "normal"  # low, normal, high - affects detail level
 
 
@@ -26,15 +25,15 @@ class PlanningInput:
 class ArchitecturalContext:
     """Curated architectural context for a specific task."""
 
-    relevant_adrs: List[Dict[str, Any]]  # ADRs ranked by relevance
-    applicable_constraints: List[Dict[str, Any]]  # Policy constraints to follow
-    guidance_prompts: List[str]  # Specific guidance for the task
-    technology_recommendations: Dict[
-        str, List[str]
+    relevant_adrs: list[dict[str, Any]]  # ADRs ranked by relevance
+    applicable_constraints: list[dict[str, Any]]  # Policy constraints to follow
+    guidance_prompts: list[str]  # Specific guidance for the task
+    technology_recommendations: dict[
+        str, list[str]
     ]  # Recommended vs avoided technologies
-    architecture_patterns: List[str]  # Relevant architectural patterns
-    compliance_checklist: List[str]  # Things to verify for compliance
-    related_decisions: List[str]  # Decision context that might be relevant
+    architecture_patterns: list[str]  # Relevant architectural patterns
+    compliance_checklist: list[str]  # Things to verify for compliance
+    related_decisions: list[str]  # Decision context that might be relevant
 
 
 class PlanningWorkflow(BaseWorkflow):
@@ -59,10 +58,10 @@ class PlanningWorkflow(BaseWorkflow):
     def execute(self, **kwargs: Any) -> WorkflowResult:
         """Execute planning context workflow."""
         # Extract input_data from kwargs
-        input_data = kwargs.get('input_data')
+        input_data = kwargs.get("input_data")
         if not input_data or not isinstance(input_data, PlanningInput):
             raise ValueError("input_data must be provided as PlanningInput instance")
-            
+
         try:
             # Step 1: Analyze task to extract key concepts
             task_analysis = self._analyze_task_description(input_data)
@@ -127,7 +126,7 @@ class PlanningWorkflow(BaseWorkflow):
             result.add_error(f"PlanningError: {str(e)}")
             return result
 
-    def _analyze_task_description(self, input_data: PlanningInput) -> Dict[str, Any]:
+    def _analyze_task_description(self, input_data: PlanningInput) -> dict[str, Any]:
         """Analyze task description to extract key concepts and domains."""
         task_text = input_data.task_description.lower()
 
@@ -157,7 +156,7 @@ class PlanningWorkflow(BaseWorkflow):
             "priority_level": input_data.priority_level,
         }
 
-    def _extract_technologies(self, task_text: str) -> List[str]:
+    def _extract_technologies(self, task_text: str) -> list[str]:
         """Extract mentioned technologies from task description."""
         # Common technology patterns
         tech_patterns = {
@@ -184,8 +183,8 @@ class PlanningWorkflow(BaseWorkflow):
         return technologies
 
     def _extract_domains(
-        self, task_text: str, domain_hints: Optional[List[str]]
-    ) -> List[str]:
+        self, task_text: str, domain_hints: list[str] | None
+    ) -> list[str]:
         """Extract domain areas from task description."""
         domains = set()
 
@@ -225,7 +224,7 @@ class PlanningWorkflow(BaseWorkflow):
 
         return list(domains)
 
-    def _extract_intents(self, task_text: str) -> List[str]:
+    def _extract_intents(self, task_text: str) -> list[str]:
         """Extract what the agent intends to do."""
         intent_patterns = [
             r"\b(implement|create|build|develop|add|make)\b",  # Creation
@@ -243,7 +242,7 @@ class PlanningWorkflow(BaseWorkflow):
 
         return list(set(intents))  # Remove duplicates
 
-    def _extract_architectural_concepts(self, task_text: str) -> List[str]:
+    def _extract_architectural_concepts(self, task_text: str) -> list[str]:
         """Extract architectural concepts from task description."""
         arch_keywords = [
             "pattern",
@@ -270,7 +269,7 @@ class PlanningWorkflow(BaseWorkflow):
         return concepts
 
     def _assess_task_complexity(
-        self, task_text: str, technologies: List[Dict[str, Any]], domains: List[str]
+        self, task_text: str, technologies: list[dict[str, Any]], domains: list[str]
     ) -> str:
         """Assess the complexity level of the task."""
         complexity_score = 0
@@ -305,15 +304,16 @@ class PlanningWorkflow(BaseWorkflow):
             return builder.build()
         except Exception:
             # Return empty contract if none exists
-            from ..contract.models import ConstraintsContract
             from pathlib import Path
+
+            from ..contract.models import ConstraintsContract
 
             # Use the proper create_empty method instead of incorrect constructor
             return ConstraintsContract.create_empty(Path("."))
 
     def _find_relevant_adrs(
-        self, task_analysis: Dict[str, Any], contract
-    ) -> List[Dict[str, Any]]:
+        self, task_analysis: dict[str, Any], contract
+    ) -> list[dict[str, Any]]:
         """Find ADRs relevant to the task."""
         relevant_adrs = []
 
@@ -352,7 +352,7 @@ class PlanningWorkflow(BaseWorkflow):
         limit = {"high": 10, "normal": 6, "low": 3}[task_analysis["priority_level"]]
         return relevant_adrs[:limit]
 
-    def _calculate_adr_relevance(self, adr: ADR, task_keywords: Set[str]) -> float:
+    def _calculate_adr_relevance(self, adr: ADR, task_keywords: set[str]) -> float:
         """Calculate relevance score between ADR and task."""
         adr_text = (
             f"{adr.title} {adr.decision} {' '.join(adr.tags)} {adr.context}"
@@ -383,7 +383,7 @@ class PlanningWorkflow(BaseWorkflow):
 
         return min(relevance, 1.0)  # Cap at 1.0
 
-    def _get_matching_areas(self, adr: ADR, task_keywords: Set[str]) -> List[str]:
+    def _get_matching_areas(self, adr: ADR, task_keywords: set[str]) -> list[str]:
         """Get areas where ADR and task overlap."""
         adr_text = f"{adr.title} {adr.decision} {' '.join(adr.tags)}".lower()
 
@@ -394,12 +394,12 @@ class PlanningWorkflow(BaseWorkflow):
 
         return matching_areas
 
-    def _extract_key_policies(self, adr: ADR) -> List[str]:
+    def _extract_key_policies(self, adr: ADR) -> list[str]:
         """Extract key policies from ADR."""
         policies = []
 
         if adr.policy:
-            for policy_type, policy_content in adr.policy.items():
+            for _policy_type, policy_content in adr.policy.items():
                 if isinstance(policy_content, dict):
                     if "disallow" in policy_content:
                         policies.append(
@@ -417,8 +417,8 @@ class PlanningWorkflow(BaseWorkflow):
         return policies
 
     def _extract_applicable_constraints(
-        self, task_analysis: Dict[str, Any], contract
-    ) -> List[Dict[str, Any]]:
+        self, task_analysis: dict[str, Any], contract
+    ) -> list[dict[str, Any]]:
         """Extract constraints applicable to the task."""
         applicable = []
 
@@ -446,7 +446,7 @@ class PlanningWorkflow(BaseWorkflow):
         return applicable
 
     def _assess_constraint_relevance(
-        self, constraint, task_domains: Set[str], task_tech: Set[str]
+        self, constraint, task_domains: set[str], task_tech: set[str]
     ) -> float:
         """Assess how relevant a constraint is to the task."""
         relevance = 0.0
@@ -464,11 +464,11 @@ class PlanningWorkflow(BaseWorkflow):
 
         return min(relevance, 1.0)
 
-    def _summarize_policy(self, policy: Dict[str, Any]) -> str:
+    def _summarize_policy(self, policy: dict[str, Any]) -> str:
         """Create human-readable summary of policy."""
         summary_parts = []
 
-        for policy_type, content in policy.items():
+        for _policy_type, content in policy.items():
             if isinstance(content, dict):
                 if "disallow" in content:
                     summary_parts.append(f"Avoid {', '.join(content['disallow'])}")
@@ -481,10 +481,10 @@ class PlanningWorkflow(BaseWorkflow):
 
     def _generate_technology_recommendations(
         self,
-        task_analysis: Dict[str, Any],
-        relevant_adrs: List[Dict[str, Any]],
+        task_analysis: dict[str, Any],
+        relevant_adrs: list[dict[str, Any]],
         contract,
-    ) -> Dict[str, List[str]]:
+    ) -> dict[str, list[str]]:
         """Generate technology recommendations based on ADRs."""
         recommendations = {"recommended": [], "avoid": [], "required": []}
 
@@ -509,10 +509,10 @@ class PlanningWorkflow(BaseWorkflow):
 
     def _generate_guidance_prompts(
         self,
-        task_analysis: Dict[str, Any],
-        relevant_adrs: List[Dict[str, Any]],
+        task_analysis: dict[str, Any],
+        relevant_adrs: list[dict[str, Any]],
         context_type: str,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate specific guidance prompts for the task."""
         prompts = []
 
@@ -555,9 +555,9 @@ class PlanningWorkflow(BaseWorkflow):
 
     def _build_compliance_checklist(
         self,
-        task_analysis: Dict[str, Any],
-        applicable_constraints: List[Dict[str, Any]],
-    ) -> List[str]:
+        task_analysis: dict[str, Any],
+        applicable_constraints: list[dict[str, Any]],
+    ) -> list[str]:
         """Build a compliance checklist for the task."""
         checklist = []
 
@@ -592,8 +592,8 @@ class PlanningWorkflow(BaseWorkflow):
         return checklist
 
     def _extract_architecture_patterns(
-        self, relevant_adrs: List[Dict[str, Any]]
-    ) -> List[str]:
+        self, relevant_adrs: list[dict[str, Any]]
+    ) -> list[str]:
         """Extract architectural patterns from relevant ADRs."""
         patterns = set()
 
@@ -627,8 +627,8 @@ class PlanningWorkflow(BaseWorkflow):
         return list(patterns)
 
     def _identify_related_decisions(
-        self, task_analysis: Dict[str, Any], relevant_adrs: List[Dict[str, Any]]
-    ) -> List[str]:
+        self, task_analysis: dict[str, Any], relevant_adrs: list[dict[str, Any]]
+    ) -> list[str]:
         """Identify decision context that might be relevant."""
         decisions = []
 

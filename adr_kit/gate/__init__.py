@@ -11,16 +11,16 @@ Key components:
 - PolicyEngine: Rule evaluation engine with allow/deny lists and defaults
 """
 
-from .policy_gate import PolicyGate, GateResult
+from .models import CategoryRule, GateConfig, GateDecision, NameMapping
+from .policy_engine import PolicyConfig, PolicyEngine
+from .policy_gate import GateResult, PolicyGate
 from .technical_choice import (
-    TechnicalChoice,
     ChoiceType,
     DependencyChoice,
     FrameworkChoice,
+    TechnicalChoice,
     create_technical_choice,
 )
-from .policy_engine import PolicyEngine, PolicyConfig
-from .models import GateConfig, CategoryRule, NameMapping, GateDecision
 
 __all__ = [
     "PolicyGate",

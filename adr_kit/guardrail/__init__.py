@@ -5,15 +5,15 @@ when ADR policies change, providing the "Guardrail Manager" component
 from the architectural vision.
 """
 
+from .config_writer import ConfigFragment, ConfigWriter, SentinelBlock
+from .file_monitor import ChangeEvent, ChangeType, FileMonitor
 from .manager import GuardrailManager
-from .config_writer import ConfigWriter, ConfigFragment, SentinelBlock
-from .file_monitor import FileMonitor, ChangeEvent, ChangeType
 from .models import (
-    GuardrailConfig,
-    FragmentTarget,
     ApplyResult,
     ConfigTemplate,
+    FragmentTarget,
     FragmentType,
+    GuardrailConfig,
 )
 
 __all__ = [

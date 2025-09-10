@@ -9,13 +9,14 @@ Design decisions:
 
 import configparser
 import re
-import toml
 from io import StringIO
 from pathlib import Path
-from typing import Dict, List, Any, Union, Optional, Set, Collection
+from typing import Any
 
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
-from ..core.model import ADRStatus
+import toml
+
+from ..core.model import ADR, ADRStatus
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 
 
 class PythonRuleExtractor:
@@ -52,9 +53,9 @@ class PythonRuleExtractor:
             "typer": "typer",
         }
 
-    def extract_from_adr(self, adr: Any) -> Dict[str, Any]:
+    def extract_from_adr(self, adr: Any) -> dict[str, Any]:
         """Extract Python rules from a single ADR."""
-        rules: Dict[str, Any] = {
+        rules: dict[str, Any] = {
             "banned_imports": [],
             "preferred_imports": {},
             "architectural_rules": [],
@@ -101,7 +102,7 @@ class PythonRuleExtractor:
 
         return rules
 
-    def _normalize_python_library(self, name: str) -> Optional[str]:
+    def _normalize_python_library(self, name: str) -> str | None:
         """Normalize Python library name."""
         name = name.lower().strip()
 
@@ -134,7 +135,7 @@ class PythonRuleExtractor:
 
         return None
 
-    def _extract_architectural_rules(self, content: str, adr) -> List[Dict[str, Any]]:
+    def _extract_architectural_rules(self, content: str, adr: ADR) -> list[dict[str, Any]]:
         """Extract architectural/layering rules."""
         rules = []
 
@@ -159,7 +160,7 @@ class PythonRuleExtractor:
 
         return rules
 
-    def _extract_ruff_rules(self, content: str) -> Dict[str, str]:
+    def _extract_ruff_rules(self, content: str) -> dict[str, str]:
         """Extract Ruff-specific rules."""
         rules = {}
 
@@ -187,7 +188,7 @@ class PythonRuleExtractor:
         return rules
 
 
-def generate_ruff_config(adr_directory: Union[Path, str] = "docs/adr") -> str:
+def generate_ruff_config(adr_directory: Path | str = "docs/adr") -> str:
     """Generate Ruff configuration from ADRs.
 
     Args:
@@ -242,7 +243,7 @@ def generate_ruff_config(adr_directory: Union[Path, str] = "docs/adr") -> str:
     return toml.dumps(ruff_config)
 
 
-def generate_import_linter_config(adr_directory: Union[Path, str] = "docs/adr") -> str:
+def generate_import_linter_config(adr_directory: Path | str = "docs/adr") -> str:
     """Generate import-linter configuration from ADRs.
 
     Args:
@@ -279,7 +280,7 @@ def generate_import_linter_config(adr_directory: Union[Path, str] = "docs/adr") 
     }
 
     # Add architectural rules as contracts
-    for i, rule in enumerate(all_architectural_rules):
+    for _i, rule in enumerate(all_architectural_rules):
         contract_name = f"contract:{rule['name']}"
         config[contract_name] = {
             "name": rule["description"],
@@ -312,8 +313,8 @@ def generate_import_linter_config(adr_directory: Union[Path, str] = "docs/adr") 
 
 
 def generate_pyproject_ruff_section(
-    adr_directory: Union[Path, str] = "docs/adr",
-) -> Dict[str, Any]:
+    adr_directory: Path | str = "docs/adr",
+) -> dict[str, Any]:
     """Generate Ruff section for pyproject.toml from ADRs.
 
     Args:

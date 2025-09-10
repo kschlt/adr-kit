@@ -8,12 +8,12 @@ Design decisions:
 """
 
 import json
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
+from typing import Any
 
 from ..core.model import ADR, ADRStatus
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 from ..core.validate import validate_adr_file
 
 
@@ -23,7 +23,7 @@ class IndexEntry:
     def __init__(self, adr: ADR):
         self.adr = adr
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         fm = self.adr.front_matter
 
@@ -68,10 +68,10 @@ class IndexEntry:
 class ADRIndex:
     """JSON index generator for ADRs."""
 
-    def __init__(self, adr_directory: Union[Path, str] = "docs/adr"):
+    def __init__(self, adr_directory: Path | str = "docs/adr"):
         self.adr_directory = Path(adr_directory)
-        self.entries: List[IndexEntry] = []
-        self.metadata: Dict[str, Any] = {}
+        self.entries: list[IndexEntry] = []
+        self.metadata: dict[str, Any] = {}
 
     def build_index(self, validate: bool = True) -> None:
         """Build the ADR index from files in the directory.
@@ -121,25 +121,25 @@ class ADRIndex:
             "tag_counts": self._calculate_tag_counts(),
         }
 
-    def _calculate_status_counts(self) -> Dict[str, int]:
+    def _calculate_status_counts(self) -> dict[str, int]:
         """Calculate count of ADRs by status."""
-        counts = {}
+        counts: dict[str, int] = {}
         for entry in self.entries:
             status = entry.adr.front_matter.status
             status_str = status.value if isinstance(status, ADRStatus) else str(status)
             counts[status_str] = counts.get(status_str, 0) + 1
         return counts
 
-    def _calculate_tag_counts(self) -> Dict[str, int]:
+    def _calculate_tag_counts(self) -> dict[str, int]:
         """Calculate count of ADRs by tag."""
-        counts = {}
+        counts: dict[str, int] = {}
         for entry in self.entries:
             tags = entry.adr.front_matter.tags or []
             for tag in tags:
                 counts[tag] = counts.get(tag, 0) + 1
         return counts
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert index to dictionary for JSON serialization."""
         return {
             "metadata": self.metadata,
@@ -150,7 +150,7 @@ class ADRIndex:
         """Convert index to JSON string."""
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
-    def save_to_file(self, output_path: Union[Path, str], indent: int = 2) -> None:
+    def save_to_file(self, output_path: Path | str, indent: int = 2) -> None:
         """Save index to JSON file.
 
         Args:
@@ -164,8 +164,8 @@ class ADRIndex:
             json.dump(self.to_dict(), f, indent=indent, ensure_ascii=False)
 
     def filter_by_status(
-        self, status: Union[ADRStatus, str, List[Union[ADRStatus, str]]]
-    ) -> List[IndexEntry]:
+        self, status: ADRStatus | str | list[ADRStatus | str]
+    ) -> list[IndexEntry]:
         """Filter index entries by status.
 
         Args:
@@ -174,7 +174,7 @@ class ADRIndex:
         Returns:
             Filtered list of index entries
         """
-        if isinstance(status, (str, ADRStatus)):
+        if isinstance(status, str | ADRStatus):
             status = [status]
 
         status_strings = []
@@ -191,8 +191,8 @@ class ADRIndex:
         ]
 
     def filter_by_tags(
-        self, tags: Union[str, List[str]], match_all: bool = False
-    ) -> List[IndexEntry]:
+        self, tags: str | list[str], match_all: bool = False
+    ) -> list[IndexEntry]:
         """Filter index entries by tags.
 
         Args:
@@ -218,7 +218,7 @@ class ADRIndex:
 
         return filtered
 
-    def find_by_id(self, adr_id: str) -> Optional[IndexEntry]:
+    def find_by_id(self, adr_id: str) -> IndexEntry | None:
         """Find an ADR entry by ID.
 
         Args:
@@ -234,8 +234,8 @@ class ADRIndex:
 
 
 def generate_adr_index(
-    adr_directory: Union[Path, str] = "docs/adr",
-    output_path: Union[Path, str] = "docs/adr/adr-index.json",
+    adr_directory: Path | str = "docs/adr",
+    output_path: Path | str = "docs/adr/adr-index.json",
     validate: bool = True,
     indent: int = 2,
 ) -> ADRIndex:

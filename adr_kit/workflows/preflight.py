@@ -1,14 +1,11 @@
 """Preflight Workflow - Check if technical choice requires ADR before proceeding."""
 
-from typing import Dict, List, Any, Optional, Set
 from dataclasses import dataclass
-from pathlib import Path
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus, WorkflowError
-from ..contract.models import ConstraintsContract
+from typing import Any
+
 from ..contract.builder import ConstraintsContractBuilder
-from ..gate.technical_choice import TechnicalChoice
-from ..gate.policy_gate import PolicyGate
-from ..core.parse import find_adr_files, parse_adr_file
+from ..contract.models import ConstraintsContract
+from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
 
 
 @dataclass
@@ -16,8 +13,8 @@ class PreflightInput:
     """Input for preflight workflow."""
 
     choice: str  # Technical choice being evaluated (e.g., "postgresql", "react", "microservices")
-    context: Optional[Dict[str, Any]] = None  # Additional context about the choice
-    category: Optional[str] = (
+    context: dict[str, Any] | None = None  # Additional context about the choice
+    category: str | None = (
         None  # Category hint (database, frontend, architecture, etc.)
     )
 
@@ -28,9 +25,9 @@ class PreflightDecision:
 
     status: str  # ALLOWED, REQUIRES_ADR, BLOCKED
     reasoning: str  # Human-readable explanation
-    conflicting_adrs: List[str]  # ADR IDs that conflict with this choice
-    related_adrs: List[str]  # ADR IDs that are related but don't conflict
-    required_policies: List[str]  # Policies that would need to be addressed in ADR
+    conflicting_adrs: list[str]  # ADR IDs that conflict with this choice
+    related_adrs: list[str]  # ADR IDs that are related but don't conflict
+    required_policies: list[str]  # Policies that would need to be addressed in ADR
     next_steps: str  # What the agent should do next
     urgency: str  # LOW, MEDIUM, HIGH - how important it is to create ADR
 
@@ -55,10 +52,10 @@ class PreflightWorkflow(BaseWorkflow):
     def execute(self, **kwargs: Any) -> WorkflowResult:
         """Execute preflight evaluation workflow."""
         # Extract input_data from kwargs
-        input_data = kwargs.get('input_data')
+        input_data = kwargs.get("input_data")
         if not input_data or not isinstance(input_data, PreflightInput):
             raise ValueError("input_data must be provided as PreflightInput instance")
-            
+
         try:
             # Step 1: Load constraints contract
             contract = self._load_constraints_contract()
@@ -117,15 +114,16 @@ class PreflightWorkflow(BaseWorkflow):
         try:
             builder = ConstraintsContractBuilder(adr_dir=self.adr_dir)
             return builder.build()
-        except Exception as e:
+        except Exception:
             # If no contract exists, return empty contract
-            from ..contract.models import ConstraintsContract
             from pathlib import Path
-            
+
+            from ..contract.models import ConstraintsContract
+
             # Use the proper create_empty method instead of incorrect constructor
             return ConstraintsContract.create_empty(Path("."))
 
-    def _categorize_choice(self, input_data: PreflightInput) -> Dict[str, Any]:
+    def _categorize_choice(self, input_data: PreflightInput) -> dict[str, Any]:
         """Categorize and normalize the technical choice."""
         choice = input_data.choice.lower().strip()
 
@@ -201,7 +199,7 @@ class PreflightWorkflow(BaseWorkflow):
             "aliases": self._get_technology_aliases(choice),
         }
 
-    def _get_technology_aliases(self, choice: str) -> List[str]:
+    def _get_technology_aliases(self, choice: str) -> list[str]:
         """Get common aliases for a technology choice."""
         alias_map = {
             "postgres": ["postgresql", "pg"],
@@ -216,15 +214,15 @@ class PreflightWorkflow(BaseWorkflow):
         return alias_map.get(choice, [choice])
 
     def _check_policy_gates(
-        self, choice: Dict[str, Any], contract: ConstraintsContract
-    ) -> Dict[str, Any]:
+        self, choice: dict[str, Any], contract: ConstraintsContract
+    ) -> dict[str, Any]:
         """Check choice against existing policy gates."""
         # Simplified gate checking - will be enhanced later
         # This would integrate with the actual PolicyGate system when fully implemented
 
         blocked = False
         pre_approved = False
-        requirements: List[str] = []
+        requirements: list[str] = []
 
         # Basic implementation - check against contract constraints
         if not contract.constraints.is_empty():
@@ -242,14 +240,14 @@ class PreflightWorkflow(BaseWorkflow):
         }
 
     def _find_related_adrs(
-        self, choice: Dict[str, Any], contract: ConstraintsContract
-    ) -> List[Dict[str, Any]]:
+        self, choice: dict[str, Any], contract: ConstraintsContract
+    ) -> list[dict[str, Any]]:
         """Find ADRs related to this technical choice."""
         related = []
 
         for adr in contract.approved_adrs:
             # Check title and tags
-            tags_text = ' '.join(adr.tags) if adr.tags else ''
+            tags_text = " ".join(adr.tags) if adr.tags else ""
             adr_text = f"{adr.title.lower()} {tags_text.lower()}"
 
             # Check if choice or aliases appear in ADR
@@ -280,8 +278,8 @@ class PreflightWorkflow(BaseWorkflow):
         return related
 
     def _find_conflicting_adrs(
-        self, choice: Dict[str, Any], contract: ConstraintsContract
-    ) -> List[Dict[str, Any]]:
+        self, choice: dict[str, Any], contract: ConstraintsContract
+    ) -> list[dict[str, Any]]:
         """Find ADRs that conflict with this technical choice."""
         conflicts = []
 
@@ -314,10 +312,10 @@ class PreflightWorkflow(BaseWorkflow):
 
     def _make_preflight_decision(
         self,
-        choice: Dict[str, Any],
-        gate_result: Dict[str, Any],
-        related_adrs: List[Dict[str, Any]],
-        conflicting_adrs: List[Dict[str, Any]],
+        choice: dict[str, Any],
+        gate_result: dict[str, Any],
+        related_adrs: list[dict[str, Any]],
+        conflicting_adrs: list[dict[str, Any]],
         contract: ConstraintsContract,
     ) -> PreflightDecision:
         """Make the final preflight decision."""
@@ -383,8 +381,8 @@ class PreflightWorkflow(BaseWorkflow):
 
     def _is_significant_choice(
         self,
-        choice: Dict[str, Any],
-        related_adrs: List[Dict[str, Any]],
+        choice: dict[str, Any],
+        related_adrs: list[dict[str, Any]],
         contract: ConstraintsContract,
     ) -> bool:
         """Determine if a technical choice is significant enough to require ADR."""
@@ -410,12 +408,12 @@ class PreflightWorkflow(BaseWorkflow):
 
         return False
 
-    def _suggest_required_policies(self, choice: Dict[str, Any]) -> List[str]:
+    def _suggest_required_policies(self, choice: dict[str, Any]) -> list[str]:
         """Suggest policies that should be included in ADR for this choice."""
         policies = []
 
         category = choice["category"]
-        technology = choice["normalized"]
+        choice["normalized"]
 
         if category == "database":
             policies.extend(

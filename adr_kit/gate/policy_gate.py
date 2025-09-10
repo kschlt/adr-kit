@@ -1,13 +1,13 @@
 """Main policy gate for intercepting and evaluating technical choices."""
 
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from .models import GateDecision
+from .policy_engine import PolicyConfig, PolicyEngine
 from .technical_choice import TechnicalChoice, create_technical_choice
-from .policy_engine import PolicyEngine, PolicyConfig
 
 
 @dataclass
@@ -17,7 +17,7 @@ class GateResult:
     choice: TechnicalChoice
     decision: GateDecision
     reasoning: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     evaluated_at: datetime
 
     @property
@@ -60,7 +60,7 @@ class GateResult:
         else:
             return f"Unknown gate decision: {self.decision.value}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary for serialization."""
         return {
             "choice": {
@@ -88,7 +88,7 @@ class PolicyGate:
     requires human approval via an ADR.
     """
 
-    def __init__(self, adr_dir: Path, gate_config_path: Optional[Path] = None):
+    def __init__(self, adr_dir: Path, gate_config_path: Path | None = None):
         self.adr_dir = Path(adr_dir)
         self.config = PolicyConfig(
             adr_dir=self.adr_dir, gate_config_path=gate_config_path
@@ -119,9 +119,9 @@ class PolicyGate:
         package_name: str,
         context: str,
         ecosystem: str = "npm",
-        version_constraint: Optional[str] = None,
+        version_constraint: str | None = None,
         is_dev_dependency: bool = False,
-        alternatives_considered: Optional[List[str]] = None,
+        alternatives_considered: list[str] | None = None,
         **kwargs,
     ) -> GateResult:
         """Convenience method for evaluating dependency choices.
@@ -157,9 +157,9 @@ class PolicyGate:
         context: str,
         use_case: str,
         architectural_impact: str = "To be determined",
-        current_solution: Optional[str] = None,
+        current_solution: str | None = None,
         migration_required: bool = False,
-        alternatives_considered: Optional[List[str]] = None,
+        alternatives_considered: list[str] | None = None,
         **kwargs,
     ) -> GateResult:
         """Convenience method for evaluating framework choices.
@@ -192,7 +192,7 @@ class PolicyGate:
         return self.evaluate(choice)
 
     def evaluate_from_text(
-        self, description: str, choice_hints: Optional[Dict[str, Any]] = None
+        self, description: str, choice_hints: dict[str, Any] | None = None
     ) -> GateResult:
         """Evaluate a technical choice from text description.
 
@@ -212,7 +212,7 @@ class PolicyGate:
         return self.evaluate(parsed_choice)
 
     def _parse_choice_description(
-        self, description: str, hints: Dict[str, Any]
+        self, description: str, hints: dict[str, Any]
     ) -> TechnicalChoice:
         """Parse a natural language description into a TechnicalChoice.
 
@@ -275,7 +275,7 @@ class PolicyGate:
             choice_type=choice_type, name=name, context=description, **hints
         )
 
-    def get_gate_status(self) -> Dict[str, Any]:
+    def get_gate_status(self) -> dict[str, Any]:
         """Get current status of the policy gate."""
         config_summary = self.engine.get_config_summary()
 
@@ -286,7 +286,7 @@ class PolicyGate:
             "message": "Policy gate is ready to evaluate technical choices",
         }
 
-    def get_recommendations_for_choice(self, choice_name: str) -> Dict[str, Any]:
+    def get_recommendations_for_choice(self, choice_name: str) -> dict[str, Any]:
         """Get recommendations for a specific choice based on existing constraints."""
         try:
             contract = self.engine.contract_builder.build_contract()
@@ -307,7 +307,7 @@ class PolicyGate:
                         recommendations["alternatives"].append(
                             {
                                 "name": preferred,
-                                "reason": f"Preferred by existing ADR policy",
+                                "reason": "Preferred by existing ADR policy",
                                 "source_adr": self._find_source_adr(
                                     contract, f"imports.prefer.{preferred}"
                                 ),
@@ -340,7 +340,7 @@ class PolicyGate:
                 "message": "Unable to get recommendations",
             }
 
-    def _find_source_adr(self, contract, rule_path: str) -> Optional[str]:
+    def _find_source_adr(self, contract, rule_path: str) -> str | None:
         """Find the source ADR for a specific rule path."""
         for path, provenance in contract.provenance.items():
             if path == rule_path:

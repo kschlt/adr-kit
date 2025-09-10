@@ -1,16 +1,16 @@
 """Supersede Workflow - Replace existing ADR with new decision."""
 
-import os
 import re
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
-from pathlib import Path
 from datetime import datetime
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus, WorkflowError
-from .creation import CreationWorkflow, CreationInput
-from .approval import ApprovalWorkflow, ApprovalInput
+from pathlib import Path
+from typing import Any
+
 from ..core.model import ADR
 from ..core.parse import find_adr_files, parse_adr_file
+from .approval import ApprovalInput, ApprovalWorkflow
+from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
+from .creation import CreationInput, CreationWorkflow
 
 
 @dataclass
@@ -32,9 +32,9 @@ class SupersedeResult:
     new_adr_id: str
     old_adr_status: str  # Previous status of old ADR
     new_adr_status: str  # Status of new ADR
-    relationships_updated: List[str]  # ADR IDs that had relationships updated
+    relationships_updated: list[str]  # ADR IDs that had relationships updated
     automation_triggered: bool  # Whether approval automation was triggered
-    conflicts_resolved: List[str]  # Conflicts that were resolved by superseding
+    conflicts_resolved: list[str]  # Conflicts that were resolved by superseding
     next_steps: str  # Guidance for what happens next
 
 
@@ -58,10 +58,10 @@ class SupersedeWorkflow(BaseWorkflow):
     def execute(self, **kwargs: Any) -> WorkflowResult:
         """Execute ADR superseding workflow."""
         # Extract input_data from kwargs
-        input_data = kwargs.get('input_data')
+        input_data = kwargs.get("input_data")
         if not input_data or not isinstance(input_data, SupersedeInput):
             raise ValueError("input_data must be provided as SupersedeInput instance")
-            
+
         try:
             # Step 1: Validate superseding preconditions
             old_adr, old_adr_file = self._validate_supersede_preconditions(
@@ -71,7 +71,9 @@ class SupersedeWorkflow(BaseWorkflow):
 
             # Step 2: Create new ADR proposal
             creation_workflow = CreationWorkflow(adr_dir=self.adr_dir)
-            creation_result = creation_workflow.execute(input_data=input_data.new_proposal)
+            creation_result = creation_workflow.execute(
+                input_data=input_data.new_proposal
+            )
 
             if creation_result.status != WorkflowStatus.SUCCESS:
                 raise Exception(f"Failed to create new ADR: {creation_result.message}")
@@ -166,7 +168,7 @@ class SupersedeWorkflow(BaseWorkflow):
         """Update old ADR status to superseded and add superseded_by relationship."""
 
         # Read current file content
-        with open(old_adr_file, "r", encoding="utf-8") as f:
+        with open(old_adr_file, encoding="utf-8") as f:
             content = f.read()
 
         # Update status
@@ -208,7 +210,7 @@ class SupersedeWorkflow(BaseWorkflow):
                 adr = parse_adr_file(file_path)
                 if adr.id == new_adr_id:
                     # Read and update file
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         content = f.read()
 
                     # Update or add supersedes field
@@ -244,7 +246,7 @@ class SupersedeWorkflow(BaseWorkflow):
 
     def _update_related_adr_relationships(
         self, old_adr_id: str, new_adr_id: str
-    ) -> List[str]:
+    ) -> list[str]:
         """Update any ADRs that referenced the old ADR."""
         updated_relationships = []
         adr_files = find_adr_files(self.adr_dir)
@@ -259,7 +261,6 @@ class SupersedeWorkflow(BaseWorkflow):
 
                 # Check if this ADR references the old ADR
                 needs_update = False
-                content_to_update = None
 
                 # Check supersedes relationships
                 if old_adr_id in (adr.supersedes or []):
@@ -271,7 +272,7 @@ class SupersedeWorkflow(BaseWorkflow):
 
                 if needs_update:
                     # Read and update file
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         content = f.read()
 
                     # Replace old ADR ID with new ADR ID in relationships
@@ -290,8 +291,8 @@ class SupersedeWorkflow(BaseWorkflow):
         return updated_relationships
 
     def _resolve_conflicts_through_superseding(
-        self, old_adr_id: str, detected_conflicts: List[str]
-    ) -> List[str]:
+        self, old_adr_id: str, detected_conflicts: list[str]
+    ) -> list[str]:
         """Resolve conflicts that existed with the old ADR."""
         resolved_conflicts = []
 
@@ -305,7 +306,7 @@ class SupersedeWorkflow(BaseWorkflow):
         return resolved_conflicts
 
     def _generate_supersede_guidance(
-        self, new_adr_id: str, automation_triggered: bool, resolved_conflicts: List[str]
+        self, new_adr_id: str, automation_triggered: bool, resolved_conflicts: list[str]
     ) -> str:
         """Generate guidance for what happens next after superseding."""
 

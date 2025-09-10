@@ -1,10 +1,10 @@
 """Data models for the Automatic Guardrail Management System."""
 
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
-from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -35,7 +35,7 @@ class FragmentTarget:
 
     file_path: Path
     fragment_type: FragmentType
-    section_name: Optional[str] = None  # For multi-section configs
+    section_name: str | None = None  # For multi-section configs
     backup_enabled: bool = True
 
 
@@ -44,8 +44,8 @@ class ConfigFragment(BaseModel):
 
     fragment_type: FragmentType
     content: str = Field(..., description="The configuration content")
-    source_adr_ids: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    source_adr_ids: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -54,7 +54,7 @@ class SentinelBlock(BaseModel):
 
     start_marker: str
     end_marker: str
-    description: Optional[str] = None
+    description: str | None = None
 
     @classmethod
     def for_fragment_type(
@@ -106,9 +106,9 @@ class ApplyResult(BaseModel):
     status: ApplicationStatus
     message: str
     fragments_applied: int = 0
-    backup_created: Optional[Path] = None
-    errors: List[str] = Field(default_factory=list)
-    warnings: List[str] = Field(default_factory=list)
+    backup_created: Path | None = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ConfigTemplate(BaseModel):
@@ -116,15 +116,15 @@ class ConfigTemplate(BaseModel):
 
     fragment_type: FragmentType
     template_content: str
-    variables: Dict[str, Any] = Field(default_factory=dict)
+    variables: dict[str, Any] = Field(default_factory=dict)
 
-    def render(self, **kwargs) -> str:
+    def render(self, **kwargs: Any) -> str:
         """Render template with provided variables."""
         merged_vars = {**self.variables, **kwargs}
         try:
             return self.template_content.format(**merged_vars)
         except KeyError as e:
-            raise ValueError(f"Missing template variable: {e}")
+            raise ValueError(f"Missing template variable: {e}") from e
 
 
 class GuardrailConfig(BaseModel):
@@ -133,16 +133,16 @@ class GuardrailConfig(BaseModel):
     enabled: bool = True
     auto_apply: bool = True  # Whether to automatically apply changes
     backup_enabled: bool = True
-    backup_dir: Optional[Path] = None
+    backup_dir: Path | None = None
 
     # Target configurations
-    targets: List[FragmentTarget] = Field(default_factory=list)
+    targets: list[FragmentTarget] = Field(default_factory=list)
 
     # Fragment type settings
-    fragment_settings: Dict[FragmentType, Dict[str, Any]] = Field(default_factory=dict)
+    fragment_settings: dict[FragmentType, dict[str, Any]] = Field(default_factory=dict)
 
     # Templates for different configuration types
-    templates: List[ConfigTemplate] = Field(default_factory=list)
+    templates: list[ConfigTemplate] = Field(default_factory=list)
 
     # Notification settings
     notify_on_apply: bool = True
@@ -151,7 +151,7 @@ class GuardrailConfig(BaseModel):
     class Config:
         use_enum_values = True
 
-    def get_targets_for_type(self, fragment_type: FragmentType) -> List[FragmentTarget]:
+    def get_targets_for_type(self, fragment_type: FragmentType) -> list[FragmentTarget]:
         """Get all targets for a specific fragment type."""
         return [
             target for target in self.targets if target.fragment_type == fragment_type
@@ -159,7 +159,7 @@ class GuardrailConfig(BaseModel):
 
     def get_template_for_type(
         self, fragment_type: FragmentType
-    ) -> Optional[ConfigTemplate]:
+    ) -> ConfigTemplate | None:
         """Get template for a specific fragment type."""
         for template in self.templates:
             if template.fragment_type == fragment_type:

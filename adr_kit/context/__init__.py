@@ -12,11 +12,11 @@ Key components:
 - GuidanceGenerator: Creates contextual promptlets for agents
 """
 
-from .planner import PlanningContext, PlanningConfig
-from .models import ContextPacket, ContextualADR, PlanningGuidance, TaskHint
 from .analyzer import TaskAnalyzer, TaskContext, TaskType
-from .ranker import RelevanceRanker, RelevanceScore, RankingStrategy
-from .guidance import GuidanceGenerator, GuidanceType, ContextualPromptlet
+from .guidance import ContextualPromptlet, GuidanceGenerator, GuidanceType
+from .models import ContextPacket, ContextualADR, PlanningGuidance, TaskHint
+from .planner import PlanningConfig, PlanningContext
+from .ranker import RankingStrategy, RelevanceRanker, RelevanceScore
 
 __all__ = [
     "PlanningContext",

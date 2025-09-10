@@ -10,34 +10,37 @@ Design decisions:
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Any, Union, Optional, TypedDict
+from typing import Any, TypedDict
 
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
-from ..core.model import ADRStatus
+from ..core.model import ADR, ADRStatus
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 from ..core.policy_extractor import PolicyExtractor
 
 
 class ADRMetadata(TypedDict):
     """Type definition for ADR metadata in ESLint config."""
+
     id: str
     title: str
-    file_path: Optional[str]
+    file_path: str | None
 
 
 class ESLintADRMetadata(TypedDict):
     """Type definition for __adr_metadata section."""
+
     generated_by: str
-    source_adrs: List[ADRMetadata]
-    generation_timestamp: Optional[str]
-    preferred_libraries: Optional[Dict[str, str]]
+    source_adrs: list[ADRMetadata]
+    generation_timestamp: str | None
+    preferred_libraries: dict[str, str] | None
 
 
 class ESLintConfig(TypedDict):
     """Type definition for complete ESLint configuration."""
-    rules: Dict[str, Any]
-    settings: Dict[str, Any]
-    env: Dict[str, Any]
-    extends: List[str]
+
+    rules: dict[str, Any]
+    settings: dict[str, Any]
+    env: dict[str, Any]
+    extends: list[str]
     __adr_metadata: ESLintADRMetadata
 
 
@@ -160,7 +163,7 @@ class ESLintRuleExtractor:
             "underscore": "underscore",
         }
 
-    def extract_from_adr(self, adr) -> Dict[str, Any]:
+    def extract_from_adr(self, adr: ADR) -> dict[str, Any]:
         """Extract ESLint rules from a single ADR.
 
         Args:
@@ -169,7 +172,15 @@ class ESLintRuleExtractor:
         Returns:
             Dictionary with extracted rule information
         """
-        rules = {"banned_imports": [], "preferred_imports": {}, "custom_rules": []}
+        banned_imports: list[str] = []
+        preferred_imports: dict[str, str] = {}
+        custom_rules: list[dict[str, Any]] = []
+        
+        rules: dict[str, Any] = {
+            "banned_imports": banned_imports, 
+            "preferred_imports": preferred_imports, 
+            "custom_rules": custom_rules
+        }
 
         # Only extract rules from accepted ADRs
         if adr.front_matter.status != ADRStatus.ACCEPTED:
@@ -210,7 +221,7 @@ class ESLintRuleExtractor:
 
         return rules
 
-    def _normalize_library_name(self, name: str) -> Optional[str]:
+    def _normalize_library_name(self, name: str) -> str | None:
         """Normalize library name to common import format."""
         name = name.lower().strip()
 
@@ -244,9 +255,9 @@ class ESLintRuleExtractor:
 
         return None
 
-    def _extract_frontend_rules(self, content: str) -> Dict[str, Any]:
+    def _extract_frontend_rules(self, content: str) -> dict[str, Any]:
         """Extract frontend-specific ESLint rules."""
-        rules = {"custom_rules": []}
+        rules: dict[str, list[dict[str, str]]] = {"custom_rules": []}
 
         # React-specific patterns
         if "react" in content:
@@ -257,9 +268,9 @@ class ESLintRuleExtractor:
 
         return rules
 
-    def _extract_backend_rules(self, content: str) -> Dict[str, Any]:
+    def _extract_backend_rules(self, content: str) -> dict[str, Any]:
         """Extract backend-specific ESLint rules."""
-        rules = {"custom_rules": []}
+        rules: dict[str, list[dict[str, str]]] = {"custom_rules": []}
 
         # Node.js specific patterns
         if "node" in content or "nodejs" in content:
@@ -269,7 +280,7 @@ class ESLintRuleExtractor:
         return rules
 
 
-def generate_eslint_config(adr_directory: Union[Path, str] = "docs/adr") -> str:
+def generate_eslint_config(adr_directory: Path | str = "docs/adr") -> str:
     """Generate ESLint configuration from ADRs using hybrid approach.
 
     Uses structured policies first, falls back to pattern matching.
@@ -338,8 +349,8 @@ def generate_eslint_config(adr_directory: Union[Path, str] = "docs/adr") -> str:
 
 
 def generate_eslint_overrides(
-    adr_directory: Union[Path, str] = "docs/adr",
-) -> Dict[str, Any]:
+    adr_directory: Path | str = "docs/adr",
+) -> dict[str, Any]:
     """Generate ESLint override configuration for specific file patterns.
 
     Args:

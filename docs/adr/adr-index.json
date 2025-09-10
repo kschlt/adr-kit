@@ -1,18 +1,32 @@
 {
   "metadata": {
-    "generated_at": "2025-09-04T18:13:41.795179",
-    "total_adrs": 0,
-    "adr_directory": "docs/adr",
-    "validation_errors": [
-      {
-        "file": "docs/adr/ADR-0001-sample.md",
-        "errors": [
-          "[ERROR] docs/adr/ADR-0001-sample.md: field 'date': datetime.date(2025, 9, 3) is not of type 'string' (rule: json_schema)"
-        ]
-      }
-    ],
-    "status_counts": {},
-    "tag_counts": {}
+    "generated_at": "2025-09-10T13:32:04.672280",
+    "total_adrs": 1,
+    "adr_directory": "/var/folders/_3/_578cr5s6gg5672qnp_67b2w0000gn/T/tmprjrzyls0",
+    "validation_errors": null,
+    "status_counts": {
+      "proposed": 1
+    },
+    "tag_counts": {
+      "database": 1
+    }
   },
-  "adrs": []
+  "adrs": [
+    {
+      "id": "ADR-0001",
+      "title": "Use PostgreSQL",
+      "status": "proposed",
+      "date": "2025-09-03",
+      "deciders": [
+        "team-lead"
+      ],
+      "tags": [
+        "database"
+      ],
+      "supersedes": [],
+      "superseded_by": [],
+      "file_path": "/var/folders/_3/_578cr5s6gg5672qnp_67b2w0000gn/T/tmprjrzyls0/ADR-0001-test.md",
+      "content_preview": "We need a database for our application. Use PostgreSQL as primary database."
+    }
+  ]
 }

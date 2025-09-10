@@ -5,14 +5,12 @@ single source of truth for all architectural decisions that agents must follow.
 """
 
 from pathlib import Path
-from typing import List, Optional
-from datetime import datetime
 
-from ..core.model import ADR, ADRStatus
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
-from .models import ConstraintsContract, ContractMetadata, MergedConstraints
-from .merger import PolicyMerger, MergeResult
+from ..core.model import ADRStatus
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 from .cache import ContractCache
+from .merger import PolicyMerger
+from .models import ConstraintsContract, ContractMetadata
 
 
 class ConstraintsContractBuilder:
@@ -22,7 +20,7 @@ class ConstraintsContractBuilder:
     into the single definitive contract that agents use for all decisions.
     """
 
-    def __init__(self, adr_dir: Path, cache_dir: Optional[Path] = None):
+    def __init__(self, adr_dir: Path, cache_dir: Path | None = None):
         self.adr_dir = Path(adr_dir)
         self.cache_dir = cache_dir or (self.adr_dir / ".adr" / "cache")
         self.cache = ContractCache(self.cache_dir)

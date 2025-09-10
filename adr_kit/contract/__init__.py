@@ -11,13 +11,13 @@ Key components:
 """
 
 from .builder import ConstraintsContractBuilder, ContractBuildError
-from .merger import PolicyMerger, PolicyConflict, MergeResult
 from .cache import ContractCache
+from .merger import MergeResult, PolicyConflict, PolicyMerger
 from .models import (
     ConstraintsContract,
     ContractMetadata,
-    PolicyProvenance,
     MergedConstraints,
+    PolicyProvenance,
 )
 
 __all__ = [

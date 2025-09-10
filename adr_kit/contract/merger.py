@@ -6,10 +6,9 @@ that newer decisions override older ones appropriately.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
 from datetime import datetime
 
-from ..core.model import ADR, PolicyModel, ImportPolicy, BoundaryPolicy, PythonPolicy
+from ..core.model import ADR, BoundaryPolicy, ImportPolicy, PythonPolicy
 from .models import MergedConstraints, PolicyProvenance
 
 
@@ -24,7 +23,7 @@ class PolicyConflict:
     adr2_title: str
     conflicting_item: str
     description: str
-    resolution: Optional[str] = None  # How the conflict was resolved
+    resolution: str | None = None  # How the conflict was resolved
 
 
 @dataclass
@@ -32,8 +31,8 @@ class MergeResult:
     """Result of merging multiple ADR policies."""
 
     constraints: MergedConstraints
-    provenance: Dict[str, PolicyProvenance]
-    conflicts: List[PolicyConflict]
+    provenance: dict[str, PolicyProvenance]
+    conflicts: list[PolicyConflict]
     success: bool
 
     @property
@@ -45,10 +44,10 @@ class MergeResult:
 class PolicyMerger:
     """Merges policies from multiple accepted ADRs with conflict resolution."""
 
-    def __init__(self):
-        self.conflicts: List[PolicyConflict] = []
+    def __init__(self) -> None:
+        self.conflicts: list[PolicyConflict] = []
 
-    def merge_policies(self, accepted_adrs: List[ADR]) -> MergeResult:
+    def merge_policies(self, accepted_adrs: list[ADR]) -> MergeResult:
         """Merge policies from all accepted ADRs into unified constraints.
 
         Uses topological sorting based on supersede relationships, then applies
@@ -124,7 +123,7 @@ class PolicyMerger:
             success=not any(c.resolution is None for c in self.conflicts),
         )
 
-    def _topological_sort(self, adrs: List[ADR]) -> List[ADR]:
+    def _topological_sort(self, adrs: list[ADR]) -> list[ADR]:
         """Sort ADRs topologically based on supersede relationships.
 
         ADRs that supersede others come later in the list, so they can override.
@@ -140,7 +139,7 @@ class PolicyMerger:
         adr_id: str,
         adr_title: str,
         effective_date: datetime,
-    ) -> Tuple[ImportPolicy, Dict[str, PolicyProvenance]]:
+    ) -> tuple[ImportPolicy, dict[str, PolicyProvenance]]:
         """Merge import policies with conflict detection."""
         provenance = {}
 
@@ -219,7 +218,7 @@ class PolicyMerger:
         adr_id: str,
         adr_title: str,
         effective_date: datetime,
-    ) -> Tuple[BoundaryPolicy, Dict[str, PolicyProvenance]]:
+    ) -> tuple[BoundaryPolicy, dict[str, PolicyProvenance]]:
         """Merge boundary policies (for now, just combine them)."""
         provenance = {}
 
@@ -229,7 +228,7 @@ class PolicyMerger:
             # Simple append for now - TODO: implement proper merging with conflict detection
             merged_layers.extend(new.layers)
 
-            for i, layer in enumerate(new.layers):
+            for _i, layer in enumerate(new.layers):
                 provenance[f"boundaries.layers.{layer.name}"] = PolicyProvenance(
                     adr_id=adr_id,
                     adr_title=adr_title,
@@ -242,7 +241,7 @@ class PolicyMerger:
         if new.rules:
             merged_rules.extend(new.rules)
 
-            for i, rule in enumerate(new.rules):
+            for _i, rule in enumerate(new.rules):
                 provenance[f"boundaries.rules.{rule.forbid}"] = PolicyProvenance(
                     adr_id=adr_id,
                     adr_title=adr_title,
@@ -265,7 +264,7 @@ class PolicyMerger:
         adr_id: str,
         adr_title: str,
         effective_date: datetime,
-    ) -> Tuple[PythonPolicy, Dict[str, PolicyProvenance]]:
+    ) -> tuple[PythonPolicy, dict[str, PolicyProvenance]]:
         """Merge Python-specific policies."""
         provenance = {}
 

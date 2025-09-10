@@ -4,6 +4,6 @@ This package provides semantic-aware policy violation detection for code diffs,
 integrating with the ADR semantic retrieval system for context-aware enforcement.
 """
 
-from .detector import GuardSystem, PolicyViolation, CodeAnalysisResult
+from .detector import CodeAnalysisResult, GuardSystem, PolicyViolation
 
 __all__ = ["GuardSystem", "PolicyViolation", "CodeAnalysisResult"]

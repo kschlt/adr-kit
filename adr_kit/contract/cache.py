@@ -4,13 +4,13 @@ This module provides efficient caching of the constraints contract based on
 content hashes, avoiding expensive rebuilds when ADRs haven't changed.
 """
 
-import json
 import hashlib
-from pathlib import Path
-from typing import Optional, Dict, Any, List
+import json
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from ..core.parse import find_adr_files, parse_adr_file
+from ..core.parse import find_adr_files
 from .models import ConstraintsContract
 
 
@@ -23,14 +23,14 @@ class ContractCache:
         self.cache_file = cache_dir / "contract_cache.json"
         self.contract_file = cache_dir / "constraints_accepted.json"
 
-    def get_cached_contract(self, adr_dir: Path) -> Optional[ConstraintsContract]:
+    def get_cached_contract(self, adr_dir: Path) -> ConstraintsContract | None:
         """Get cached contract if it's still valid, None otherwise."""
         if not self.cache_file.exists() or not self.contract_file.exists():
             return None
 
         try:
             # Load cache metadata
-            with open(self.cache_file, "r", encoding="utf-8") as f:
+            with open(self.cache_file, encoding="utf-8") as f:
                 cache_data = json.load(f)
 
             # Calculate current ADR content hash
@@ -107,7 +107,7 @@ class ContractCache:
             # If we can't calculate hash, return empty string to force rebuild
             return ""
 
-    def get_cache_info(self) -> Dict[str, Any]:
+    def get_cache_info(self) -> dict[str, Any]:
         """Get information about the current cache state."""
         if not self.cache_file.exists():
             return {
@@ -117,7 +117,7 @@ class ContractCache:
             }
 
         try:
-            with open(self.cache_file, "r", encoding="utf-8") as f:
+            with open(self.cache_file, encoding="utf-8") as f:
                 cache_data = json.load(f)
 
             return {

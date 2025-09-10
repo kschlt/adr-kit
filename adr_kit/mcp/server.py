@@ -5,27 +5,27 @@ while preserving all the sophisticated workflow automation and business logic.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastmcp import FastMCP
-from .models import (
-    AnalyzeProjectRequest,
-    PreflightCheckRequest,
-    CreateADRRequest,
-    ApproveADRRequest,
-    SupersedeADRRequest,
-    PlanningContextRequest,
-    success_response,
-    error_response,
-)
 
 # Import the full workflow system (this is where the real business logic lives)
 from ..workflows.analyze import AnalyzeProjectWorkflow
-from ..workflows.preflight import PreflightWorkflow, PreflightInput
-from ..workflows.creation import CreationWorkflow, CreationInput
-from ..workflows.approval import ApprovalWorkflow, ApprovalInput
-from ..workflows.supersede import SupersedeWorkflow, SupersedeInput
-from ..workflows.planning import PlanningWorkflow, PlanningInput
+from ..workflows.approval import ApprovalInput, ApprovalWorkflow
+from ..workflows.creation import CreationInput, CreationWorkflow
+from ..workflows.planning import PlanningInput, PlanningWorkflow
+from ..workflows.preflight import PreflightInput, PreflightWorkflow
+from ..workflows.supersede import SupersedeInput, SupersedeWorkflow
+from .models import (
+    AnalyzeProjectRequest,
+    ApproveADRRequest,
+    CreateADRRequest,
+    PlanningContextRequest,
+    PreflightCheckRequest,
+    SupersedeADRRequest,
+    error_response,
+    success_response,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +36,7 @@ mcp = FastMCP("ADR Kit")
 
 
 @mcp.tool()
-def adr_analyze_project(request: AnalyzeProjectRequest) -> Dict[str, Any]:
+def adr_analyze_project(request: AnalyzeProjectRequest) -> dict[str, Any]:
     """
     Analyze existing project for ADR opportunities.
 
@@ -78,7 +78,7 @@ def adr_analyze_project(request: AnalyzeProjectRequest) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def adr_preflight(request: PreflightCheckRequest) -> Dict[str, Any]:
+def adr_preflight(request: PreflightCheckRequest) -> dict[str, Any]:
     """
     Check if technical choice requires ADR before proceeding.
 
@@ -130,7 +130,7 @@ def adr_preflight(request: PreflightCheckRequest) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def adr_create(request: CreateADRRequest) -> Dict[str, Any]:
+def adr_create(request: CreateADRRequest) -> dict[str, Any]:
     """
     Create a new architectural decision record.
 
@@ -189,7 +189,7 @@ def adr_create(request: CreateADRRequest) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def adr_approve(request: ApproveADRRequest) -> Dict[str, Any]:
+def adr_approve(request: ApproveADRRequest) -> dict[str, Any]:
     """
     Approve ADR and activate policies.
 
@@ -242,7 +242,7 @@ def adr_approve(request: ApproveADRRequest) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def adr_supersede(request: SupersedeADRRequest) -> Dict[str, Any]:
+def adr_supersede(request: SupersedeADRRequest) -> dict[str, Any]:
     """
     Replace existing ADR with new decision.
 
@@ -312,7 +312,7 @@ def adr_supersede(request: SupersedeADRRequest) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def adr_planning_context(request: PlanningContextRequest) -> Dict[str, Any]:
+def adr_planning_context(request: PlanningContextRequest) -> dict[str, Any]:
     """
     Get architectural context for agent tasks.
 
@@ -382,7 +382,7 @@ def adr_planning_context(request: PlanningContextRequest) -> Dict[str, Any]:
 
 # Resource for ADR index (proper structured data)
 @mcp.resource("adr://index")
-def adr_index_resource() -> Dict[str, Any]:
+def adr_index_resource() -> dict[str, Any]:
     """
     Read-only access to ADR index with structured data.
     """

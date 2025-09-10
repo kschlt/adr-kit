@@ -1,16 +1,16 @@
 """Creation Workflow - Create new ADR proposals with conflict detection."""
 
-import os
 import re
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
-from datetime import datetime
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus, WorkflowError
-from ..core.model import ADR
+from typing import Any
+
+from ..contract.builder import ConstraintsContractBuilder
+from ..core.model import ADR, ADRFrontMatter, ADRStatus, PolicyModel
 from ..core.parse import find_adr_files, parse_adr_file
 from ..core.validate import validate_adr
-from ..contract.builder import ConstraintsContractBuilder
+from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
 
 
 @dataclass
@@ -22,10 +22,10 @@ class CreationInput:
     decision: str  # The architectural decision being made
     consequences: str  # Expected positive and negative consequences
     status: str = "proposed"  # Always start as proposed
-    deciders: Optional[List[str]] = None
-    tags: Optional[List[str]] = None
-    policy: Optional[Dict[str, Any]] = None  # Structured policy block
-    alternatives: Optional[str] = None  # Alternative options considered
+    deciders: list[str] | None = None
+    tags: list[str] | None = None
+    policy: dict[str, Any] | None = None  # Structured policy block
+    alternatives: str | None = None  # Alternative options considered
 
 
 @dataclass
@@ -34,9 +34,9 @@ class CreationResult:
 
     adr_id: str
     file_path: str
-    conflicts_detected: List[str]  # ADR IDs that conflict with this proposal
-    related_adrs: List[str]  # ADR IDs that are related but don't conflict
-    validation_warnings: List[str]  # Non-blocking validation issues
+    conflicts_detected: list[str]  # ADR IDs that conflict with this proposal
+    related_adrs: list[str]  # ADR IDs that are related but don't conflict
+    validation_warnings: list[str]  # Non-blocking validation issues
     next_steps: str  # What agent should do next
     review_required: bool  # Whether human review is needed before approval
 
@@ -57,13 +57,14 @@ class CreationWorkflow(BaseWorkflow):
     6. Return creation result with guidance for next steps
     """
 
-    def execute(self, **kwargs: Any) -> WorkflowResult:
+    def execute(self, input_data: CreationInput | None = None, **kwargs: Any) -> WorkflowResult:
         """Execute ADR creation workflow."""
-        # Extract input_data from kwargs
-        input_data = kwargs.get('input_data')
+        # Use positional input_data if provided, otherwise extract from kwargs
+        if input_data is None:
+            input_data = kwargs.get("input_data")
         if not input_data or not isinstance(input_data, CreationInput):
             raise ValueError("input_data must be provided as CreationInput instance")
-            
+
         try:
             # Step 1: Generate ADR ID and validate input
             adr_id = self._generate_adr_id()
@@ -116,33 +117,30 @@ class CreationWorkflow(BaseWorkflow):
                 success=False,
                 status=WorkflowStatus.FAILED,
                 message=f"ADR creation failed: {str(e)}",
+                errors=[f"CreationError: {str(e)}"]
             )
-            result.add_error(f"CreationError: {str(e)}")
             return result
 
     def _generate_adr_id(self) -> str:
         """Generate next available ADR ID."""
-        try:
-            return generate_next_adr_id(self.adr_dir)
-        except Exception:
-            # Fallback: scan directory manually
-            adr_files = find_adr_files(self.adr_dir)
-            if not adr_files:
-                return "ADR-0001"
+        # Scan directory for existing ADR files
+        adr_files = find_adr_files(self.adr_dir)
+        if not adr_files:
+            return "ADR-0001"
 
-            # Extract numbers from existing ADR files
-            numbers = []
-            for file_path in adr_files:
-                filename = Path(file_path).stem
-                match = re.search(r"ADR-(\d+)", filename)
-                if match:
-                    numbers.append(int(match.group(1)))
+        # Extract numbers from existing ADR files
+        numbers = []
+        for file_path in adr_files:
+            filename = Path(file_path).stem
+            match = re.search(r"ADR-(\d+)", filename)
+            if match:
+                numbers.append(int(match.group(1)))
 
-            if not numbers:
-                return "ADR-0001"
+        if not numbers:
+            return "ADR-0001"
 
-            next_num = max(numbers) + 1
-            return f"ADR-{next_num:04d}"
+        next_num = max(numbers) + 1
+        return f"ADR-{next_num:04d}"
 
     def _validate_creation_input(self, input_data: CreationInput) -> None:
         """Validate the input data for ADR creation."""
@@ -165,7 +163,7 @@ class CreationWorkflow(BaseWorkflow):
         ]:
             raise ValueError("Status must be one of: proposed, accepted, superseded")
 
-    def _find_related_adrs(self, input_data: CreationInput) -> List[Dict[str, Any]]:
+    def _find_related_adrs(self, input_data: CreationInput) -> list[dict[str, Any]]:
         """Find ADRs related to this proposal using various matching strategies."""
         related = []
 
@@ -205,7 +203,7 @@ class CreationWorkflow(BaseWorkflow):
                                     term for term in key_terms if term in existing_text
                                 ],
                                 "tags_overlap": bool(
-                                    set(input_data.tags or []) & set(existing_adr.tags)
+                                    set(input_data.tags or []) & set(existing_adr.front_matter.tags or [])
                                 ),
                             }
                         )
@@ -220,7 +218,7 @@ class CreationWorkflow(BaseWorkflow):
         except Exception:
             return []  # Return empty if search fails
 
-    def _extract_key_terms(self, text: str) -> List[str]:
+    def _extract_key_terms(self, text: str) -> list[str]:
         """Extract key technical terms from text."""
         # Common technology and architecture terms
         tech_patterns = [
@@ -263,7 +261,7 @@ class CreationWorkflow(BaseWorkflow):
 
         return list(set(terms))  # Remove duplicates
 
-    def _calculate_relevance(self, key_terms: List[str], existing_text: str) -> float:
+    def _calculate_relevance(self, key_terms: list[str], existing_text: str) -> float:
         """Calculate relevance score between proposal and existing ADR."""
         if not key_terms:
             return 0.0
@@ -272,8 +270,8 @@ class CreationWorkflow(BaseWorkflow):
         return len(matching_terms) / len(key_terms)
 
     def _detect_conflicts(
-        self, input_data: CreationInput, related_adrs: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, input_data: CreationInput, related_adrs: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Detect conflicts between proposal and existing ADRs."""
         conflicts = []
 
@@ -304,8 +302,8 @@ class CreationWorkflow(BaseWorkflow):
         return conflicts
 
     def _detect_policy_conflicts(
-        self, proposed_policy: Dict[str, Any], contract
-    ) -> List[Dict[str, Any]]:
+        self, proposed_policy: dict[str, Any], contract
+    ) -> list[dict[str, Any]]:
         """Detect conflicts between proposed policy and existing policies."""
         conflicts = []
 
@@ -323,7 +321,7 @@ class CreationWorkflow(BaseWorkflow):
         return conflicts
 
     def _policies_conflict(
-        self, policy1: Dict[str, Any], policy2: Dict[str, Any]
+        self, policy1: dict[str, Any], policy2: dict[str, Any]
     ) -> bool:
         """Check if two policies contradict each other."""
         # Simple conflict detection - can be enhanced
@@ -340,7 +338,7 @@ class CreationWorkflow(BaseWorkflow):
 
     def _check_for_contradictions(
         self, input_data: CreationInput, related_adr_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Check if proposal contradicts a specific ADR."""
         # This is a simplified version - could be enhanced with NLP
 
@@ -379,21 +377,20 @@ class CreationWorkflow(BaseWorkflow):
     def _build_adr_structure(self, adr_id: str, input_data: CreationInput) -> ADR:
         """Build ADR data structure from input."""
         from ..core.model import ADRFrontMatter
-        from datetime import datetime
-        
+
         # Build front matter
         front_matter = ADRFrontMatter(
             id=adr_id,
             title=input_data.title.strip(),
-            status=input_data.status,
-            date=datetime.now().strftime("%Y-%m-%d"),
+            status=ADRStatus(input_data.status),
+            date=date.today(),
             deciders=input_data.deciders or [],
             tags=input_data.tags or [],
             supersedes=[],
             superseded_by=[],
-            policy=input_data.policy or {},
+            policy=PolicyModel.model_validate(input_data.policy) if input_data.policy else None,
         )
-        
+
         # Build content sections
         content_parts = [
             "## Context",
@@ -408,24 +405,26 @@ class CreationWorkflow(BaseWorkflow):
             "",
             input_data.consequences.strip(),
         ]
-        
+
         if input_data.alternatives:
-            content_parts.extend([
-                "",
-                "## Alternatives",
-                "",
-                input_data.alternatives.strip(),
-            ])
-        
+            content_parts.extend(
+                [
+                    "",
+                    "## Alternatives",
+                    "",
+                    input_data.alternatives.strip(),
+                ]
+            )
+
         content = "\n".join(content_parts)
-        
+
         return ADR(
             front_matter=front_matter,
             content=content,
             file_path=None,  # Not loaded from disk
         )
 
-    def _validate_adr_structure(self, adr: ADR) -> Dict[str, Any]:
+    def _validate_adr_structure(self, adr: ADR) -> dict[str, Any]:
         """Validate the ADR structure."""
         try:
             # Use existing validation
@@ -464,26 +463,27 @@ class CreationWorkflow(BaseWorkflow):
 
         # YAML front-matter
         lines.append("---")
-        lines.append(f'id: "{adr.id}"')
-        lines.append(f'title: "{adr.title}"')
-        lines.append(f"status: {adr.status}")
-        lines.append(f"date: {adr.date}")
+        lines.append(f'id: "{adr.front_matter.id}"')
+        lines.append(f'title: "{adr.front_matter.title}"')
+        lines.append(f"status: {adr.front_matter.status}")
+        lines.append(f"date: {adr.front_matter.date}")
 
-        if adr.deciders:
-            lines.append(f"deciders: {adr.deciders}")
+        if adr.front_matter.deciders:
+            lines.append(f"deciders: {adr.front_matter.deciders}")
 
-        if adr.tags:
-            lines.append(f"tags: {adr.tags}")
+        if adr.front_matter.tags:
+            lines.append(f"tags: {adr.front_matter.tags}")
 
-        if adr.supersedes:
-            lines.append(f"supersedes: {adr.supersedes}")
+        if adr.front_matter.supersedes:
+            lines.append(f"supersedes: {adr.front_matter.supersedes}")
 
-        if adr.superseded_by:
-            lines.append(f"superseded_by: {adr.superseded_by}")
+        if adr.front_matter.superseded_by:
+            lines.append(f"superseded_by: {adr.front_matter.superseded_by}")
 
-        if adr.policy:
+        if adr.front_matter.policy:
             lines.append("policy:")
-            for key, value in adr.policy.items():
+            policy_dict = adr.front_matter.policy.model_dump(exclude_none=True)
+            for key, value in policy_dict.items():
                 lines.append(f"  {key}: {value}")
 
         lines.append("---")
@@ -516,8 +516,8 @@ class CreationWorkflow(BaseWorkflow):
     def _determine_review_requirements(
         self,
         adr: ADR,
-        conflicts: List[Dict[str, Any]],
-        validation_result: Dict[str, Any],
+        conflicts: list[dict[str, Any]],
+        validation_result: dict[str, Any],
     ) -> bool:
         """Determine if human review is required before approval."""
 
@@ -549,7 +549,7 @@ class CreationWorkflow(BaseWorkflow):
         return False
 
     def _generate_next_steps_guidance(
-        self, adr_id: str, conflicts: List[Dict[str, Any]], review_required: bool
+        self, adr_id: str, conflicts: list[dict[str, Any]], review_required: bool
     ) -> str:
         """Generate guidance for what the agent should do next."""
 

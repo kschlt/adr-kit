@@ -2,7 +2,6 @@
 
 import re
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
 from pathlib import Path
 
 from .models import TaskHint
@@ -29,18 +28,18 @@ class TaskType(str, Enum):
     OTHER = "other"  # Catch-all for other tasks
 
 
-class TaskContext(object):
+class TaskContext:
     """Analyzed context about what the agent is trying to accomplish."""
 
     def __init__(
         self,
         task_description: str,
         task_type: TaskType,
-        technologies: Set[str],
-        file_patterns: Set[str],
-        keywords: Set[str],
-        priority_indicators: List[str],
-        complexity_indicators: List[str],
+        technologies: set[str],
+        file_patterns: set[str],
+        keywords: set[str],
+        priority_indicators: list[str],
+        complexity_indicators: list[str],
     ):
         self.task_description = task_description
         self.task_type = task_type
@@ -88,7 +87,7 @@ class TaskContext(object):
         else:
             return "medium"
 
-    def get_architectural_scope(self) -> List[str]:
+    def get_architectural_scope(self) -> list[str]:
         """Determine what architectural areas this task might affect."""
         scope = []
 
@@ -133,7 +132,7 @@ class TaskContext(object):
 class TaskAnalyzer:
     """Analyzes task descriptions to understand architectural relevance."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Technology patterns
         self.tech_patterns = {
             # Frontend
@@ -248,10 +247,10 @@ class TaskAnalyzer:
         )
 
     def _extract_technologies(
-        self, description: str, mentioned_techs: List[str]
-    ) -> Set[str]:
+        self, description: str, mentioned_techs: list[str]
+    ) -> set[str]:
         """Extract mentioned technologies from task description."""
-        technologies = set()
+        technologies: set[str] = set()
 
         # Add explicitly mentioned technologies
         technologies.update(tech.lower() for tech in mentioned_techs)
@@ -279,7 +278,7 @@ class TaskAnalyzer:
         return technologies
 
     def _classify_task_type(
-        self, description: str, explicit_type: Optional[str]
+        self, description: str, explicit_type: str | None
     ) -> TaskType:
         """Classify the type of task based on description."""
 
@@ -298,7 +297,7 @@ class TaskAnalyzer:
 
         return TaskType.OTHER
 
-    def _extract_file_patterns(self, changed_files: List[str]) -> Set[str]:
+    def _extract_file_patterns(self, changed_files: list[str]) -> set[str]:
         """Extract patterns from changed files."""
         patterns = set()
 
@@ -331,7 +330,7 @@ class TaskAnalyzer:
 
         return patterns
 
-    def _extract_keywords(self, description: str) -> Set[str]:
+    def _extract_keywords(self, description: str) -> set[str]:
         """Extract important keywords from task description."""
         # Remove common stop words and extract meaningful terms
         stop_words = {
@@ -384,7 +383,7 @@ class TaskAnalyzer:
 
         return keywords
 
-    def _extract_priority_indicators(self, description: str) -> List[str]:
+    def _extract_priority_indicators(self, description: str) -> list[str]:
         """Extract priority indicators from description."""
         priority_words = [
             "urgent",
@@ -406,7 +405,7 @@ class TaskAnalyzer:
 
         return found
 
-    def _extract_complexity_indicators(self, description: str) -> List[str]:
+    def _extract_complexity_indicators(self, description: str) -> list[str]:
         """Extract complexity indicators from description."""
         complexity_words = [
             "refactor",

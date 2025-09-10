@@ -10,16 +10,16 @@ Design decisions:
 """
 
 import json
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
 import jsonlines
 import numpy as np
-from datetime import datetime
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Set
-import re
 
-from ..core.model import ADR, ADRStatus
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
+from ..core.model import ADR
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 
 
 @dataclass
@@ -30,9 +30,9 @@ class SemanticChunk:
     adr_id: str  # ADR this chunk belongs to
     content: str  # The actual text content
     chunk_type: str  # Type: title, section, content
-    section_name: Optional[str] = None  # Section name if applicable
-    start_pos: Optional[int] = None  # Start position in original text
-    end_pos: Optional[int] = None  # End position in original text
+    section_name: str | None = None  # Section name if applicable
+    start_pos: int | None = None  # Start position in original text
+    end_pos: int | None = None  # End position in original text
 
 
 @dataclass
@@ -43,10 +43,10 @@ class SemanticMatch:
     title: str
     status: str
     score: float
-    chunks: List[SemanticChunk]
+    chunks: list[SemanticChunk]
     excerpt: str
-    related_adrs: Optional[List[str]] = None
-    policy_flags: Optional[List[str]] = None
+    related_adrs: list[str] | None = None
+    policy_flags: list[str] | None = None
 
 
 class SemanticChunker:
@@ -66,7 +66,7 @@ class SemanticChunker:
             "implementation",
         ]
 
-    def chunk_adr(self, adr: ADR) -> List[SemanticChunk]:
+    def chunk_adr(self, adr: ADR) -> list[SemanticChunk]:
         """Split an ADR into semantic chunks.
 
         Args:
@@ -111,7 +111,7 @@ class SemanticChunker:
 
         return chunks
 
-    def _extract_policy_summary(self, policy) -> Optional[str]:
+    def _extract_policy_summary(self, policy) -> str | None:
         """Extract a text summary from structured policy."""
         parts = []
 
@@ -128,7 +128,7 @@ class SemanticChunker:
 
     def _chunk_content_by_sections(
         self, content: str, adr_id: str, start_counter: int
-    ) -> List[SemanticChunk]:
+    ) -> list[SemanticChunk]:
         """Split content into chunks, respecting section boundaries."""
         chunks = []
         chunk_counter = start_counter
@@ -162,7 +162,7 @@ class SemanticChunker:
 
         return chunks
 
-    def _split_by_headers(self, content: str) -> List[Tuple[Optional[str], str]]:
+    def _split_by_headers(self, content: str) -> list[tuple[str | None, str]]:
         """Split content by markdown headers."""
         lines = content.split("\n")
         sections = []
@@ -190,7 +190,7 @@ class SemanticChunker:
 
     def _split_with_overlap(
         self, text: str, adr_id: str, section_name: str, start_counter: int
-    ) -> List[SemanticChunk]:
+    ) -> list[SemanticChunk]:
         """Split text into overlapping chunks."""
         chunks = []
         chunk_counter = start_counter
@@ -234,7 +234,7 @@ class SemanticChunker:
 class SemanticIndex:
     """Local semantic index for ADRs using sentence-transformers."""
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Path | None = None):
         """Initialize semantic index.
 
         Args:
@@ -268,16 +268,16 @@ class SemanticIndex:
                 from sentence_transformers import SentenceTransformer
 
                 self._model = SentenceTransformer(self.model_name)
-            except ImportError:
+            except ImportError as e:
                 raise ImportError(
                     "sentence-transformers is required for semantic search. "
                     "Install with: pip install sentence-transformers"
-                )
+                ) from e
         return self._model
 
     def build_index(
         self, adr_dir: str = "docs/adr", force_rebuild: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build or update the semantic index.
 
         Args:
@@ -373,7 +373,7 @@ class SemanticIndex:
             "status": "updated",
         }
 
-    def _generate_embeddings(self, texts: List[str]) -> np.ndarray:
+    def _generate_embeddings(self, texts: list[str]) -> np.ndarray:
         """Generate embeddings for a list of texts."""
         print(f"🧠 Generating embeddings for {len(texts)} chunks...")
         embeddings = self.model.encode(texts, show_progress_bar=True)
@@ -452,8 +452,8 @@ class SemanticIndex:
             json.dump(self._meta, f, indent=2)
 
     def search(
-        self, query: str, k: int = 5, filter_status: Optional[Set[str]] = None
-    ) -> List[SemanticMatch]:
+        self, query: str, k: int = 5, filter_status: set[str] | None = None
+    ) -> list[SemanticMatch]:
         """Perform semantic search on the ADR index.
 
         Args:
@@ -531,7 +531,7 @@ class SemanticIndex:
 
         return matches[:k]
 
-    def _get_adr_title(self, adr_id: str, chunks: List[SemanticChunk]) -> str:
+    def _get_adr_title(self, adr_id: str, chunks: list[SemanticChunk]) -> str:
         """Extract ADR title from chunks."""
         for chunk in chunks:
             if chunk.chunk_type == "title":

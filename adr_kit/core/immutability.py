@@ -13,9 +13,8 @@ import stat
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Any
 
-from .model import ADR, ADRStatus
+from .model import ADR
 
 
 @dataclass
@@ -25,14 +24,14 @@ class ADRLock:
     adr_id: str
     digest: str
     locked_at: str  # ISO timestamp
-    file_path: Optional[str] = None
+    file_path: str | None = None
     is_readonly: bool = False
 
 
 class ImmutabilityManager:
     """Manages ADR immutability through content digests and locks."""
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Path | None = None):
         """Initialize immutability manager.
 
         Args:
@@ -86,7 +85,7 @@ class ImmutabilityManager:
         # Compute SHA-256 digest
         return hashlib.sha256(content_json.encode("utf-8")).hexdigest()
 
-    def load_locks(self) -> Dict[str, ADRLock]:
+    def load_locks(self) -> dict[str, ADRLock]:
         """Load existing ADR locks from storage.
 
         Returns:
@@ -96,7 +95,7 @@ class ImmutabilityManager:
             return {}
 
         try:
-            with open(self.locks_file, "r", encoding="utf-8") as f:
+            with open(self.locks_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             locks = {}
@@ -111,10 +110,12 @@ class ImmutabilityManager:
 
             return locks
 
-        except (json.JSONDecodeError, KeyError, IOError) as e:
-            raise ValueError(f"Cannot load ADR locks from {self.locks_file}: {e}")
+        except (OSError, json.JSONDecodeError, KeyError) as e:
+            raise ValueError(
+                f"Cannot load ADR locks from {self.locks_file}: {e}"
+            ) from e
 
-    def save_locks(self, locks: Dict[str, ADRLock]) -> None:
+    def save_locks(self, locks: dict[str, ADRLock]) -> None:
         """Save ADR locks to storage.
 
         Args:
@@ -147,10 +148,10 @@ class ImmutabilityManager:
             # Atomic rename
             temp_file.replace(self.locks_file)
 
-        except IOError as e:
+        except OSError as e:
             if temp_file.exists():
                 temp_file.unlink()
-            raise ValueError(f"Cannot save ADR locks to {self.locks_file}: {e}")
+            raise ValueError(f"Cannot save ADR locks to {self.locks_file}: {e}") from e
 
     def approve_adr(self, adr: ADR, make_readonly: bool = False) -> ADRLock:
         """Approve an ADR and create immutability lock.
@@ -215,7 +216,7 @@ class ImmutabilityManager:
         locks = self.load_locks()
         return adr_id in locks
 
-    def get_adr_lock(self, adr_id: str) -> Optional[ADRLock]:
+    def get_adr_lock(self, adr_id: str) -> ADRLock | None:
         """Get lock information for an ADR.
 
         Args:
@@ -227,7 +228,7 @@ class ImmutabilityManager:
         locks = self.load_locks()
         return locks.get(adr_id)
 
-    def validate_adr_integrity(self, adr: ADR) -> List[str]:
+    def validate_adr_integrity(self, adr: ADR) -> list[str]:
         """Validate that a locked ADR hasn't been tampered with.
 
         Args:
@@ -236,7 +237,7 @@ class ImmutabilityManager:
         Returns:
             List of integrity violation messages (empty if valid)
         """
-        violations: List[str] = []
+        violations: list[str] = []
 
         # Check if ADR is locked
         lock = self.get_adr_lock(adr.front_matter.id)
@@ -256,7 +257,7 @@ class ImmutabilityManager:
 
         return violations
 
-    def get_mutable_fields(self) -> Set[str]:
+    def get_mutable_fields(self) -> set[str]:
         """Get the set of fields that can be modified after approval.
 
         Returns:
@@ -282,7 +283,7 @@ class ImmutabilityManager:
 
         return field_name in self.get_mutable_fields()
 
-    def unlock_adr(self, adr_id: str, reason: Optional[str] = None) -> bool:
+    def unlock_adr(self, adr_id: str, reason: str | None = None) -> bool:
         """Unlock an ADR (emergency use only).
 
         Args:

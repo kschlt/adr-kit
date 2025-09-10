@@ -9,7 +9,7 @@ Design decisions:
 
 import re
 from pathlib import Path
-from typing import Dict, Any, Tuple, Union, List
+from typing import Any
 
 import yaml
 from pydantic import ValidationError
@@ -20,7 +20,7 @@ from .model import ADR, ADRFrontMatter
 class ParseError(Exception):
     """Exception raised when ADR parsing fails."""
 
-    def __init__(self, message: str, file_path: Union[Path, str, None] = None):
+    def __init__(self, message: str, file_path: Path | str | None = None):
         self.file_path = file_path
         super().__init__(message)
 
@@ -31,8 +31,8 @@ class ParseError(Exception):
 
 
 def parse_front_matter(
-    content: str, file_path: Union[Path, str, None] = None
-) -> Tuple[Dict[str, Any], str]:
+    content: str, file_path: Path | str | None = None
+) -> tuple[dict[str, Any], str]:
     """Parse YAML front-matter from markdown content.
 
     Args:
@@ -65,12 +65,12 @@ def parse_front_matter(
         if not isinstance(front_matter, dict):
             raise ParseError("Front-matter must be a YAML object", file_path)
     except yaml.YAMLError as e:
-        raise ParseError(f"Invalid YAML in front-matter: {e}", file_path)
+        raise ParseError(f"Invalid YAML in front-matter: {e}", file_path) from e
 
     return front_matter, markdown_content.strip()
 
 
-def parse_adr_file(file_path: Union[Path, str], strict: bool = True) -> ADR:
+def parse_adr_file(file_path: Path | str, strict: bool = True) -> ADR:
     """Parse an ADR markdown file into an ADR object.
 
     Args:
@@ -95,9 +95,9 @@ def parse_adr_file(file_path: Union[Path, str], strict: bool = True) -> ADR:
     try:
         content = path_obj.read_text(encoding="utf-8")
     except UnicodeDecodeError as e:
-        raise ParseError(f"File encoding error: {e}", file_path)
-    except IOError as e:
-        raise ParseError(f"Cannot read file: {e}", file_path)
+        raise ParseError(f"File encoding error: {e}", file_path) from e
+    except OSError as e:
+        raise ParseError(f"Cannot read file: {e}", file_path) from e
 
     try:
         front_matter_dict, markdown_content = parse_front_matter(content, file_path)
@@ -120,14 +120,14 @@ def parse_adr_file(file_path: Union[Path, str], strict: bool = True) -> ADR:
 
     except ValidationError as e:
         if strict:
-            raise ParseError(f"ADR validation failed: {e}", file_path)
+            raise ParseError(f"ADR validation failed: {e}", file_path) from e
         else:
             # Re-raise validation errors in strict mode
             raise
 
 
 def parse_adr_content(
-    content: str, file_path: Union[Path, str, None] = None, strict: bool = True
+    content: str, file_path: Path | str | None = None, strict: bool = True
 ) -> ADR:
     """Parse ADR content from a string.
 
@@ -163,14 +163,14 @@ def parse_adr_content(
 
     except ValidationError as e:
         if strict:
-            raise ParseError(f"ADR validation failed: {e}", file_path)
+            raise ParseError(f"ADR validation failed: {e}", file_path) from e
         else:
             raise
 
 
 def find_adr_files(
-    directory: Union[Path, str] = "docs/adr", pattern: str = "ADR-*.md"
-) -> List[Path]:
+    directory: Path | str = "docs/adr", pattern: str = "ADR-*.md"
+) -> list[Path]:
     """Find ADR files in a directory.
 
     Args:

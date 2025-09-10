@@ -12,13 +12,13 @@ Key Design Principles:
 - Rich status reporting guides agent next actions
 """
 
-from .base import BaseWorkflow, WorkflowResult, WorkflowError, WorkflowStatus
-from .approval import ApprovalWorkflow
-from .creation import CreationWorkflow
-from .preflight import PreflightWorkflow
-from .planning import PlanningWorkflow
-from .supersede import SupersedeWorkflow
 from .analyze import AnalyzeProjectWorkflow
+from .approval import ApprovalWorkflow
+from .base import BaseWorkflow, WorkflowError, WorkflowResult, WorkflowStatus
+from .creation import CreationWorkflow
+from .planning import PlanningWorkflow
+from .preflight import PreflightWorkflow
+from .supersede import SupersedeWorkflow
 
 __all__ = [
     # Base classes

@@ -1,8 +1,8 @@
 """Data models for the Planning Context Service."""
 
-from enum import Enum
-from typing import Dict, List, Optional, Any
 from datetime import datetime
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from ..core.model import ADRStatus
@@ -14,14 +14,14 @@ class TaskHint(BaseModel):
     task_description: str = Field(
         ..., description="Description of what the agent is trying to accomplish"
     )
-    changed_files: Optional[List[str]] = Field(None, description="Files being modified")
-    technologies_mentioned: Optional[List[str]] = Field(
+    changed_files: list[str] | None = Field(None, description="Files being modified")
+    technologies_mentioned: list[str] | None = Field(
         None, description="Technologies mentioned in the task"
     )
-    task_type: Optional[str] = Field(
+    task_type: str | None = Field(
         None, description="Type of task: feature, bugfix, refactor, etc."
     )
-    priority: Optional[str] = Field(
+    priority: str | None = Field(
         "medium", description="Task priority: low, medium, high, critical"
     )
 
@@ -32,15 +32,15 @@ class ContextualADR(BaseModel):
     id: str = Field(..., description="ADR identifier")
     title: str = Field(..., description="Human-readable title")
     status: ADRStatus = Field(..., description="Current status")
-    summary: Optional[str] = Field(None, description="Brief summary of the decision")
+    summary: str | None = Field(None, description="Brief summary of the decision")
     relevance_score: float = Field(
         ..., description="Relevance score for this task (0.0-1.0)"
     )
     relevance_reason: str = Field(..., description="Why this ADR is relevant")
-    key_constraints: List[str] = Field(
+    key_constraints: list[str] = Field(
         default_factory=list, description="Key constraints from this ADR"
     )
-    related_technologies: List[str] = Field(
+    related_technologies: list[str] = Field(
         default_factory=list, description="Technologies mentioned in this ADR"
     )
 
@@ -55,7 +55,7 @@ class PlanningGuidance(BaseModel):
         ..., description="Priority level: low, medium, high, critical"
     )
     message: str = Field(..., description="The guidance message")
-    source_adrs: List[str] = Field(
+    source_adrs: list[str] = Field(
         default_factory=list, description="ADRs that contributed to this guidance"
     )
     actionable: bool = Field(
@@ -74,21 +74,21 @@ class ContextPacket(BaseModel):
     task_description: str = Field(
         ..., description="What the agent is trying to accomplish"
     )
-    task_type: Optional[str] = Field(None, description="Categorized task type")
+    task_type: str | None = Field(None, description="Categorized task type")
 
     # Hard constraints (from contract)
-    hard_constraints: Dict[str, Any] = Field(
+    hard_constraints: dict[str, Any] = Field(
         ..., description="Non-negotiable constraints from contract"
     )
     contract_hash: str = Field(..., description="Hash of the constraints contract used")
 
     # Relevant ADRs (curated shortlist)
-    relevant_adrs: List[ContextualADR] = Field(
+    relevant_adrs: list[ContextualADR] = Field(
         ..., description="Most relevant ADRs for this task"
     )
 
     # Contextual guidance
-    guidance: List[PlanningGuidance] = Field(
+    guidance: list[PlanningGuidance] = Field(
         default_factory=list, description="Specific guidance for this task"
     )
 
@@ -152,18 +152,18 @@ class ContextPacket(BaseModel):
             g for g in self.guidance if g.priority in ["high", "critical"]
         ]
         if high_priority_guidance:
-            lines.append(f"\n### Key Guidance")
+            lines.append("\n### Key Guidance")
             for guidance in high_priority_guidance[:3]:  # Limit to top 3
                 priority_emoji = "🚨" if guidance.priority == "critical" else "⚠️"
                 lines.append(f"{priority_emoji} {guidance.message}")
 
         # Summary
-        lines.append(f"\n### Summary")
+        lines.append("\n### Summary")
         lines.append(self.summary)
 
         return "\n".join(lines)
 
-    def get_cited_adrs(self) -> List[str]:
+    def get_cited_adrs(self) -> list[str]:
         """Get list of all ADR IDs referenced in this context packet."""
         adr_ids = [adr.id for adr in self.relevant_adrs]
 
@@ -189,10 +189,10 @@ class RelevanceScore(BaseModel):
 
     adr_id: str = Field(..., description="ADR identifier")
     score: float = Field(..., description="Relevance score (0.0-1.0)")
-    reasons: List[str] = Field(
+    reasons: list[str] = Field(
         default_factory=list, description="Reasons for this relevance score"
     )
-    factors: Dict[str, float] = Field(
+    factors: dict[str, float] = Field(
         default_factory=dict, description="Individual scoring factors"
     )
 

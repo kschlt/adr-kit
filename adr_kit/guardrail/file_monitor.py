@@ -1,14 +1,13 @@
 """File monitoring system for detecting ADR changes."""
 
 import hashlib
-from pathlib import Path
-from typing import Dict, List, Optional, Set
-from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from pathlib import Path
 
 from ..core.model import ADR
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 
 
 class ChangeType(str, Enum):
@@ -27,12 +26,12 @@ class ChangeEvent:
 
     file_path: Path
     change_type: ChangeType
-    adr_id: Optional[str] = None
-    old_status: Optional[str] = None
-    new_status: Optional[str] = None
-    detected_at: Optional[datetime] = None
+    adr_id: str | None = None
+    old_status: str | None = None
+    new_status: str | None = None
+    detected_at: datetime | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.detected_at is None:
             self.detected_at = datetime.now()
 
@@ -42,14 +41,14 @@ class FileMonitor:
 
     def __init__(self, adr_dir: Path):
         self.adr_dir = Path(adr_dir)
-        self._file_hashes: Dict[Path, str] = {}
-        self._adr_statuses: Dict[str, str] = {}
-        self._adr_policies: Dict[str, str] = {}
+        self._file_hashes: dict[Path, str] = {}
+        self._adr_statuses: dict[str, str] = {}
+        self._adr_policies: dict[str, str] = {}
 
         # Initialize baseline state
         self._update_baseline()
 
-    def _update_baseline(self):
+    def _update_baseline(self) -> None:
         """Update the baseline state of all ADR files."""
 
         adr_files = find_adr_files(self.adr_dir)
@@ -74,11 +73,11 @@ class FileMonitor:
                     policy_hash = self._calculate_policy_hash(adr)
                     self._adr_policies[adr.id] = policy_hash
 
-            except (ParseError, IOError):
+            except (OSError, ParseError):
                 # Skip files that can't be read or parsed
                 continue
 
-    def detect_changes(self) -> List[ChangeEvent]:
+    def detect_changes(self) -> list[ChangeEvent]:
         """Detect changes since last check and update baseline."""
 
         changes = []
@@ -143,7 +142,7 @@ class FileMonitor:
                         self._adr_statuses[adr.id] = new_status
                         self._adr_policies[adr.id] = new_policy_hash
 
-                except (ParseError, IOError):
+                except (OSError, ParseError):
                     # If we can't parse, just mark as modified
                     changes.append(
                         ChangeEvent(
@@ -161,7 +160,7 @@ class FileMonitor:
         try:
             content = file_path.read_bytes()
             return hashlib.sha256(content).hexdigest()
-        except IOError:
+        except OSError:
             return ""
 
     def _calculate_policy_hash(self, adr: ADR) -> str:
@@ -193,8 +192,8 @@ class FileMonitor:
         return hashlib.sha256(policy_text.encode("utf-8")).hexdigest()
 
     def get_policy_relevant_changes(
-        self, changes: List[ChangeEvent]
-    ) -> List[ChangeEvent]:
+        self, changes: list[ChangeEvent]
+    ) -> list[ChangeEvent]:
         """Filter changes to only those that affect policy enforcement."""
 
         policy_relevant = []
@@ -214,7 +213,7 @@ class FileMonitor:
 
         return policy_relevant
 
-    def force_refresh(self):
+    def force_refresh(self) -> None:
         """Force a complete refresh of the baseline state."""
         self._file_hashes.clear()
         self._adr_statuses.clear()

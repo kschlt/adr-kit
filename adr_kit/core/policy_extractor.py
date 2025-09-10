@@ -13,17 +13,14 @@ Design decisions:
 """
 
 import re
-from typing import Dict, List, Optional, Set, Tuple, Any
-from pathlib import Path
 
 from .model import (
     ADR,
-    PolicyModel,
-    ImportPolicy,
     BoundaryPolicy,
-    PythonPolicy,
-    BoundaryLayer,
     BoundaryRule,
+    ImportPolicy,
+    PolicyModel,
+    PythonPolicy,
 )
 
 
@@ -92,7 +89,7 @@ class PolicyPatternExtractor:
             rationales=rationales,
         )
 
-    def _extract_import_policies(self, content: str) -> Optional[ImportPolicy]:
+    def _extract_import_policies(self, content: str) -> ImportPolicy | None:
         """Extract import-related policies from content."""
         disallow = set()
         prefer = set()
@@ -127,7 +124,7 @@ class PolicyPatternExtractor:
 
         return None
 
-    def _extract_boundary_policies(self, content: str) -> Optional[BoundaryPolicy]:
+    def _extract_boundary_policies(self, content: str) -> BoundaryPolicy | None:
         """Extract architectural boundary policies from content."""
         rules = []
 
@@ -145,7 +142,7 @@ class PolicyPatternExtractor:
 
         return None
 
-    def _extract_python_policies(self, content: str) -> Optional[PythonPolicy]:
+    def _extract_python_policies(self, content: str) -> PythonPolicy | None:
         """Extract Python-specific policies from content."""
         python_libs = {"requests", "urllib", "urllib2", "httplib", "http.client"}
         disallow = set()
@@ -162,7 +159,7 @@ class PolicyPatternExtractor:
 
         return None
 
-    def _extract_rationales(self, content: str) -> Optional[List[str]]:
+    def _extract_rationales(self, content: str) -> list[str] | None:
         """Extract rationales for the policies from content."""
         rationales = set()
 
@@ -181,7 +178,7 @@ class PolicyPatternExtractor:
 
         return list(rationales) if rationales else None
 
-    def _normalize_library_name(self, name: str) -> Optional[str]:
+    def _normalize_library_name(self, name: str) -> str | None:
         """Normalize library names using common mappings."""
         name_lower = name.lower().strip()
         return self.library_mappings.get(name_lower, name if len(name) > 1 else None)
@@ -213,7 +210,7 @@ class PolicyExtractor:
         return merged_policy
 
     def _merge_policies(
-        self, structured: Optional[PolicyModel], pattern: Optional[PolicyModel]
+        self, structured: PolicyModel | None, pattern: PolicyModel | None
     ) -> PolicyModel:
         """Merge structured and pattern-extracted policies."""
         if structured and pattern:
@@ -238,8 +235,8 @@ class PolicyExtractor:
             )
 
     def _merge_lists(
-        self, list1: Optional[List[str]], list2: Optional[List[str]]
-    ) -> Optional[List[str]]:
+        self, list1: list[str] | None, list2: list[str] | None
+    ) -> list[str] | None:
         """Merge two lists, removing duplicates."""
         if list1 and list2:
             combined = set(list1) | set(list2)
@@ -251,16 +248,16 @@ class PolicyExtractor:
         policy = self.extract_policy(adr)
 
         return (
-            (policy.imports and (policy.imports.disallow or policy.imports.prefer))
+            (policy.imports and bool(policy.imports.disallow or policy.imports.prefer))
             or (
                 policy.boundaries
-                and (policy.boundaries.layers or policy.boundaries.rules)
+                and bool(policy.boundaries.layers or policy.boundaries.rules)
             )
-            or (policy.python and policy.python.disallow_imports)
+            or (policy.python and bool(policy.python.disallow_imports))
             or bool(policy.rationales)
         )
 
-    def validate_policy_completeness(self, adr: ADR) -> List[str]:
+    def validate_policy_completeness(self, adr: ADR) -> list[str]:
         """Validate that accepted ADRs have sufficient policy information."""
         from .model import ADRStatus
 

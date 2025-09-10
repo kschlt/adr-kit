@@ -4,7 +4,7 @@ __version__ = "0.2.2"
 
 from .core.model import ADR, ADRFrontMatter
 from .core.parse import parse_adr_file, parse_front_matter
-from .core.validate import validate_adr, ValidationResult
+from .core.validate import ValidationResult, validate_adr
 
 __all__ = [
     "ADR",

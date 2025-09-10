@@ -1,13 +1,10 @@
 """Contextual guidance generator for planning context packets."""
 
 from enum import Enum
-from typing import Dict, List, Optional, Set
-from datetime import datetime
 
-from ..core.model import ADR
 from ..contract.models import ConstraintsContract
-from .models import PlanningGuidance, ContextualADR, RelevanceScore
 from .analyzer import TaskContext
+from .models import ContextualADR, PlanningGuidance, RelevanceScore
 
 
 class GuidanceType(str, Enum):
@@ -22,7 +19,7 @@ class GuidanceType(str, Enum):
     REFERENCE = "reference"  # Reference to specific ADRs for details
 
 
-class ContextualPromptlet(object):
+class ContextualPromptlet:
     """A small, contextual piece of guidance for agents."""
 
     def __init__(
@@ -32,7 +29,7 @@ class ContextualPromptlet(object):
         self.guidance_type = guidance_type
         self.priority = priority
 
-    def to_guidance(self, source_adrs: List[str] = None) -> PlanningGuidance:
+    def to_guidance(self, source_adrs: list[str] | None = None) -> PlanningGuidance:
         """Convert to a PlanningGuidance object."""
         return PlanningGuidance(
             guidance_type=self.guidance_type.value,
@@ -46,7 +43,7 @@ class ContextualPromptlet(object):
 class GuidanceGenerator:
     """Generates contextual guidance for planning context packets."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Standard promptlet templates
         self.promptlets = {
             "preflight_check": ContextualPromptlet(
@@ -74,10 +71,10 @@ class GuidanceGenerator:
     def generate_guidance(
         self,
         task_context: TaskContext,
-        constraints_contract: Optional[ConstraintsContract],
-        relevant_adrs: List[ContextualADR],
-        relevance_scores: List[RelevanceScore],
-    ) -> List[PlanningGuidance]:
+        constraints_contract: ConstraintsContract | None,
+        relevant_adrs: list[ContextualADR],
+        relevance_scores: list[RelevanceScore],
+    ) -> list[PlanningGuidance]:
         """Generate contextual guidance based on task and architectural context."""
 
         guidance = []
@@ -131,7 +128,7 @@ class GuidanceGenerator:
 
     def _generate_constraint_guidance(
         self, contract: ConstraintsContract, task_context: TaskContext
-    ) -> List[PlanningGuidance]:
+    ) -> list[PlanningGuidance]:
         """Generate guidance based on specific constraints."""
         guidance = []
 
@@ -189,10 +186,10 @@ class GuidanceGenerator:
 
     def _generate_adr_guidance(
         self,
-        relevant_adrs: List[ContextualADR],
-        relevance_scores: List[RelevanceScore],
+        relevant_adrs: list[ContextualADR],
+        relevance_scores: list[RelevanceScore],
         task_context: TaskContext,
-    ) -> List[PlanningGuidance]:
+    ) -> list[PlanningGuidance]:
         """Generate guidance based on specific relevant ADRs."""
         guidance = []
 
@@ -232,8 +229,8 @@ class GuidanceGenerator:
         return guidance
 
     def _generate_task_specific_guidance(
-        self, task_context: TaskContext, relevant_adrs: List[ContextualADR]
-    ) -> List[PlanningGuidance]:
+        self, task_context: TaskContext, relevant_adrs: list[ContextualADR]
+    ) -> list[PlanningGuidance]:
         """Generate guidance specific to the task type."""
         guidance = []
         task_type = task_context.task_type.value
@@ -322,8 +319,8 @@ class GuidanceGenerator:
     def generate_summary_guidance(
         self,
         task_context: TaskContext,
-        relevant_adrs: List[ContextualADR],
-        constraints_contract: Optional[ConstraintsContract],
+        relevant_adrs: list[ContextualADR],
+        constraints_contract: ConstraintsContract | None,
     ) -> str:
         """Generate a summary guidance message for the context packet."""
 

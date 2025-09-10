@@ -1,8 +1,9 @@
 """Standard MCP response models for consistent tool responses."""
 
-from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class MCPStatus(str, Enum):
@@ -20,13 +21,13 @@ class MCPResponse(BaseModel):
 
     status: MCPStatus = MCPStatus.SUCCESS
     message: str = Field(..., description="Human-readable success message")
-    data: Dict[str, Any] = Field(
+    data: dict[str, Any] = Field(
         default_factory=dict, description="Tool-specific result data"
     )
-    next_steps: List[str] = Field(
+    next_steps: list[str] = Field(
         default_factory=list, description="Suggested actions for agent"
     )
-    metadata: Dict[str, Any] = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional context"
     )
 
@@ -38,7 +39,7 @@ class MCPErrorResponse(BaseModel):
     error: str = Field(..., description="Brief error description")
     details: str = Field(..., description="Detailed error explanation")
     suggested_action: str = Field(..., description="What the agent should try next")
-    error_code: Optional[str] = Field(None, description="Machine-readable error code")
+    error_code: str | None = Field(None, description="Machine-readable error code")
 
 
 # Request Models for Tool Parameters
@@ -47,10 +48,10 @@ class MCPErrorResponse(BaseModel):
 class AnalyzeProjectRequest(BaseModel):
     """Parameters for analyzing existing project for ADR opportunities."""
 
-    project_path: Optional[str] = Field(
+    project_path: str | None = Field(
         None, description="Path to project root (default: current directory)"
     )
-    focus_areas: List[str] = Field(
+    focus_areas: list[str] = Field(
         default_factory=list,
         description="Specific areas to focus on (frontend, backend, database, etc.)",
     )
@@ -64,10 +65,10 @@ class PreflightCheckRequest(BaseModel):
         ...,
         description="Technical choice being evaluated (e.g., 'postgresql', 'react', 'microservices')",
     )
-    context: Dict[str, Any] = Field(
+    context: dict[str, Any] = Field(
         default_factory=dict, description="Additional context about the choice"
     )
-    category: Optional[str] = Field(
+    category: str | None = Field(
         None, description="Category hint (database, frontend, architecture, etc.)"
     )
     adr_dir: str = Field("docs/adr", description="ADR directory path")
@@ -84,16 +85,14 @@ class CreateADRRequest(BaseModel):
     consequences: str = Field(
         ..., description="Expected positive and negative consequences"
     )
-    deciders: List[str] = Field(
+    deciders: list[str] = Field(
         default_factory=list, description="People who made the decision"
     )
-    tags: List[str] = Field(default_factory=list, description="Tags for categorization")
-    policy: Dict[str, Any] = Field(
+    tags: list[str] = Field(default_factory=list, description="Tags for categorization")
+    policy: dict[str, Any] = Field(
         default_factory=dict, description="Structured policy block for enforcement"
     )
-    alternatives: Optional[str] = Field(
-        None, description="Alternative options considered"
-    )
+    alternatives: str | None = Field(None, description="Alternative options considered")
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
 
@@ -101,7 +100,7 @@ class ApproveADRRequest(BaseModel):
     """Parameters for approving ADR and triggering automation."""
 
     adr_id: str = Field(..., description="ID of the ADR to approve")
-    approval_notes: Optional[str] = Field(None, description="Human approval notes")
+    approval_notes: str | None = Field(None, description="Human approval notes")
     force_approve: bool = Field(False, description="Override conflicts and warnings")
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
@@ -117,18 +116,16 @@ class SupersedeADRRequest(BaseModel):
         ..., description="Expected outcomes of the new decision"
     )
     supersede_reason: str = Field(..., description="Why the old ADR is being replaced")
-    new_deciders: List[str] = Field(
+    new_deciders: list[str] = Field(
         default_factory=list, description="Who made the new decision"
     )
-    new_tags: List[str] = Field(
+    new_tags: list[str] = Field(
         default_factory=list, description="Tags for the new ADR"
     )
-    new_policy: Dict[str, Any] = Field(
+    new_policy: dict[str, Any] = Field(
         default_factory=dict, description="Policy rules for the new decision"
     )
-    new_alternatives: Optional[str] = Field(
-        None, description="Other options considered"
-    )
+    new_alternatives: str | None = Field(None, description="Other options considered")
     auto_approve: bool = Field(
         False, description="Automatically approve new ADR without human review"
     )
@@ -145,7 +142,7 @@ class PlanningContextRequest(BaseModel):
         "implementation",
         description="Type of task (implementation, refactoring, debugging, feature)",
     )
-    domain_hints: List[str] = Field(
+    domain_hints: list[str] = Field(
         default_factory=list,
         description="Domain hints (frontend, backend, database, etc.)",
     )
@@ -165,13 +162,13 @@ class AnalyzeProjectData(BaseModel):
     analysis_prompt: str = Field(
         ..., description="Specific questions to guide codebase analysis"
     )
-    project_context: Dict[str, Any] = Field(
+    project_context: dict[str, Any] = Field(
         ..., description="Technical stack details discovered"
     )
-    existing_adrs: List[str] = Field(
+    existing_adrs: list[str] = Field(
         ..., description="ADRs already found in the project"
     )
-    suggested_decisions: List[str] = Field(
+    suggested_decisions: list[str] = Field(
         default_factory=list, description="Potential decisions needing ADRs"
     )
 
@@ -181,10 +178,10 @@ class PreflightCheckData(BaseModel):
 
     decision: str = Field(..., description="ALLOWED/REQUIRES_ADR/BLOCKED")
     reasoning: str = Field(..., description="Why this decision was made")
-    conflicting_adrs: List[str] = Field(
+    conflicting_adrs: list[str] = Field(
         default_factory=list, description="ADR IDs that conflict with this choice"
     )
-    related_adrs: List[str] = Field(
+    related_adrs: list[str] = Field(
         default_factory=list, description="ADR IDs that are related but don't conflict"
     )
     urgency: str = Field("MEDIUM", description="Priority level (LOW/MEDIUM/HIGH)")
@@ -196,13 +193,13 @@ class CreateADRData(BaseModel):
     adr_id: str = Field(..., description="Generated unique ID (e.g., 'ADR-0005')")
     file_path: str = Field(..., description="Path to created ADR file")
     status: str = Field("proposed", description="Always 'proposed' (requires approval)")
-    conflicts: List[str] = Field(
+    conflicts: list[str] = Field(
         default_factory=list, description="Any conflicting ADRs detected"
     )
-    related_adrs: List[str] = Field(
+    related_adrs: list[str] = Field(
         default_factory=list, description="Similar existing ADRs found"
     )
-    validation_warnings: List[str] = Field(
+    validation_warnings: list[str] = Field(
         default_factory=list, description="Validation warnings if any"
     )
 
@@ -214,13 +211,13 @@ class ApproveADRData(BaseModel):
     status: str = Field(
         "approved", description="Always 'approved' after successful approval"
     )
-    policies_activated: List[str] = Field(
+    policies_activated: list[str] = Field(
         default_factory=list, description="List of policy rules now active"
     )
-    configurations_updated: List[str] = Field(
+    configurations_updated: list[str] = Field(
         default_factory=list, description="Config files that were updated"
     )
-    warnings: List[str] = Field(
+    warnings: list[str] = Field(
         default_factory=list, description="Any issues encountered during automation"
     )
 
@@ -234,7 +231,7 @@ class SupersedeADRData(BaseModel):
     new_status: str = Field(
         ..., description="Status of the new ADR (usually 'proposed')"
     )
-    relationships_updated: List[str] = Field(
+    relationships_updated: list[str] = Field(
         default_factory=list, description="What links were updated"
     )
 
@@ -242,24 +239,24 @@ class SupersedeADRData(BaseModel):
 class PlanningContextData(BaseModel):
     """Data returned by adr_planning_context tool."""
 
-    relevant_adrs: List[Dict[str, Any]] = Field(
+    relevant_adrs: list[dict[str, Any]] = Field(
         default_factory=list, description="ADRs that apply to your task"
     )
-    constraints: List[str] = Field(
+    constraints: list[str] = Field(
         default_factory=list, description="Hard restrictions from approved ADRs"
     )
     guidance: str = Field("", description="Specific advice for your task context")
-    use_technologies: List[str] = Field(
+    use_technologies: list[str] = Field(
         default_factory=list, description="Technologies recommended for your task"
     )
-    avoid_technologies: List[str] = Field(
+    avoid_technologies: list[str] = Field(
         default_factory=list, description="Technologies to avoid based on ADRs"
     )
-    patterns: List[str] = Field(
+    patterns: list[str] = Field(
         default_factory=list,
         description="Architectural patterns suggested for your task",
     )
-    checklist: List[str] = Field(
+    checklist: list[str] = Field(
         default_factory=list, description="Steps to ensure ADR compliance"
     )
 
@@ -269,10 +266,10 @@ class PlanningContextData(BaseModel):
 
 def success_response(
     message: str,
-    data: Union[Dict[str, Any], BaseModel],
-    next_steps: Optional[List[str]] = None,
-    metadata: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    data: dict[str, Any] | BaseModel,
+    next_steps: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Create a standard success response."""
     if isinstance(data, BaseModel):
         data = data.model_dump()
@@ -284,8 +281,8 @@ def success_response(
 
 
 def error_response(
-    error: str, details: str, suggested_action: str, error_code: Optional[str] = None
-) -> Dict[str, Any]:
+    error: str, details: str, suggested_action: str, error_code: str | None = None
+) -> dict[str, Any]:
     """Create a standard error response."""
     response = MCPErrorResponse(
         error=error,

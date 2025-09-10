@@ -3,33 +3,34 @@
 import json
 import re
 import shutil
-from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import tomli
 
 # Modern TOML handling - tomli/tomli_w are standard in Python 3.11+
 import tomli_w
-import tomli
 
 from .models import (
+    ApplicationStatus,
+    ApplyResult,
     ConfigFragment,
-    SentinelBlock,
     FragmentTarget,
     FragmentType,
-    ApplyResult,
-    ApplicationStatus,
+    SentinelBlock,
 )
 
 
 class ConfigWriter:
     """Writes configuration fragments to target files with sentinel block management."""
 
-    def __init__(self, backup_enabled: bool = True, backup_dir: Optional[Path] = None):
+    def __init__(self, backup_enabled: bool = True, backup_dir: Path | None = None):
         self.backup_enabled = backup_enabled
         self.backup_dir = backup_dir or Path(".adr-kit/backups")
 
     def apply_fragments(
-        self, target: FragmentTarget, fragments: List[ConfigFragment]
+        self, target: FragmentTarget, fragments: list[ConfigFragment]
     ) -> ApplyResult:
         """Apply configuration fragments to a target file."""
 
@@ -103,7 +104,7 @@ class ConfigWriter:
         return backup_path
 
     def _apply_json_fragments(
-        self, content: str, fragments: List[ConfigFragment], target: FragmentTarget
+        self, content: str, fragments: list[ConfigFragment], target: FragmentTarget
     ) -> str:
         """Apply fragments to JSON configuration files (ESLint, Prettier)."""
 
@@ -125,11 +126,11 @@ class ConfigWriter:
         return json.dumps(config, indent=2)
 
     def _apply_toml_fragments(
-        self, content: str, fragments: List[ConfigFragment], target: FragmentTarget
+        self, content: str, fragments: list[ConfigFragment], target: FragmentTarget
     ) -> str:
         """Apply fragments to TOML configuration files (Ruff, Mypy)."""
 
-        if toml is None:
+        if tomli is None:
             # TOML library not available, fall back to text mode
             return self._apply_text_fragments(content, fragments, target)
 
@@ -153,7 +154,7 @@ class ConfigWriter:
         return tomli_w.dumps(config)
 
     def _apply_text_fragments(
-        self, content: str, fragments: List[ConfigFragment], target: FragmentTarget
+        self, content: str, fragments: list[ConfigFragment], target: FragmentTarget
     ) -> str:
         """Apply fragments to plain text files using sentinel blocks."""
 
@@ -182,14 +183,14 @@ class ConfigWriter:
         return updated_content
 
     def _merge_json_configs(
-        self, base: Dict[str, Any], fragment: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, base: dict[str, Any], fragment: dict[str, Any]
+    ) -> dict[str, Any]:
         """Merge JSON configuration objects."""
         return self._merge_dict_configs(base, fragment)
 
     def _merge_dict_configs(
-        self, base: Dict[str, Any], fragment: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, base: dict[str, Any], fragment: dict[str, Any]
+    ) -> dict[str, Any]:
         """Deep merge dictionary configurations."""
 
         result = base.copy()

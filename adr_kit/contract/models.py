@@ -4,14 +4,15 @@ These models define the structure of the unified contract that agents use
 as their definitive source of truth for architectural decisions.
 """
 
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Set
-from pathlib import Path
-from pydantic import BaseModel, Field
 import hashlib
 import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from ..core.model import ADR, PolicyModel, ImportPolicy, BoundaryPolicy, PythonPolicy
+from pydantic import BaseModel, Field
+
+from ..core.model import ADR, BoundaryPolicy, ImportPolicy, PolicyModel, PythonPolicy
 
 
 class PolicyProvenance(BaseModel):
@@ -33,7 +34,7 @@ class ContractMetadata(BaseModel):
         default_factory=datetime.utcnow, description="When contract was generated"
     )
     hash: str = Field(..., description="SHA-256 hash of the contract content")
-    source_adrs: List[str] = Field(
+    source_adrs: list[str] = Field(
         ..., description="List of ADR IDs that contributed to this contract"
     )
     adr_directory: str = Field(..., description="Path to ADR directory used")
@@ -42,11 +43,11 @@ class ContractMetadata(BaseModel):
 class MergedConstraints(BaseModel):
     """The unified policy constraints from all accepted ADRs."""
 
-    imports: Optional[ImportPolicy] = Field(None, description="Merged import policies")
-    boundaries: Optional[BoundaryPolicy] = Field(
+    imports: ImportPolicy | None = Field(None, description="Merged import policies")
+    boundaries: BoundaryPolicy | None = Field(
         None, description="Merged boundary policies"
     )
-    python: Optional[PythonPolicy] = Field(
+    python: PythonPolicy | None = Field(
         None, description="Merged Python-specific policies"
     )
 
@@ -78,11 +79,12 @@ class ConstraintsContract(BaseModel):
     constraints: MergedConstraints = Field(
         ..., description="The actual policy constraints"
     )
-    provenance: Dict[str, PolicyProvenance] = Field(
+    provenance: dict[str, PolicyProvenance] = Field(
         ..., description="Maps each rule to its source ADR"
     )
-    approved_adrs: List[ADR] = Field(
-        default_factory=list, description="List of all approved ADRs that contributed to this contract"
+    approved_adrs: list[ADR] = Field(
+        default_factory=list,
+        description="List of all approved ADRs that contributed to this contract",
     )
 
     @classmethod
@@ -102,10 +104,12 @@ class ConstraintsContract(BaseModel):
             python=None,
         )
 
-        return cls(metadata=metadata, constraints=constraints, provenance={}, approved_adrs=[])
+        return cls(
+            metadata=metadata, constraints=constraints, provenance={}, approved_adrs=[]
+        )
 
     @staticmethod
-    def _calculate_hash(data: Dict[str, Any]) -> str:
+    def _calculate_hash(data: dict[str, Any]) -> str:
         """Calculate SHA-256 hash of contract data for change detection."""
         # Sort keys for deterministic hashing
         json_str = json.dumps(data, sort_keys=True, default=str)
@@ -141,12 +145,12 @@ class ConstraintsContract(BaseModel):
     @classmethod
     def from_json_file(cls, file_path: Path) -> "ConstraintsContract":
         """Load contract from JSON file."""
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
         return cls.model_validate(data)
 
-    def has_conflicts_with_policy(self, policy: PolicyModel, adr_id: str) -> List[str]:
+    def has_conflicts_with_policy(self, policy: PolicyModel, adr_id: str) -> list[str]:
         """Check if a new policy would conflict with existing constraints.
 
         Returns list of conflict descriptions, empty if no conflicts.

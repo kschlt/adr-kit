@@ -1,16 +1,16 @@
 """Main Planning Context Service - curated architectural intelligence for agents."""
 
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
-from ..core.model import ADR, ADRStatus
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
 from ..contract import ConstraintsContractBuilder
-from .models import ContextPacket, ContextualADR, TaskHint
+from ..core.model import ADR, ADRStatus
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 from .analyzer import TaskAnalyzer, TaskContext
-from .ranker import RelevanceRanker, RankingStrategy
 from .guidance import GuidanceGenerator
+from .models import ContextPacket, ContextualADR, TaskHint
+from .ranker import RankingStrategy, RelevanceRanker
 
 
 @dataclass
@@ -99,8 +99,8 @@ class PlanningContext:
     def create_context_for_files(
         self,
         task_description: str,
-        changed_files: List[str],
-        task_type: Optional[str] = None,
+        changed_files: list[str],
+        task_type: str | None = None,
     ) -> ContextPacket:
         """Create context packet based on files being changed."""
 
@@ -116,11 +116,11 @@ class PlanningContext:
 
         return self.create_context_packet(task_hint)
 
-    def create_bulk_context(self, task_hints: List[TaskHint]) -> List[ContextPacket]:
+    def create_bulk_context(self, task_hints: list[TaskHint]) -> list[ContextPacket]:
         """Create context packets for multiple related tasks."""
         return [self.create_context_packet(hint) for hint in task_hints]
 
-    def _load_all_adrs(self) -> List[ADR]:
+    def _load_all_adrs(self) -> list[ADR]:
         """Load all ADRs from the configured directory."""
         adr_files = find_adr_files(self.config.adr_dir)
         adrs = []
@@ -143,8 +143,8 @@ class PlanningContext:
         return adrs
 
     def _find_relevant_adrs(
-        self, all_adrs: List[ADR], task_context: TaskContext
-    ) -> List[ContextualADR]:
+        self, all_adrs: list[ADR], task_context: TaskContext
+    ) -> list[ContextualADR]:
         """Find and rank ADRs relevant to the task context."""
 
         # Get relevance scores
@@ -169,7 +169,7 @@ class PlanningContext:
 
         return contextual_adrs
 
-    def _extract_hard_constraints(self, contract: Optional[Any]) -> Dict[str, Any]:
+    def _extract_hard_constraints(self, contract: Any | None) -> dict[str, Any]:
         """Extract hard constraints from the constraints contract."""
         if not contract or contract.constraints.is_empty():
             return {}
@@ -231,7 +231,7 @@ class PlanningContext:
         # Fallback to title-based summary
         return f"Decision about {adr.front_matter.title.lower()}"
 
-    def _extract_key_constraints(self, adr: ADR) -> List[str]:
+    def _extract_key_constraints(self, adr: ADR) -> list[str]:
         """Extract key constraints from an ADR."""
         constraints = []
 
@@ -276,7 +276,7 @@ class PlanningContext:
 
         return constraints[:3]  # Limit to top 3 constraints
 
-    def _extract_related_technologies(self, adr: ADR) -> List[str]:
+    def _extract_related_technologies(self, adr: ADR) -> list[str]:
         """Extract technologies mentioned in an ADR."""
         text = f"{adr.front_matter.title} {adr.content}".lower()
         technologies = []
@@ -299,7 +299,7 @@ class PlanningContext:
         # Remove duplicates and limit
         return list(set(technologies))[:5]
 
-    def _extract_technologies_from_files(self, changed_files: List[str]) -> Set[str]:
+    def _extract_technologies_from_files(self, changed_files: list[str]) -> set[str]:
         """Extract technologies from file paths."""
         technologies = set()
 
@@ -371,7 +371,7 @@ class PlanningContext:
 
         return context_packet
 
-    def get_service_status(self) -> Dict[str, Any]:
+    def get_service_status(self) -> dict[str, Any]:
         """Get status of the planning context service."""
         try:
             all_adrs = self._load_all_adrs()

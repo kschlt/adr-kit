@@ -8,21 +8,21 @@ Design decisions:
 """
 
 import sqlite3
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union, Tuple
+from typing import Any
 
 from ..core.model import ADR, ADRStatus
-from ..core.parse import find_adr_files, parse_adr_file, ParseError
+from ..core.parse import ParseError, find_adr_files, parse_adr_file
 from ..core.validate import validate_adr_file
 
 
 class ADRSQLiteIndex:
     """SQLite index generator for ADRs."""
 
-    def __init__(self, db_path: Union[Path, str] = ".project-index/catalog.db"):
+    def __init__(self, db_path: Path | str = ".project-index/catalog.db"):
         self.db_path = Path(db_path)
-        self.connection: Optional[sqlite3.Connection] = None
+        self.connection: sqlite3.Connection | None = None
 
     def connect(self) -> None:
         """Connect to SQLite database."""
@@ -207,7 +207,7 @@ class ADRSQLiteIndex:
         # Insert or update ADR record
         cursor.execute(
             """
-            INSERT OR REPLACE INTO adrs 
+            INSERT OR REPLACE INTO adrs
             (id, title, status, date, file_path, content, content_preview, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
@@ -285,8 +285,8 @@ class ADRSQLiteIndex:
         return preview
 
     def build_index(
-        self, adr_directory: Union[Path, str] = "docs/adr", validate: bool = True
-    ) -> Dict[str, Any]:
+        self, adr_directory: Path | str = "docs/adr", validate: bool = True
+    ) -> dict[str, Any]:
         """Build the complete ADR index.
 
         Args:
@@ -302,7 +302,7 @@ class ADRSQLiteIndex:
         self.clear_index()
 
         adr_files = find_adr_files(adr_directory)
-        stats = {"total_files": len(adr_files), "indexed": 0, "errors": []}
+        stats: dict[str, Any] = {"total_files": len(adr_files), "indexed": 0, "errors": []}
 
         for file_path in adr_files:
             try:
@@ -333,7 +333,7 @@ class ADRSQLiteIndex:
         return stats
 
     def _update_metadata(
-        self, stats: Dict[str, Any], adr_directory: Union[Path, str]
+        self, stats: dict[str, Any], adr_directory: Path | str
     ) -> None:
         """Update index metadata."""
         if not self.connection:
@@ -357,12 +357,12 @@ class ADRSQLiteIndex:
 
     def query_adrs(
         self,
-        status: Optional[Union[str, List[str]]] = None,
-        tags: Optional[Union[str, List[str]]] = None,
-        deciders: Optional[Union[str, List[str]]] = None,
-        search_text: Optional[str] = None,
-        limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        status: str | list[str] | None = None,
+        tags: str | list[str] | None = None,
+        deciders: str | list[str] | None = None,
+        search_text: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         """Query ADRs with filters.
 
         Args:
@@ -426,7 +426,7 @@ class ADRSQLiteIndex:
         cursor.execute(base_query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_adr_relationships(self, adr_id: str) -> Dict[str, List[str]]:
+    def get_adr_relationships(self, adr_id: str) -> dict[str, list[str]]:
         """Get ADR relationships (supersedes/superseded_by).
 
         Args:
@@ -456,7 +456,7 @@ class ADRSQLiteIndex:
 
         return {"supersedes": supersedes, "superseded_by": superseded_by}
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get index statistics.
 
         Returns:
@@ -494,10 +494,10 @@ class ADRSQLiteIndex:
 
 
 def generate_sqlite_index(
-    adr_directory: Union[Path, str] = "docs/adr",
-    db_path: Union[Path, str] = ".project-index/catalog.db",
+    adr_directory: Path | str = "docs/adr",
+    db_path: Path | str = ".project-index/catalog.db",
     validate: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate SQLite ADR index.
 
     Args:

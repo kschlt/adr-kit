@@ -1,21 +1,21 @@
 """Approval Workflow - Approve ADR and trigger complete automation pipeline."""
 
-import os
-import json
 import hashlib
-from typing import Dict, List, Any, Optional
+import json
 from dataclasses import dataclass
-from pathlib import Path
 from datetime import datetime
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus, WorkflowError
+from pathlib import Path
+from typing import Any
+
+from ..contract.builder import ConstraintsContractBuilder
 from ..core.model import ADR
 from ..core.parse import find_adr_files, parse_adr_file
 from ..core.validate import validate_adr
-from ..contract.builder import ConstraintsContractBuilder
-from ..guardrail.manager import GuardrailManager
-from ..index.json_index import generate_adr_index
 from ..enforce.eslint import generate_eslint_config
 from ..enforce.ruff import generate_ruff_config
+from ..guardrail.manager import GuardrailManager
+from ..index.json_index import generate_adr_index
+from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
 
 
 @dataclass
@@ -25,7 +25,7 @@ class ApprovalInput:
     adr_id: str
     digest_check: bool = True  # Whether to verify content digest hasn't changed
     force_approve: bool = False  # Override conflicts and warnings
-    approval_notes: Optional[str] = None  # Human approval notes
+    approval_notes: str | None = None  # Human approval notes
 
 
 @dataclass
@@ -36,10 +36,10 @@ class ApprovalResult:
     previous_status: str
     new_status: str
     content_digest: str  # SHA-256 hash of approved content
-    automation_results: Dict[str, Any]  # Results from triggered automation
+    automation_results: dict[str, Any]  # Results from triggered automation
     policy_rules_applied: int  # Number of policy rules applied
-    configurations_updated: List[str]  # List of config files updated
-    warnings: List[str]  # Non-blocking warnings
+    configurations_updated: list[str]  # List of config files updated
+    warnings: list[str]  # Non-blocking warnings
     next_steps: str  # Guidance for what happens next
 
 
@@ -66,10 +66,10 @@ class ApprovalWorkflow(BaseWorkflow):
     def execute(self, **kwargs: Any) -> WorkflowResult:
         """Execute comprehensive ADR approval workflow."""
         # Extract input_data from kwargs
-        input_data = kwargs.get('input_data')
+        input_data = kwargs.get("input_data")
         if not input_data or not isinstance(input_data, ApprovalInput):
             raise ValueError("input_data must be provided as ApprovalInput instance")
-            
+
         automation_results = {}
 
         try:
@@ -196,7 +196,7 @@ class ApprovalWorkflow(BaseWorkflow):
         """Update ADR status to accepted and write back to file."""
 
         # Read current file content
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         # Update status in YAML front-matter
@@ -232,11 +232,18 @@ class ApprovalWorkflow(BaseWorkflow):
 
         # Return updated ADR object - create a new one with updated status
         from ..core.model import ADRStatus
-        updated_front_matter = adr.front_matter.model_copy(update={"status": ADRStatus.ACCEPTED})
-        updated_adr = ADR(front_matter=updated_front_matter, content=adr.content, file_path=adr.file_path)
+
+        updated_front_matter = adr.front_matter.model_copy(
+            update={"status": ADRStatus.ACCEPTED}
+        )
+        updated_adr = ADR(
+            front_matter=updated_front_matter,
+            content=adr.content,
+            file_path=adr.file_path,
+        )
         return updated_adr
 
-    def _rebuild_constraints_contract(self) -> Dict[str, Any]:
+    def _rebuild_constraints_contract(self) -> dict[str, Any]:
         """Rebuild the constraints contract with all approved ADRs."""
         try:
             builder = ConstraintsContractBuilder(adr_dir=self.adr_dir)
@@ -257,11 +264,11 @@ class ApprovalWorkflow(BaseWorkflow):
                 "message": "Failed to rebuild constraints contract",
             }
 
-    def _apply_guardrails(self, adr: ADR) -> Dict[str, Any]:
+    def _apply_guardrails(self, adr: ADR) -> dict[str, Any]:
         """Apply guardrails based on the approved ADR."""
         try:
             # Apply guardrails using GuardrailManager
-            manager = GuardrailManager(adr_dir=Path(self.adr_dir))
+            GuardrailManager(adr_dir=Path(self.adr_dir))
 
             # This is a simplified implementation - would need to be enhanced
             # to fully integrate with the GuardrailManager's apply methods
@@ -280,7 +287,7 @@ class ApprovalWorkflow(BaseWorkflow):
                 "message": "Failed to apply guardrails",
             }
 
-    def _generate_enforcement_rules(self, adr: ADR) -> Dict[str, Any]:
+    def _generate_enforcement_rules(self, adr: ADR) -> dict[str, Any]:
         """Generate enforcement rules (ESLint, Ruff, etc.) from ADR policies."""
         results = {}
 
@@ -316,20 +323,22 @@ class ApprovalWorkflow(BaseWorkflow):
 
         # Check for import restrictions, frontend policies, etc.
         js_indicators = []
-        
+
         # Check if it has imports policy
         if adr.policy.imports:
             js_indicators.append(True)
-            
+
         # Check for frontend-related terms in policy
         policy_text = str(adr.policy.model_dump()).lower()
-        js_indicators.extend([
-            "javascript" in policy_text,
-            "typescript" in policy_text,
-            "frontend" in policy_text,
-            "react" in policy_text,
-            "vue" in policy_text,
-        ])
+        js_indicators.extend(
+            [
+                "javascript" in policy_text,
+                "typescript" in policy_text,
+                "frontend" in policy_text,
+                "react" in policy_text,
+                "vue" in policy_text,
+            ]
+        )
 
         return any(js_indicators)
 
@@ -340,25 +349,27 @@ class ApprovalWorkflow(BaseWorkflow):
 
         # Check for Python-specific policies
         python_indicators = []
-        
+
         # Check for python-specific policy
         if adr.policy.python:
             python_indicators.append(True)
-            
+
         # Check for imports policy
         if adr.policy.imports:
             python_indicators.append(True)
-            
+
         # Check for Python-related terms in policy
         policy_text = str(adr.policy.model_dump()).lower()
-        python_indicators.extend([
-            "django" in policy_text,
-            "flask" in policy_text,
-        ])
+        python_indicators.extend(
+            [
+                "django" in policy_text,
+                "flask" in policy_text,
+            ]
+        )
 
         return any(python_indicators)
 
-    def _generate_eslint_rules(self, adr: ADR) -> Dict[str, Any]:
+    def _generate_eslint_rules(self, adr: ADR) -> dict[str, Any]:
         """Generate ESLint rules from ADR policies."""
         try:
             config = generate_eslint_config(self.adr_dir)
@@ -367,7 +378,7 @@ class ApprovalWorkflow(BaseWorkflow):
             output_file = Path.cwd() / ".eslintrc.adrs.json"
             with open(output_file, "w") as f:
                 f.write(config)
-            rules: List[Dict[str, Any]] = []  # Simplified for now
+            rules: list[dict[str, Any]] = []  # Simplified for now
 
             return {
                 "success": True,
@@ -379,7 +390,7 @@ class ApprovalWorkflow(BaseWorkflow):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _generate_ruff_rules(self, adr: ADR) -> Dict[str, Any]:
+    def _generate_ruff_rules(self, adr: ADR) -> dict[str, Any]:
         """Generate Ruff configuration from ADR policies."""
         try:
             config_content = generate_ruff_config(self.adr_dir)
@@ -389,7 +400,7 @@ class ApprovalWorkflow(BaseWorkflow):
             # For now, just create a simple config file
             with open(output_file, "a") as f:
                 f.write("\n" + config_content)
-            config: Dict[str, Any] = {}  # Simplified for now
+            config: dict[str, Any] = {}  # Simplified for now
 
             return {
                 "success": True,
@@ -401,7 +412,7 @@ class ApprovalWorkflow(BaseWorkflow):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _update_indexes(self) -> Dict[str, Any]:
+    def _update_indexes(self) -> dict[str, Any]:
         """Update JSON and other indexes after ADR approval."""
         try:
             # Update JSON index
@@ -433,7 +444,7 @@ class ApprovalWorkflow(BaseWorkflow):
                 "message": "Failed to update indexes",
             }
 
-    def _validate_codebase_compliance(self, adr: ADR) -> Dict[str, Any]:
+    def _validate_codebase_compliance(self, adr: ADR) -> dict[str, Any]:
         """Validate existing codebase against new ADR policies (optional)."""
         try:
             # This is a lightweight validation - full validation might be expensive
@@ -463,8 +474,8 @@ class ApprovalWorkflow(BaseWorkflow):
             }
 
     def _quick_scan_for_violations(
-        self, disallowed_imports: List[str]
-    ) -> List[Dict[str, Any]]:
+        self, disallowed_imports: list[str]
+    ) -> list[dict[str, Any]]:
         """Quick scan for obvious policy violations."""
         violations = []
 
@@ -480,7 +491,7 @@ class ApprovalWorkflow(BaseWorkflow):
                         file_path.is_file() and file_path.stat().st_size < 1024 * 1024
                     ):  # Skip large files
                         try:
-                            with open(file_path, "r", encoding="utf-8") as f:
+                            with open(file_path, encoding="utf-8") as f:
                                 content = f.read()
 
                                 for disallowed in disallowed_imports:
@@ -503,7 +514,7 @@ class ApprovalWorkflow(BaseWorkflow):
 
         return violations
 
-    def _count_policy_rules_applied(self, automation_results: Dict[str, Any]) -> int:
+    def _count_policy_rules_applied(self, automation_results: dict[str, Any]) -> int:
         """Count total policy rules applied across all systems."""
         count = 0
 
@@ -511,15 +522,15 @@ class ApprovalWorkflow(BaseWorkflow):
             enforcement = automation_results["enforcement_generation"]
             if enforcement.get("success"):
                 details = enforcement.get("details", {})
-                for system, result in details.items():
+                for _system, result in details.items():
                     if result.get("success"):
                         count += result.get("rules_generated", 0)
 
         return count
 
     def _extract_updated_configurations(
-        self, automation_results: Dict[str, Any]
-    ) -> List[str]:
+        self, automation_results: dict[str, Any]
+    ) -> list[str]:
         """Extract list of configuration files that were updated."""
         updated_files = []
 
@@ -534,7 +545,7 @@ class ApprovalWorkflow(BaseWorkflow):
             enforcement = automation_results["enforcement_generation"]
             if enforcement.get("success"):
                 details = enforcement.get("details", {})
-                for system, result in details.items():
+                for _system, result in details.items():
                     if result.get("success") and result.get("output_file"):
                         updated_files.append(result["output_file"])
 
@@ -549,10 +560,10 @@ class ApprovalWorkflow(BaseWorkflow):
     def _generate_approval_report(
         self,
         adr: ADR,
-        automation_results: Dict[str, Any],
+        automation_results: dict[str, Any],
         content_digest: str,
         input_data: ApprovalInput,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate comprehensive approval report."""
 
         # Count successes and failures

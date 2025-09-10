@@ -1,7 +1,7 @@
 """Data models for the preflight policy gate system."""
 
 from enum import Enum
-from typing import Dict, List, Optional, Any
+
 from pydantic import BaseModel, Field
 
 
@@ -20,11 +20,11 @@ class CategoryRule(BaseModel):
     category: str = Field(
         ..., description="Category name (e.g., 'runtime_dependency', 'framework')"
     )
-    patterns: List[str] = Field(..., description="Regex patterns to match choice names")
-    keywords: List[str] = Field(
+    patterns: list[str] = Field(..., description="Regex patterns to match choice names")
+    keywords: list[str] = Field(
         default_factory=list, description="Keywords that indicate this category"
     )
-    examples: List[str] = Field(
+    examples: list[str] = Field(
         default_factory=list, description="Example choices in this category"
     )
 
@@ -33,7 +33,7 @@ class NameMapping(BaseModel):
     """Mapping for normalizing choice names and aliases."""
 
     canonical_name: str = Field(..., description="The canonical/preferred name")
-    aliases: List[str] = Field(
+    aliases: list[str] = Field(
         ..., description="Alternative names that map to the canonical name"
     )
 
@@ -55,13 +55,13 @@ class GateConfig(BaseModel):
     )
 
     # Allow/deny lists
-    always_allow: List[str] = Field(
+    always_allow: list[str] = Field(
         default_factory=list, description="Choices that are always allowed without ADR"
     )
-    always_deny: List[str] = Field(
+    always_deny: list[str] = Field(
         default_factory=list, description="Choices that are always blocked"
     )
-    development_tools: List[str] = Field(
+    development_tools: list[str] = Field(
         default_factory=lambda: [
             "eslint",
             "prettier",
@@ -88,7 +88,7 @@ class GateConfig(BaseModel):
     )
 
     # Categorization rules
-    categories: List[CategoryRule] = Field(
+    categories: list[CategoryRule] = Field(
         default_factory=lambda: [
             CategoryRule(
                 category="runtime_dependency",
@@ -112,7 +112,7 @@ class GateConfig(BaseModel):
     )
 
     # Name mappings for normalization
-    name_mappings: List[NameMapping] = Field(
+    name_mappings: list[NameMapping] = Field(
         default_factory=lambda: [
             NameMapping(canonical_name="react", aliases=["reactjs", "react.js"]),
             NameMapping(canonical_name="vue", aliases=["vuejs", "vue.js"]),
@@ -142,7 +142,7 @@ class GateConfig(BaseModel):
 
         return choice_name
 
-    def categorize_choice(self, choice_name: str) -> Optional[str]:
+    def categorize_choice(self, choice_name: str) -> str | None:
         """Determine the category of a technical choice."""
         import re
 
@@ -177,7 +177,6 @@ class GateConfig(BaseModel):
     def to_file(self, file_path: str) -> None:
         """Save configuration to a JSON file."""
         import json
-        from pathlib import Path
 
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(self.model_dump(exclude_none=True), f, indent=2, sort_keys=True)
@@ -199,7 +198,7 @@ class GateConfig(BaseModel):
                 created_by="adr-kit",
             )
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         return cls.model_validate(data)
