@@ -54,8 +54,7 @@ coverage.xml
 # pyenv
 .python-version
 
-# Environments
-.env
+# Environments (removed duplicate .env from line 25)
 .env.local
 .env.development.local
 .env.test.local
@@ -83,10 +82,13 @@ PROJECT_STATUS_REPORT.md
 # Generated lint config examples (keep actual configs)
 .eslintrc.adrs.json
 
-# Test artifacts
-test_*.py
-test_*.txt
+# Test artifacts (but NOT actual test files!)
+# test_*.py  # REMOVED - was blocking legitimate test files in tests/ directory
+test_output_*.txt
+test_results_*.txt
 *_test_diff.txt
+*.test.log
+temp_test_*
 
 # OS
 .DS_Store
@@ -96,3 +98,17 @@ test_*.txt
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Additional development files
+*.orig
+*.bak
+*.tmp
+.coverage.*
+htmlcov/
+
+# Log files
+*.log
+logs/
+
+# Temporary files from testing/development
+# (removed duplicate .project-index - already covered on line 70)
