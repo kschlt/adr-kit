@@ -7,23 +7,17 @@ Design decisions:
 - Exit codes match specification (0=success, 1=validation, 2=schema, 3=IO)
 """
 
-from datetime import date
-from pathlib import Path
-from typing import List, Optional, Annotated
-
 import sys
+from pathlib import Path
+from typing import Annotated
+
 import typer
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.syntax import Syntax
 
-from .core.model import ADR, ADRFrontMatter, ADRStatus
-from .core.parse import parse_adr_file, find_adr_files, ParseError
-from .core.validate import validate_adr_directory, validate_adr_file, ValidationResult
+from .core.parse import ParseError, find_adr_files, parse_adr_file
+from .core.validate import validate_adr_directory, validate_adr_file
 from .index.json_index import generate_adr_index
 from .index.sqlite_index import generate_sqlite_index
-
 
 app = typer.Typer(
     name="adr-kit",
@@ -41,6 +35,7 @@ def check_for_updates_async() -> None:
     def _check() -> None:
         try:
             import requests
+
             from . import __version__
 
             response = requests.get("https://pypi.org/pypi/adr-kit/json", timeout=5)
@@ -53,9 +48,7 @@ def check_for_updates_async() -> None:
                 stderr_console.print(
                     f"🔄 [yellow]Update available:[/yellow] v{current_version} → v{latest_version}"
                 )
-                stderr_console.print(
-                    f"💡 [dim]Run 'adr-kit update' to upgrade[/dim]"
-                )
+                stderr_console.print("💡 [dim]Run 'adr-kit update' to upgrade[/dim]")
 
         except Exception:
             # Silently ignore update check failures
@@ -105,7 +98,7 @@ def init(
         index_dir = Path(".project-index")
         index_dir.mkdir(exist_ok=True)
 
-        console.print(f"✅ Initialized ADR structure:")
+        console.print("✅ Initialized ADR structure:")
         console.print(f"   📁 {adr_dir} (for ADR files)")
         console.print(f"   📁 {index_dir} (for indexes)")
 
@@ -149,7 +142,7 @@ def init(
 
     except Exception as e:
         console.print(f"❌ Failed to initialize ADR structure: {e}")
-        raise typer.Exit(code=3)
+        raise typer.Exit(code=3) from e
 
 
 @app.command()
@@ -180,9 +173,9 @@ def mcp_server(
         except ImportError as e:
             stderr_console.print(f"❌ MCP server dependencies not available: {e}")
             stderr_console.print("💡 Install with: pip install fastmcp")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
         except KeyboardInterrupt:
-            raise typer.Exit(code=0)
+            raise typer.Exit(code=0) from None
     else:
         # HTTP mode - with user feedback
         console.print("🚀 Starting ADR Kit MCP Server (HTTP mode)...")
@@ -198,10 +191,10 @@ def mcp_server(
         except ImportError as e:
             console.print(f"❌ MCP server dependencies not available: {e}")
             console.print("💡 Install with: pip install fastmcp")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
         except KeyboardInterrupt:
             console.print("\n👋 MCP server stopped")
-            raise typer.Exit(code=0)
+            raise typer.Exit(code=0) from None
 
 
 @app.command()
@@ -223,17 +216,17 @@ def mcp_health() -> None:
         console.print(f"✅ FastMCP dependency: OK (v{fastmcp.__version__})")
 
         # Test main MCP server imports
-        from .mcp.server import mcp
-        from .mcp.models import MCPResponse, MCPErrorResponse
+        from .mcp.models import MCPErrorResponse, MCPResponse  # noqa: F401
+        from .mcp.server import mcp  # noqa: F401
 
         console.print("✅ MCP server: OK")
 
         # Test workflow system (the real business logic)
         try:
-            from .workflows.analyze import AnalyzeProjectWorkflow
-            from .workflows.preflight import PreflightWorkflow
-            from .workflows.creation import CreationWorkflow
-            from .workflows.approval import ApprovalWorkflow
+            from .workflows.analyze import AnalyzeProjectWorkflow  # noqa: F401
+            from .workflows.approval import ApprovalWorkflow  # noqa: F401
+            from .workflows.creation import CreationWorkflow  # noqa: F401
+            from .workflows.preflight import PreflightWorkflow  # noqa: F401
 
             console.print("✅ Workflow backend system: OK")
             workflow_available = True
@@ -242,9 +235,9 @@ def mcp_health() -> None:
             workflow_available = False
 
         # Test core functionality
-        from .core.model import ADR, ADRFrontMatter, ADRStatus
-        from .core.parse import find_adr_files, parse_adr_file
-        from .core.policy_extractor import PolicyExtractor
+        from .core.model import ADR, ADRFrontMatter, ADRStatus  # noqa: F401
+        from .core.parse import find_adr_files, parse_adr_file  # noqa: F401
+        from .core.policy_extractor import PolicyExtractor  # noqa: F401
 
         console.print("✅ Core ADR functionality: OK")
 
@@ -295,10 +288,10 @@ def mcp_health() -> None:
     except ImportError as e:
         console.print(f"❌ Missing dependencies: {e}")
         console.print("💡 Install with: pip install fastmcp")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         console.print(f"❌ Health check failed: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -321,10 +314,10 @@ def update(
 
     try:
         import requests
-    except ImportError:
+    except ImportError as e:
         console.print("❌ requests library not available for update checking")
         console.print("💡 Install manually: pip install --upgrade adr-kit")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     from . import __version__
 
@@ -364,21 +357,19 @@ def update(
             console.print("💡 Try manually: pip install --upgrade adr-kit")
             raise typer.Exit(code=1)
 
-    except requests.RequestException:
+    except requests.RequestException as e:
         console.print("❌ Failed to check for updates (network error)")
         console.print("💡 Try manually: pip install --upgrade adr-kit")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         console.print(f"❌ Update check failed: {e}")
         console.print("💡 Try manually: pip install --upgrade adr-kit")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
 def validate(
-    adr_id: Optional[str] = typer.Option(
-        None, "--id", help="Specific ADR ID to validate"
-    ),
+    adr_id: str | None = typer.Option(None, "--id", help="Specific ADR ID to validate"),
     adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed validation output"
@@ -436,7 +427,7 @@ def validate(
 
         # Summary
         console.print("\n" + "=" * 50)
-        console.print(f"📊 Validation Summary:")
+        console.print("📊 Validation Summary:")
         console.print(f"   Total ADRs: {total_adrs}")
         console.print(f"   Valid ADRs: {valid_adrs}")
         console.print(f"   Errors: {total_errors}")
@@ -451,7 +442,7 @@ def validate(
         raise
     except Exception as e:
         console.print(f"❌ Validation failed: {e}")
-        raise typer.Exit(code=3)
+        raise typer.Exit(code=3) from e
 
 
 @app.command()
@@ -459,7 +450,7 @@ def index(
     out: Path = typer.Option(
         Path("docs/adr/adr-index.json"), "--out", help="Output path for JSON index"
     ),
-    sqlite: Optional[Path] = typer.Option(
+    sqlite: Path | None = typer.Option(
         None, "--sqlite", help="Output path for SQLite database"
     ),
     adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
@@ -472,7 +463,7 @@ def index(
         validate_adrs = not no_validate
 
         # Generate JSON index
-        console.print(f"📝 Generating JSON index...")
+        console.print("📝 Generating JSON index...")
         json_index = generate_adr_index(adr_dir, out, validate=validate_adrs)
 
         console.print(f"✅ JSON index generated: {out}")
@@ -484,7 +475,7 @@ def index(
 
         # Generate SQLite index if requested
         if sqlite:
-            console.print(f"🗄️  Generating SQLite index...")
+            console.print("🗄️  Generating SQLite index...")
             sqlite_stats = generate_sqlite_index(
                 adr_dir, sqlite, validate=validate_adrs
             )
@@ -497,9 +488,12 @@ def index(
 
         raise typer.Exit(code=0)
 
+    except typer.Exit:
+        # Re-raise typer.Exit as-is (don't catch our own successful exits)
+        raise
     except Exception as e:
         console.print(f"❌ Index generation failed: {e}")
-        raise typer.Exit(code=3)
+        raise typer.Exit(code=3) from e
 
 
 @app.command()
@@ -530,12 +524,12 @@ def info() -> None:
     for tool, desc in tools:
         console.print(f"  • [cyan]{tool}[/cyan] - {desc}")
 
-    console.print(f"\n🚀 [bold]Quick Start:[/bold]")
+    console.print("\n🚀 [bold]Quick Start:[/bold]")
     console.print("   1. [cyan]adr-kit mcp-health[/cyan]     # Check server health")
     console.print("   2. [cyan]adr-kit mcp-server[/cyan]     # Start stdio server")
     console.print("   3. Configure Cursor/Claude Code to connect")
 
-    console.print(f"\n🔌 [bold]Cursor Integration:[/bold]")
+    console.print("\n🔌 [bold]Cursor Integration:[/bold]")
     console.print("   Add to your MCP settings.json:")
     console.print('   "adr-kit": {')
     console.print('     "command": "adr-kit",')
@@ -543,28 +537,28 @@ def info() -> None:
     console.print('     "env": {}')
     console.print("   }")
 
-    console.print(f"\n💡 [bold]Features:[/bold]")
+    console.print("\n💡 [bold]Features:[/bold]")
     console.print("   ✅ Structured policy extraction (hybrid approach)")
     console.print("   ✅ Automatic lint rule generation (ESLint, Ruff)")
     console.print("   ✅ Enhanced validation with policy requirements")
     console.print("   ✅ Log4brains integration for site generation")
     console.print("   ✅ AI-first contextual tool descriptions")
 
-    console.print(f"\n📚 [bold]Learn more:[/bold] https://github.com/kschlt/adr-kit")
+    console.print("\n📚 [bold]Learn more:[/bold] https://github.com/kschlt/adr-kit")
     console.print()
 
 
 # Keep only essential manual commands
 def _setup_cursor_impl() -> None:
     """Implementation for Cursor setup that can be called from commands or init."""
-    from pathlib import Path
     import json
+    from pathlib import Path
 
     console.print("🎯 Setting up ADR Kit for Cursor IDE")
 
     # Detect the correct adr-kit command path
-    import shutil
     import os
+    import shutil
 
     adr_kit_command = shutil.which("adr-kit")
     if not adr_kit_command:
@@ -599,7 +593,6 @@ def _setup_cursor_impl() -> None:
 
     # Test MCP server health
     console.print("\n🔍 Testing MCP server health...")
-    from .mcp.server import mcp
 
     console.print("✅ MCP server ready")
 
@@ -620,19 +613,19 @@ def setup_cursor() -> None:
         _setup_cursor_impl()
     except Exception as e:
         console.print(f"❌ Cursor setup failed: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 def _setup_claude_impl() -> None:
     """Implementation for Claude Code setup that can be called from commands or init."""
-    from pathlib import Path
     import json
+    from pathlib import Path
 
     console.print("🤖 Setting up ADR Kit for Claude Code")
 
     # Detect the correct adr-kit command path
-    import shutil
     import os
+    import shutil
 
     adr_kit_command = shutil.which("adr-kit")
     if not adr_kit_command:
@@ -675,7 +668,6 @@ def _setup_claude_impl() -> None:
 
     # Test MCP server health
     console.print("\n🔍 Testing MCP server health...")
-    from .mcp.server import mcp
 
     console.print("✅ MCP server ready")
 
@@ -694,7 +686,7 @@ def setup_claude() -> None:
         _setup_claude_impl()
     except Exception as e:
         console.print(f"❌ Claude Code setup failed: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -741,23 +733,23 @@ def contract_build(
                 console.print(f"   🐍 Python disallow: {counts['python_disallow']}")
 
         if verbose and contract.metadata.source_adrs:
-            console.print(f"\n📋 Source ADRs:")
+            console.print("\n📋 Source ADRs:")
             for adr_id in contract.metadata.source_adrs:
                 console.print(f"   • {adr_id}")
 
         if verbose and contract.provenance:
-            console.print(f"\n🔍 Policy Provenance:")
+            console.print("\n🔍 Policy Provenance:")
             for rule_path, prov in contract.provenance.items():
                 console.print(f"   • {rule_path} ← {prov.adr_id}")
 
         console.print(
-            f"\n💡 Next: Use [cyan]adr-kit export-lint[/cyan] to apply as enforcement rules"
+            "\n💡 Next: Use [cyan]adr-kit export-lint[/cyan] to apply as enforcement rules"
         )
         sys.exit(0)
 
     except Exception as e:
         console.print(f"❌ Failed to build contract: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -782,26 +774,26 @@ def contract_status(
             console.print(f"   🔢 Total constraints: {summary['total_constraints']}")
 
             if summary.get("source_adrs"):
-                console.print(f"\n📋 Source ADRs:")
+                console.print("\n📋 Source ADRs:")
                 for adr_id in summary["source_adrs"]:
                     console.print(f"   • {adr_id}")
 
             cache_info = summary.get("cache_info", {})
             if cache_info.get("cached"):
-                console.print(f"\n💾 Cache Status:")
+                console.print("\n💾 Cache Status:")
                 console.print(f"   ✅ Cached: {cache_info['cached']}")
                 if cache_info.get("cached_at"):
                     console.print(f"   📅 Cached at: {cache_info['cached_at']}")
         else:
             console.print("❌ No constraints contract found")
             console.print(f"   📁 Expected at: {contract_path}")
-            console.print(f"   💡 Run [cyan]adr-kit contract-build[/cyan] to create")
+            console.print("   💡 Run [cyan]adr-kit contract-build[/cyan] to create")
 
         sys.exit(0)
 
     except Exception as e:
         console.print(f"❌ Failed to get contract status: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -858,7 +850,7 @@ def preflight(
         console.print(f"\n💭 Reasoning: {result.reasoning}")
 
         if verbose:
-            console.print(f"\n📊 Details:")
+            console.print("\n📊 Details:")
             console.print(f"   Choice type: {result.choice.choice_type.value}")
             console.print(f"   Category: {result.metadata.get('category')}")
             console.print(
@@ -868,13 +860,13 @@ def preflight(
                 f"   Evaluated at: {result.evaluated_at.strftime('%Y-%m-%d %H:%M:%S')}"
             )
 
-        console.print(f"\n🚀 Agent Guidance:")
+        console.print("\n🚀 Agent Guidance:")
         console.print(f"   {result.get_agent_guidance()}")
 
         # Get recommendations
         recommendations = gate.get_recommendations_for_choice(choice_name)
         if recommendations.get("alternatives"):
-            console.print(f"\n💡 Recommended alternatives:")
+            console.print("\n💡 Recommended alternatives:")
             for alt in recommendations["alternatives"]:
                 console.print(f"   • {alt['name']}: {alt['reason']}")
 
@@ -888,7 +880,7 @@ def preflight(
 
     except Exception as e:
         console.print(f"❌ Preflight evaluation failed: {e}")
-        raise typer.Exit(code=3)
+        raise typer.Exit(code=3) from e
 
 
 @app.command()
@@ -910,18 +902,18 @@ def gate_status(
         console.print(f"   ✅ Gate Ready: {status['gate_ready']}")
 
         config = status["config"]
-        console.print(f"\n⚙️ Configuration:")
+        console.print("\n⚙️ Configuration:")
         console.print(f"   📄 Config file: {config['config_file']}")
         console.print(f"   ✅ Config exists: {config['config_exists']}")
 
-        console.print(f"\n🎯 Default Policies:")
+        console.print("\n🎯 Default Policies:")
         policies = config["default_policies"]
         console.print(f"   Dependencies: [cyan]{policies['dependency']}[/cyan]")
         console.print(f"   Frameworks: [cyan]{policies['framework']}[/cyan]")
         console.print(f"   Tools: [cyan]{policies['tool']}[/cyan]")
 
         if verbose:
-            console.print(f"\n📋 Lists:")
+            console.print("\n📋 Lists:")
             console.print(f"   Always allow: {len(config['always_allow'])} items")
             if config["always_allow"]:
                 for item in config["always_allow"][:5]:  # Show first 5
@@ -940,17 +932,17 @@ def gate_status(
             console.print(f"   Categories: {config['categories']} defined")
             console.print(f"   Name mappings: {config['name_mappings']} defined")
 
-        console.print(f"\n💡 Usage:")
+        console.print("\n💡 Usage:")
         console.print(
-            f'   Test choices: [cyan]adr-kit preflight <choice> --context "reason"[/cyan]'
+            '   Test choices: [cyan]adr-kit preflight <choice> --context "reason"[/cyan]'
         )
-        console.print(f"   For agents: Use [cyan]adr_preflight()[/cyan] MCP tool")
+        console.print("   For agents: Use [cyan]adr_preflight()[/cyan] MCP tool")
 
         sys.exit(0)
 
     except Exception as e:
         console.print(f"❌ Failed to get gate status: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -995,7 +987,7 @@ def guardrail_apply(
 
     except Exception as e:
         console.print(f"❌ Failed to apply guardrails: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -1032,12 +1024,12 @@ def guardrail_status(
             )
 
         console.print(
-            f"\n💡 Use [cyan]adr-kit guardrail-apply[/cyan] to sync configurations"
+            "\n💡 Use [cyan]adr-kit guardrail-apply[/cyan] to sync configurations"
         )
 
     except Exception as e:
         console.print(f"❌ Failed to get guardrail status: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -1052,11 +1044,11 @@ def legacy() -> None:
     console.print("• [cyan]adr-kit mcp-server[/cyan] - Start MCP server for AI agents")
     console.print("• [cyan]adr-kit info[/cyan] - Show available MCP tools")
 
-    console.print(f"\nMinimal CLI commands still available:")
+    console.print("\nMinimal CLI commands still available:")
     console.print("• [dim]adr-kit init[/dim] - Initialize ADR structure")
     console.print("• [dim]adr-kit validate[/dim] - Validate existing ADRs")
 
-    console.print(f"\n💡 Use MCP tools for rich, contextual ADR management!")
+    console.print("\n💡 Use MCP tools for rich, contextual ADR management!")
     console.print()
 
 

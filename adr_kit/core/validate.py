@@ -10,15 +10,15 @@ Design decisions:
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Union
+from typing import Any
 
 import jsonschema
 from jsonschema.exceptions import ValidationError as JsonSchemaError
 
-from .model import ADR, ADRStatus
-from .parse import parse_adr_file, ParseError, find_adr_files
-from .policy_extractor import PolicyExtractor
 from .immutability import ImmutabilityManager
+from .model import ADR, ADRStatus
+from .parse import ParseError, find_adr_files, parse_adr_file
+from .policy_extractor import PolicyExtractor
 
 
 @dataclass
@@ -27,9 +27,9 @@ class ValidationIssue:
 
     level: str  # 'error' or 'warning'
     message: str
-    field: Optional[str] = None
-    rule: Optional[str] = None
-    file_path: Optional[Path] = None
+    field: str | None = None
+    rule: str | None = None
+    file_path: Path | None = None
 
     def __str__(self) -> str:
         parts = [f"[{self.level.upper()}]"]
@@ -48,16 +48,16 @@ class ValidationResult:
     """Result of ADR validation."""
 
     is_valid: bool
-    issues: List[ValidationIssue]
-    adr: Optional[ADR] = None
+    issues: list[ValidationIssue]
+    adr: ADR | None = None
 
     @property
-    def errors(self) -> List[ValidationIssue]:
+    def errors(self) -> list[ValidationIssue]:
         """Get only error-level issues."""
         return [issue for issue in self.issues if issue.level == "error"]
 
     @property
-    def warnings(self) -> List[ValidationIssue]:
+    def warnings(self) -> list[ValidationIssue]:
         """Get only warning-level issues."""
         return [issue for issue in self.issues if issue.level == "warning"]
 
@@ -70,7 +70,7 @@ class ADRValidator:
     """ADR validator with JSON Schema and semantic rule support."""
 
     def __init__(
-        self, schema_path: Optional[Path] = None, project_root: Optional[Path] = None
+        self, schema_path: Path | None = None, project_root: Path | None = None
     ):
         """Initialize validator with JSON schema and immutability manager.
 
@@ -91,20 +91,58 @@ class ADRValidator:
         project_root = current_dir.parent.parent
         return project_root / "schemas" / "adr.schema.json"
 
-    def _load_schema(self) -> Dict[str, Any]:
+    def _load_schema(self) -> dict[str, Any]:
         """Load and parse the JSON schema."""
         if not self.schema_path.exists():
             raise ValueError(f"Schema file not found: {self.schema_path}")
 
         try:
-            with open(self.schema_path, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            raise ValueError(f"Cannot load schema from {self.schema_path}: {e}")
+            with open(self.schema_path) as f:
+                schema = json.load(f)
+                if not isinstance(schema, dict):
+                    raise ValueError(f"Schema must be a JSON object, got {type(schema)}")
+                return schema
+        except (OSError, json.JSONDecodeError) as e:
+            raise ValueError(f"Cannot load schema from {self.schema_path}: {e}") from e
+
+    def _convert_for_schema_validation(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Convert Pydantic model data to JSON Schema compatible format.
+        
+        This handles the mismatch where Pydantic models use Python types (like datetime.date)
+        but JSON Schema validation expects JSON-compatible types (like strings).
+        
+        Args:
+            data: Dictionary from Pydantic model
+            
+        Returns:
+            Schema-compatible dictionary with converted types
+        """
+        from datetime import date
+        
+        converted = {}
+        for key, value in data.items():
+            if isinstance(value, date):
+                # Convert datetime.date to ISO format string
+                converted[key] = value.isoformat()
+            elif isinstance(value, dict):
+                # Recursively handle nested dictionaries  
+                converted[key] = self._convert_for_schema_validation(value)
+            elif isinstance(value, list) and value:
+                # Handle lists that might contain dates
+                converted[key] = [
+                    item.isoformat() if isinstance(item, date) 
+                    else self._convert_for_schema_validation(item) if isinstance(item, dict)
+                    else item
+                    for item in value
+                ]
+            else:
+                # Keep other types as-is
+                converted[key] = value
+        return converted
 
     def validate_schema(
-        self, front_matter: Dict[str, Any], file_path: Optional[Path] = None
-    ) -> List[ValidationIssue]:
+        self, front_matter: dict[str, Any], file_path: Path | None = None
+    ) -> list[ValidationIssue]:
         """Validate front-matter against JSON schema.
 
         Args:
@@ -117,7 +155,11 @@ class ADRValidator:
         issues = []
 
         try:
-            self.validator.validate(front_matter)
+            # Convert datetime.date objects back to strings for JSON Schema validation
+            # This handles the mismatch between Pydantic model (uses datetime.date) 
+            # and JSON Schema (expects string)
+            schema_compatible_data = self._convert_for_schema_validation(front_matter)
+            self.validator.validate(schema_compatible_data)
         except JsonSchemaError as e:
             # Convert jsonschema errors to our issue format
             field_path = (
@@ -135,7 +177,7 @@ class ADRValidator:
 
         return issues
 
-    def validate_semantic_rules(self, adr: ADR) -> List[ValidationIssue]:
+    def validate_semantic_rules(self, adr: ADR) -> list[ValidationIssue]:
         """Apply semantic validation rules to an ADR.
 
         Args:
@@ -208,7 +250,7 @@ class ADRValidator:
 
         return issues
 
-    def validate_policy_requirements(self, adr: ADR) -> List[ValidationIssue]:
+    def validate_policy_requirements(self, adr: ADR) -> list[ValidationIssue]:
         """Validate policy requirements for ADRs.
 
         V3 spec requirements:
@@ -256,9 +298,9 @@ class ADRValidator:
 
         return issues
 
-    def _validate_policy_structure(self, adr: ADR) -> List[ValidationIssue]:
+    def _validate_policy_structure(self, adr: ADR) -> list[ValidationIssue]:
         """Validate the structure of the policy block."""
-        issues = []
+        issues: list[ValidationIssue] = []
         policy = adr.front_matter.policy
 
         if not policy:
@@ -288,7 +330,7 @@ class ADRValidator:
 
         return issues
 
-    def validate_immutability_requirements(self, adr: ADR) -> List[ValidationIssue]:
+    def validate_immutability_requirements(self, adr: ADR) -> list[ValidationIssue]:
         """Validate ADR immutability requirements (V3 feature).
 
         Args:
@@ -374,7 +416,7 @@ class ADRValidator:
 
         return ValidationResult(is_valid=not has_errors, issues=issues, adr=adr)
 
-    def validate_file(self, file_path: Union[Path, str]) -> ValidationResult:
+    def validate_file(self, file_path: Path | str) -> ValidationResult:
         """Validate an ADR file.
 
         Args:
@@ -400,8 +442,8 @@ class ADRValidator:
             )
 
     def validate_directory(
-        self, directory: Union[Path, str] = "docs/adr"
-    ) -> List[ValidationResult]:
+        self, directory: Path | str = "docs/adr"
+    ) -> list[ValidationResult]:
         """Validate all ADR files in a directory.
 
         Args:
@@ -423,7 +465,7 @@ class ADRValidator:
 
 
 def validate_adr(
-    adr: ADR, schema_path: Optional[Path] = None, project_root: Optional[Path] = None
+    adr: ADR, schema_path: Path | None = None, project_root: Path | None = None
 ) -> ValidationResult:
     """Validate a single ADR object.
 
@@ -440,9 +482,9 @@ def validate_adr(
 
 
 def validate_adr_file(
-    file_path: Union[Path, str],
-    schema_path: Optional[Path] = None,
-    project_root: Optional[Path] = None,
+    file_path: Path | str,
+    schema_path: Path | None = None,
+    project_root: Path | None = None,
 ) -> ValidationResult:
     """Validate an ADR file.
 
@@ -468,8 +510,8 @@ def validate_adr_file(
 
 
 def validate_adr_directory(
-    directory: Union[Path, str] = "docs/adr", schema_path: Optional[Path] = None
-) -> List[ValidationResult]:
+    directory: Path | str = "docs/adr", schema_path: Path | None = None
+) -> list[ValidationResult]:
     """Validate all ADR files in a directory.
 
     Args:

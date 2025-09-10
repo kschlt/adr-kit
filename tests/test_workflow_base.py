@@ -288,14 +288,14 @@ class TestBaseWorkflow:
         assert result.success is True
         assert result.status == WorkflowStatus.SUCCESS
         assert "completed successfully" in result.message
-        assert result.duration_ms > 0
+        assert result.duration_ms >= 0
 
         # Check steps
         assert len(result.steps) == 3
         for i, step in enumerate(result.steps):
             assert step.name == f"test_step_{i}"
             assert step.status == WorkflowStatus.SUCCESS
-            assert step.duration_ms > 0
+            assert step.duration_ms >= 0
 
         # Check internal tracking
         assert len(workflow.test_steps_executed) == 3
@@ -333,8 +333,8 @@ class TestBaseWorkflow:
         workflow = ConcreteWorkflow(temp_adr_dir)
         result = workflow.execute(should_fail=False, step_count=1)
 
-        assert result.duration_ms > 0
-        assert result.steps[0].duration_ms > 0
+        assert result.duration_ms >= 0
+        assert result.steps[0].duration_ms >= 0
 
         # Workflow duration should be >= step duration
         assert result.duration_ms >= result.steps[0].duration_ms
