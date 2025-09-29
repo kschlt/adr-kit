@@ -66,14 +66,15 @@ coverage.xml
 dmypy.json
 
 # ADR Kit specific
+.adr-kit/
 .project-index/
 .log4brains/
-CLAUDE.md
 PHASE5_SUMMARY.md
 PROJECT_STATUS_REPORT.md
-
-# Python virtual environments
-.venv-3.11/
+.agent/
+# Generated ADR indexes (for this project - other projects should commit these)
+docs/adr/adr-index.json
+docs/adr/*.backup
 
 # IDE integration files
 .claude/
@@ -103,7 +104,6 @@ Thumbs.db
 *.orig
 *.bak
 *.tmp
-.coverage.*
 htmlcov/
 
 # Log files

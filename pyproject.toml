@@ -55,6 +55,7 @@ Repository = "https://github.com/your-org/adr-kit"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["adr_kit*"]
+exclude = ["tests*", "scripts*", ".agent*"]
 
 [tool.black]
 line-length = 88

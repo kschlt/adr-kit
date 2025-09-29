@@ -302,6 +302,20 @@ adr-kit export-lint eslint --out .eslintrc.adrs.json
       language: system
 ```
 
+## Development
+
+For development on ADR Kit itself:
+
+```bash
+# Development commands
+make dev-setup     # Set up development environment
+make reinstall     # Clean uninstall + fresh install (for testing changes)
+make test          # Run test suite
+make quality       # Format + lint + test
+```
+
+See `scripts/` directory for additional development tools.
+
 ## Learn More
 
 - **MADR Format**: [Markdown ADR specification](https://adr.github.io/madr/)
