@@ -81,6 +81,9 @@ clean_artifacts() {
     rm -f .coverage .coverage.* 2>/dev/null || true
     [ -d "htmlcov" ] && rm -rf htmlcov/
 
+    # Clean temporary development files
+    [ -d ".agent/temporary" ] && rm -rf .agent/temporary/* 2>/dev/null || true
+
     echo "✅ Cleanup complete"
 }
 
