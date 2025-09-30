@@ -62,41 +62,56 @@ class PlanningWorkflow(BaseWorkflow):
         if not input_data or not isinstance(input_data, PlanningInput):
             raise ValueError("input_data must be provided as PlanningInput instance")
 
+        self._start_workflow("Planning Context")
+
         try:
             # Step 1: Analyze task to extract key concepts
-            task_analysis = self._analyze_task_description(input_data)
+            task_analysis = self._execute_step(
+                "analyze_task_description", self._analyze_task_description, input_data
+            )
 
             # Step 2: Load constraints contract
-            contract = self._load_constraints_contract()
+            contract = self._execute_step(
+                "load_constraints_contract", self._load_constraints_contract
+            )
 
             # Step 3: Find relevant ADRs
-            relevant_adrs = self._find_relevant_adrs(task_analysis, contract)
+            relevant_adrs = self._execute_step(
+                "find_relevant_adrs", self._find_relevant_adrs, task_analysis, contract
+            )
 
             # Step 4: Extract applicable constraints
-            applicable_constraints = self._extract_applicable_constraints(
+            applicable_constraints = self._execute_step(
+                "extract_applicable_constraints", self._extract_applicable_constraints,
                 task_analysis, contract
             )
 
             # Step 5: Generate technology recommendations
-            tech_recommendations = self._generate_technology_recommendations(
+            tech_recommendations = self._execute_step(
+                "generate_technology_recommendations", self._generate_technology_recommendations,
                 task_analysis, relevant_adrs, contract
             )
 
             # Step 6: Create guidance prompts
-            guidance_prompts = self._generate_guidance_prompts(
+            guidance_prompts = self._execute_step(
+                "generate_guidance_prompts", self._generate_guidance_prompts,
                 task_analysis, relevant_adrs, input_data.context_type
             )
 
             # Step 7: Build compliance checklist
-            compliance_checklist = self._build_compliance_checklist(
+            compliance_checklist = self._execute_step(
+                "build_compliance_checklist", self._build_compliance_checklist,
                 task_analysis, applicable_constraints
             )
 
             # Step 8: Extract architecture patterns
-            architecture_patterns = self._extract_architecture_patterns(relevant_adrs)
+            architecture_patterns = self._execute_step(
+                "extract_architecture_patterns", self._extract_architecture_patterns, relevant_adrs
+            )
 
             # Step 9: Identify related decisions
-            related_decisions = self._identify_related_decisions(
+            related_decisions = self._execute_step(
+                "identify_related_decisions", self._identify_related_decisions,
                 task_analysis, relevant_adrs
             )
 
@@ -110,21 +125,26 @@ class PlanningWorkflow(BaseWorkflow):
                 related_decisions=related_decisions,
             )
 
-            return WorkflowResult(
+            self._complete_workflow(
                 success=True,
-                status=WorkflowStatus.SUCCESS,
                 message=f"Planning context generated for {input_data.context_type} task",
-                data={"architectural_context": context, "task_analysis": task_analysis},
             )
+            self.result.data = {"architectural_context": context, "task_analysis": task_analysis}
+            self.result.guidance = f"Architectural context generated for {input_data.context_type} task"
+            self.result.next_steps = [
+                "Use architectural context to guide implementation decisions",
+                "Review relevant ADRs before making technology choices",
+                "Validate implementation against compliance checklist"
+            ]
 
         except Exception as e:
-            result = WorkflowResult(
+            self._complete_workflow(
                 success=False,
-                status=WorkflowStatus.FAILED,
                 message=f"Planning workflow failed: {str(e)}",
             )
-            result.add_error(f"PlanningError: {str(e)}")
-            return result
+            self.result.add_error(f"PlanningError: {str(e)}")
+
+        return self.result
 
     def _analyze_task_description(self, input_data: PlanningInput) -> dict[str, Any]:
         """Analyze task description to extract key concepts and domains."""

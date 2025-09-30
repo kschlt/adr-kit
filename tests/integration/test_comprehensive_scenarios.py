@@ -392,7 +392,7 @@ Decision {i+1}
 ## Consequences
 Consequences for decision {i+1}
 """
-            adr_file = Path(temp_adr_dir) / f"adr-{i+1:04d}-decision-{i+1}.md"
+            adr_file = Path(temp_adr_dir) / f"ADR-{i+1:04d}-decision-{i+1}.md"
             adr_file.write_text(adr_content)
 
         import time

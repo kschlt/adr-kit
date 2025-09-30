@@ -43,6 +43,11 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
                 "validate_inputs", self._validate_inputs, project_path
             )
 
+            # Step 1.5: Validate ADR directory (but allow creation if needed)
+            self._execute_step(
+                "validate_adr_directory", self._validate_adr_directory_for_analysis
+            )
+
             # Step 2: Scan project structure
             project_structure = self._execute_step(
                 "scan_project_structure", self._scan_project_structure, project_root
@@ -82,6 +87,7 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
                         if existing_adr_info["adr_directory"]
                         else None
                     ),
+                    "files": existing_adr_info["adr_files"],
                 },
                 "suggested_focus": analysis_prompt["suggested_focus"],
             }
@@ -127,7 +133,8 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
                 status=WorkflowStatus.SUCCESS,
             )
 
-        except WorkflowError:
+        except WorkflowError as e:
+            self.result.add_error(str(e))
             self._complete_workflow(
                 success=False,
                 message="Project analysis failed",
@@ -157,6 +164,28 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
             raise WorkflowError(f"Project path is not a directory: {project_root}")
 
         return project_root
+
+    def _validate_adr_directory_for_analysis(self) -> None:
+        """Validate ADR directory for analysis workflow."""
+        # For analysis, we need the parent directory to exist so we can potentially create ADR directory
+        parent_dir = self.adr_dir.parent
+        if not parent_dir.exists():
+            raise WorkflowError(f"ADR parent directory does not exist: {parent_dir}")
+
+        # If ADR directory exists, it must be a directory and writable
+        if self.adr_dir.exists():
+            if not self.adr_dir.is_dir():
+                raise WorkflowError(f"ADR path is not a directory: {self.adr_dir}")
+
+            # Check if we can write to the directory
+            try:
+                test_file = self.adr_dir / ".adr_kit_test"
+                test_file.touch()
+                test_file.unlink()
+            except Exception as e:
+                raise WorkflowError(
+                    f"Cannot write to ADR directory: {self.adr_dir} - {e}"
+                ) from e
 
     def _scan_project_structure(self, project_root: Path) -> dict[str, Any]:
         """Scan project structure to understand layout and files."""
@@ -384,7 +413,7 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
     def _check_existing_adrs(self, project_root: Path) -> dict[str, Any]:
         """Check if project already has ADRs set up."""
 
-        # Common ADR directory locations
+        # Common ADR directory locations (relative to project root)
         possible_adr_dirs = [
             project_root / "docs" / "adr",
             project_root / "docs" / "adrs",
@@ -394,6 +423,10 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
             project_root / "decisions",
             project_root / "architecture" / "decisions",
         ]
+
+        # Also check the configured ADR directory
+        if self.adr_dir not in possible_adr_dirs:
+            possible_adr_dirs.append(self.adr_dir)
 
         existing_adr_info: dict[str, Any] = {"adr_directory": None, "adr_count": 0, "adr_files": []}
 

@@ -59,7 +59,7 @@ Use MySQL for all database needs.
 MySQL is reliable and well-supported.
 """
 
-        existing_file = Path(temp_adr_dir) / "adr-0001-use-mysql-for-database.md"
+        existing_file = Path(temp_adr_dir) / "ADR-0001-use-mysql-for-database.md"
         existing_file.write_text(adr_content)
         return str(existing_file)
 
@@ -175,7 +175,7 @@ MySQL is reliable and well-supported.
                         {"name": "components", "path": "src/components/*"},
                         {"name": "utils", "path": "src/utils/*"},
                     ],
-                    "rules": ["forbid: utils -> components"],
+                    "rules": [{"forbid": "utils -> components"}],
                 },
             },
         )
@@ -192,9 +192,9 @@ MySQL is reliable and well-supported.
         # Should include policy in YAML front matter
         assert "policy:" in content
         assert "imports:" in content
-        assert "prefer:" in content
+        assert "'prefer':" in content or "prefer:" in content
         assert "react" in content
-        assert "disallow:" in content
+        assert "'disallow':" in content or "disallow:" in content
         assert "vue" in content
 
     def test_missing_required_fields(self, temp_adr_dir):

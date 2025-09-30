@@ -117,9 +117,9 @@ class TestMCPWorkflowIntegration:
         # Test request model
         request = CreateADRRequest(
             title="Use PostgreSQL for primary database",
-            context="We need a reliable database for user data",
-            decision="Use PostgreSQL as our primary database system",
-            consequences="Better data integrity, more complex setup",
+            context="We need a reliable database for user data storage and management. The current system lacks proper data persistence and we need to choose a robust solution that can scale with our growing user base.",
+            decision="Use PostgreSQL as our primary database system for all user data storage",
+            consequences="Better data integrity and ACID compliance, but more complex setup and infrastructure requirements",
             deciders=["backend-team"],
             tags=["database", "backend"],
             policy={

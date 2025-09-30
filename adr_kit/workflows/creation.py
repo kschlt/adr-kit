@@ -10,7 +10,7 @@ from ..contract.builder import ConstraintsContractBuilder
 from ..core.model import ADR, ADRFrontMatter, ADRStatus, PolicyModel
 from ..core.parse import find_adr_files, parse_adr_file
 from ..core.validate import validate_adr
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
+from .base import BaseWorkflow, WorkflowResult, WorkflowStatus, WorkflowError
 
 
 @dataclass
@@ -65,32 +65,42 @@ class CreationWorkflow(BaseWorkflow):
         if not input_data or not isinstance(input_data, CreationInput):
             raise ValueError("input_data must be provided as CreationInput instance")
 
+        self._start_workflow("Create ADR")
+
         try:
-            # Step 1: Generate ADR ID and validate input
-            adr_id = self._generate_adr_id()
-            self._validate_creation_input(input_data)
+            # Step 1: Generate ADR ID
+            adr_id = self._execute_step(
+                "generate_adr_id", self._generate_adr_id
+            )
 
-            # Step 2: Query related ADRs
-            related_adrs = self._find_related_adrs(input_data)
+            # Step 2: Validate input
+            self._execute_step(
+                "validate_input", self._validate_creation_input, input_data
+            )
 
-            # Step 3: Detect conflicts
-            conflicts = self._detect_conflicts(input_data, related_adrs)
+            # Step 3: Check conflicts
+            related_adrs = self._execute_step(
+                "find_related_adrs", self._find_related_adrs, input_data
+            )
+            conflicts = self._execute_step(
+                "check_conflicts", self._detect_conflicts, input_data, related_adrs
+            )
 
-            # Step 4: Build ADR structure
-            adr = self._build_adr_structure(adr_id, input_data)
+            # Step 4: Create ADR content
+            adr = self._execute_step(
+                "create_adr_content", self._build_adr_structure, adr_id, input_data
+            )
 
-            # Step 5: Validate ADR
+            # Step 5: Write ADR file
+            file_path = self._execute_step(
+                "write_adr_file", self._generate_adr_file, adr
+            )
+
+            # Additional processing
             validation_result = self._validate_adr_structure(adr)
-
-            # Step 6: Generate ADR file
-            file_path = self._generate_adr_file(adr)
-
-            # Step 7: Determine review requirements
             review_required = self._determine_review_requirements(
                 adr, conflicts, validation_result
             )
-
-            # Step 8: Generate guidance
             next_steps = self._generate_next_steps_guidance(
                 adr_id, conflicts, review_required
             )
@@ -105,21 +115,39 @@ class CreationWorkflow(BaseWorkflow):
                 review_required=review_required,
             )
 
-            return WorkflowResult(
+            self._complete_workflow(
                 success=True,
-                status=WorkflowStatus.SUCCESS,
-                message=f"ADR {adr_id} created successfully",
-                data={"creation_result": result},
+                message=f"ADR {adr_id} created successfully"
             )
+            self.result.data = {"creation_result": result}
+            self.result.guidance = next_steps
+            self.result.next_steps = self._generate_next_steps_list(
+                adr_id, conflicts, review_required
+            )
+            return self.result
 
+        except WorkflowError as e:
+            # Check if this was a validation error
+            if "must be at least" in str(e) or "validation" in str(e).lower():
+                self._complete_workflow(
+                    success=False,
+                    message=f"ADR creation failed: {str(e)}",
+                    status=WorkflowStatus.VALIDATION_ERROR
+                )
+            else:
+                self._complete_workflow(
+                    success=False,
+                    message=f"ADR creation failed: {str(e)}"
+                )
+            self.result.errors = [f"CreationError: {str(e)}"]
+            return self.result
         except Exception as e:
-            result = WorkflowResult(
+            self._complete_workflow(
                 success=False,
-                status=WorkflowStatus.FAILED,
-                message=f"ADR creation failed: {str(e)}",
-                errors=[f"CreationError: {str(e)}"]
+                message=f"ADR creation failed: {str(e)}"
             )
-            return result
+            self.result.errors = [f"CreationError: {str(e)}"]
+            return self.result
 
     def _generate_adr_id(self) -> str:
         """Generate next available ADR ID."""
@@ -144,17 +172,17 @@ class CreationWorkflow(BaseWorkflow):
 
     def _validate_creation_input(self, input_data: CreationInput) -> None:
         """Validate the input data for ADR creation."""
-        if not input_data.title or len(input_data.title.strip()) < 10:
-            raise ValueError("Title must be at least 10 characters")
+        if not input_data.title or len(input_data.title.strip()) < 3:
+            raise ValueError("Title must be at least 3 characters")
 
-        if not input_data.context or len(input_data.context.strip()) < 50:
-            raise ValueError("Context must be at least 50 characters")
+        if not input_data.context or len(input_data.context.strip()) < 10:
+            raise ValueError("Context must be at least 10 characters")
 
-        if not input_data.decision or len(input_data.decision.strip()) < 20:
-            raise ValueError("Decision must be at least 20 characters")
+        if not input_data.decision or len(input_data.decision.strip()) < 5:
+            raise ValueError("Decision must be at least 5 characters")
 
-        if not input_data.consequences or len(input_data.consequences.strip()) < 30:
-            raise ValueError("Consequences must be at least 30 characters")
+        if not input_data.consequences or len(input_data.consequences.strip()) < 5:
+            raise ValueError("Consequences must be at least 5 characters")
 
         if input_data.status and input_data.status not in [
             "proposed",
@@ -443,7 +471,10 @@ class CreationWorkflow(BaseWorkflow):
 
     def _generate_adr_file(self, adr: ADR) -> str:
         """Generate the ADR file."""
-        file_path = Path(self.adr_dir) / f"{adr.id}.md"
+        # Create filename with slugified title
+        title_slug = re.sub(r'[^\w\s-]', '', adr.title.lower())
+        title_slug = re.sub(r'[\s_-]+', '-', title_slug).strip('-')
+        file_path = Path(self.adr_dir) / f"{adr.id}-{title_slug}.md"
 
         # Ensure directory exists
         Path(self.adr_dir).mkdir(parents=True, exist_ok=True)
@@ -571,3 +602,28 @@ class CreationWorkflow(BaseWorkflow):
             f"✅ {adr_id} is ready for approval. "
             f"Use adr_approve('{adr_id}') to activate this decision and trigger policy enforcement."
         )
+
+    def _generate_next_steps_list(
+        self, adr_id: str, conflicts: list[dict[str, Any]], review_required: bool
+    ) -> list[str]:
+        """Generate next steps as a list for the agent."""
+
+        if conflicts:
+            conflict_ids = [c["adr_id"] for c in conflicts]
+            return [
+                f"Review conflicts with {', '.join(conflict_ids)}",
+                f"Consider using adr_supersede() if {adr_id} should replace existing decisions",
+                "Revise the proposal to avoid conflicts if superseding is not appropriate"
+            ]
+
+        if review_required:
+            return [
+                f"Have a human review {adr_id} due to architectural significance",
+                f"Use adr_approve('{adr_id}') after review to activate the decision"
+            ]
+
+        return [
+            f"Review the created ADR {adr_id}",
+            f"Use adr_approve('{adr_id}') to activate this decision",
+            "Trigger policy enforcement for the decision"
+        ]

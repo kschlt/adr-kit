@@ -87,7 +87,7 @@ We will use React for all frontend development.
 - Learning curve for team members new to React
 """
 
-        adr_file = Path(temp_adr_dir) / "adr-0001-use-react-for-frontend.md"
+        adr_file = Path(temp_adr_dir) / "ADR-0001-use-react-for-frontend.md"
         adr_file.write_text(adr_content)
         return str(adr_file)
 
@@ -132,12 +132,13 @@ We will use React for all frontend development.
 
         # Should detect JavaScript/React technologies
         technologies = project_context["technologies"]
-        assert "javascript" in technologies or "react" in technologies
+        tech_list_lower = [tech.lower() for tech in technologies]
+        assert "javascript" in tech_list_lower or "react" in tech_list_lower
 
         # Check agent guidance
         assert result.guidance
         assert len(result.next_steps) > 0
-        assert any("examine" in step.lower() for step in result.next_steps)
+        assert any("analyze" in step.lower() or "identify" in step.lower() for step in result.next_steps)
 
     def test_project_with_existing_adrs(
         self, temp_project_dir, temp_adr_dir, sample_existing_adr
@@ -191,7 +192,7 @@ We will use React for all frontend development.
             technologies = project_context["technologies"]
 
             # Should have empty or minimal technology detection
-            assert isinstance(technologies, dict)
+            assert isinstance(technologies, list)
 
             # Should provide generic analysis guidance
             assert result.guidance

@@ -167,22 +167,28 @@ id: ADR-0001
 title: Valid ADR
 status: accepted
 date: 2025-09-03
+policy:
+  imports:
+    prefer: ["valid-library"]
 ---
 
 # Decision
 
-Valid decision."""
+Valid decision with extractable policy implications."""
 
             adr2 = """---
 id: ADR-0002
 title: Another ADR
 status: accepted
 date: 2025-09-03
+policy:
+  imports:
+    prefer: ["another-library"]
 ---
 
 # Decision
 
-Another decision."""
+Another decision with clear policy directives."""
 
             (adr_dir / "ADR-0001-valid.md").write_text(adr1)
             (adr_dir / "ADR-0002-another.md").write_text(adr2)

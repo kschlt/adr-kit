@@ -56,31 +56,42 @@ class PreflightWorkflow(BaseWorkflow):
         if not input_data or not isinstance(input_data, PreflightInput):
             raise ValueError("input_data must be provided as PreflightInput instance")
 
+        self._start_workflow("Preflight Check")
+
         try:
             # Step 1: Load constraints contract
-            contract = self._load_constraints_contract()
+            contract = self._execute_step(
+                "load_constraints_contract", self._load_constraints_contract
+            )
 
             # Step 2: Categorize and normalize choice
-            categorized_choice = self._categorize_choice(input_data)
+            categorized_choice = self._execute_step(
+                "categorize_choice", self._categorize_choice, input_data
+            )
 
             # Step 3: Check against policy gates
-            gate_result = self._check_policy_gates(categorized_choice, contract)
+            gate_result = self._execute_step(
+                "check_policy_gates", self._check_policy_gates, categorized_choice, contract
+            )
 
             # Step 4: Find related and conflicting ADRs
-            related_adrs = self._find_related_adrs(categorized_choice, contract)
-            conflicting_adrs = self._find_conflicting_adrs(categorized_choice, contract)
+            related_adrs = self._execute_step(
+                "find_related_adrs", self._find_related_adrs, categorized_choice, contract
+            )
+            conflicting_adrs = self._execute_step(
+                "find_conflicting_adrs", self._find_conflicting_adrs, categorized_choice, contract
+            )
 
             # Step 5: Evaluate decision
-            decision = self._make_preflight_decision(
-                categorized_choice,
-                gate_result,
-                related_adrs,
-                conflicting_adrs,
-                contract,
+            decision = self._execute_step(
+                "make_preflight_decision", self._make_preflight_decision,
+                categorized_choice, gate_result, related_adrs, conflicting_adrs, contract
             )
 
             # Step 6: Generate guidance
-            guidance = self._generate_agent_guidance(decision, input_data)
+            guidance = self._execute_step(
+                "generate_agent_guidance", self._generate_agent_guidance, decision, input_data
+            )
 
             result_data = {
                 "decision": decision,
@@ -93,21 +104,25 @@ class PreflightWorkflow(BaseWorkflow):
                 },
             }
 
-            return WorkflowResult(
+            self._complete_workflow(
                 success=True,
-                status=WorkflowStatus.SUCCESS,
                 message=f"Preflight check completed: {decision.status}",
-                data=result_data,
             )
+            self.result.data = result_data
+            self.result.guidance = guidance
+            self.result.next_steps = decision.next_steps.split(". ") if hasattr(decision, 'next_steps') and decision.next_steps else [
+                f"Technical choice {input_data.choice} evaluated: {decision.status}",
+                "Review preflight decision and proceed accordingly"
+            ]
 
         except Exception as e:
-            result = WorkflowResult(
+            self._complete_workflow(
                 success=False,
-                status=WorkflowStatus.FAILED,
                 message=f"Preflight workflow failed: {str(e)}",
             )
-            result.add_error(f"PreflightError: {str(e)}")
-            return result
+            self.result.add_error(f"PreflightError: {str(e)}")
+
+        return self.result
 
     def _load_constraints_contract(self) -> ConstraintsContract:
         """Load current constraints contract from approved ADRs."""

@@ -167,9 +167,13 @@ class BaseWorkflow(ABC):
     ) -> None:
         """Complete workflow execution."""
         if self._start_time:
-            self.result.duration_ms = int(
+            duration_ms = int(
                 (datetime.now() - self._start_time).total_seconds() * 1000
             )
+            self.result.duration_ms = self._ensure_minimum_duration(duration_ms)
+        else:
+            # Fallback: use a minimal duration if start time wasn't set
+            self.result.duration_ms = 1
 
         self.result.success = success
         self.result.message = message
@@ -180,6 +184,10 @@ class BaseWorkflow(ABC):
             self.result.status = (
                 WorkflowStatus.SUCCESS if success else WorkflowStatus.FAILED
             )
+
+    def _ensure_minimum_duration(self, duration_ms: int) -> int:
+        """Ensure duration is at least 1ms for consistent timing."""
+        return max(duration_ms, 1)
 
     def _execute_step(
         self, step_name: str, step_func: Any, *args: Any, **kwargs: Any
@@ -195,7 +203,8 @@ class BaseWorkflow(ABC):
 
             step.status = WorkflowStatus.SUCCESS
             step.message = f"{step_name} completed successfully"
-            step.duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            step.duration_ms = self._ensure_minimum_duration(duration_ms)
 
             self.result.add_step(step)
             return result
@@ -203,7 +212,8 @@ class BaseWorkflow(ABC):
         except Exception as e:
             step.status = WorkflowStatus.FAILED
             step.message = f"{step_name} failed: {str(e)}"
-            step.duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            step.duration_ms = self._ensure_minimum_duration(duration_ms)
             step.errors.append(str(e))
 
             self.result.add_step(step)

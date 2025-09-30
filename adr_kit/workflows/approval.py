@@ -70,52 +70,73 @@ class ApprovalWorkflow(BaseWorkflow):
         if not input_data or not isinstance(input_data, ApprovalInput):
             raise ValueError("input_data must be provided as ApprovalInput instance")
 
-        automation_results = {}
+        self._start_workflow("Approve ADR")
 
         try:
             # Step 1: Load and validate ADR
-            adr, file_path = self._load_adr_for_approval(input_data.adr_id)
-            self._validate_approval_preconditions(adr, input_data)
+            adr, file_path = self._execute_step(
+                "load_adr", self._load_adr_for_approval, input_data.adr_id
+            )
+            self._execute_step(
+                "validate_preconditions", self._validate_approval_preconditions, adr, input_data
+            )
 
             previous_status = adr.status
 
             # Step 2: Content integrity check
             if input_data.digest_check:
-                content_digest = self._calculate_content_digest(str(file_path))
-                # Store digest in ADR metadata for future tamper detection
+                content_digest = self._execute_step(
+                    "check_content_integrity", self._calculate_content_digest, str(file_path)
+                )
             else:
                 content_digest = "skipped"
 
             # Step 3: Update ADR status
-            updated_adr = self._update_adr_status(adr, str(file_path), input_data)
-            automation_results["status_update"] = {
-                "success": True,
-                "old_status": previous_status,
-                "new_status": "accepted",
-            }
+            updated_adr = self._execute_step(
+                "update_adr_status", self._update_adr_status, adr, str(file_path), input_data
+            )
 
             # Step 4: Rebuild constraints contract
-            contract_result = self._rebuild_constraints_contract()
-            automation_results["contract_rebuild"] = contract_result
+            contract_result = self._execute_step(
+                "rebuild_constraints_contract", self._rebuild_constraints_contract
+            )
 
             # Step 5: Apply guardrails
-            guardrail_result = self._apply_guardrails(updated_adr)
-            automation_results["guardrail_application"] = guardrail_result
+            guardrail_result = self._execute_step(
+                "apply_guardrails", self._apply_guardrails, updated_adr
+            )
 
             # Step 6: Generate enforcement rules
-            enforcement_result = self._generate_enforcement_rules(updated_adr)
-            automation_results["enforcement_generation"] = enforcement_result
+            enforcement_result = self._execute_step(
+                "generate_enforcement_rules", self._generate_enforcement_rules, updated_adr
+            )
 
             # Step 7: Update indexes
-            index_result = self._update_indexes()
-            automation_results["index_update"] = index_result
+            index_result = self._execute_step(
+                "update_indexes", self._update_indexes
+            )
 
             # Step 8: Validate codebase (optional, can be time-consuming)
-            validation_result = self._validate_codebase_compliance(updated_adr)
-            automation_results["codebase_validation"] = validation_result
+            validation_result = self._execute_step(
+                "validate_codebase_compliance", self._validate_codebase_compliance, updated_adr
+            )
 
             # Step 9: Generate approval report
-            approval_report = self._generate_approval_report(
+            automation_results = {
+                "status_update": {
+                    "success": True,
+                    "old_status": previous_status,
+                    "new_status": "accepted",
+                },
+                "contract_rebuild": contract_result,
+                "guardrail_application": guardrail_result,
+                "enforcement_generation": enforcement_result,
+                "index_update": index_result,
+                "codebase_validation": validation_result,
+            }
+
+            approval_report = self._execute_step(
+                "generate_approval_report", self._generate_approval_report,
                 updated_adr, automation_results, content_digest, input_data
             )
 
@@ -135,21 +156,26 @@ class ApprovalWorkflow(BaseWorkflow):
                 next_steps=approval_report.get("next_steps", ""),
             )
 
-            return WorkflowResult(
+            self._complete_workflow(
                 success=True,
-                status=WorkflowStatus.SUCCESS,
                 message=f"ADR {input_data.adr_id} approved and automation completed",
-                data={"approval_result": result, "full_report": approval_report},
             )
+            self.result.data = {"approval_result": result, "full_report": approval_report}
+            self.result.guidance = approval_report.get("guidance", "")
+            self.result.next_steps = approval_report.get("next_steps_list", [
+                f"ADR {input_data.adr_id} is now active",
+                "Review automation results for any issues",
+                "Monitor compliance with generated policy rules"
+            ])
 
         except Exception as e:
-            workflow_result = WorkflowResult(
+            self._complete_workflow(
                 success=False,
-                status=WorkflowStatus.FAILED,
                 message=f"Approval workflow failed: {str(e)}",
             )
-            workflow_result.add_error(f"ApprovalError: {str(e)}")
-            return workflow_result
+            self.result.add_error(f"ApprovalError: {str(e)}")
+
+        return self.result
 
     def _load_adr_for_approval(self, adr_id: str) -> tuple[ADR, Path]:
         """Load the ADR that needs to be approved."""

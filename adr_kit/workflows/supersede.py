@@ -62,41 +62,45 @@ class SupersedeWorkflow(BaseWorkflow):
         if not input_data or not isinstance(input_data, SupersedeInput):
             raise ValueError("input_data must be provided as SupersedeInput instance")
 
+        self._start_workflow("Supersede ADR")
+
         try:
             # Step 1: Validate superseding preconditions
-            old_adr, old_adr_file = self._validate_supersede_preconditions(
+            old_adr, old_adr_file = self._execute_step(
+                "validate_supersede_preconditions", self._validate_supersede_preconditions,
                 input_data.old_adr_id
             )
             old_status = old_adr.status
 
             # Step 2: Create new ADR proposal
-            creation_workflow = CreationWorkflow(adr_dir=self.adr_dir)
-            creation_result = creation_workflow.execute(
-                input_data=input_data.new_proposal
+            creation_result = self._execute_step(
+                "create_new_adr", self._create_new_adr, input_data.new_proposal
             )
-
-            if creation_result.status != WorkflowStatus.SUCCESS:
-                raise Exception(f"Failed to create new ADR: {creation_result.message}")
 
             new_adr_id = creation_result.data["creation_result"].adr_id
 
             # Step 3: Update old ADR to superseded status
-            self._update_old_adr_status(
+            self._execute_step(
+                "update_old_adr_status", self._update_old_adr_status,
                 old_adr, old_adr_file, new_adr_id, input_data.supersede_reason
             )
 
             # Step 4: Update new ADR with supersedes relationship
-            self._update_new_adr_relationships(new_adr_id, input_data.old_adr_id)
+            self._execute_step(
+                "update_new_adr_relationships", self._update_new_adr_relationships,
+                new_adr_id, input_data.old_adr_id
+            )
 
             # Step 5: Update related ADRs
-            updated_relationships = self._update_related_adr_relationships(
+            updated_relationships = self._execute_step(
+                "update_related_adr_relationships", self._update_related_adr_relationships,
                 input_data.old_adr_id, new_adr_id
             )
 
             # Step 6: Resolve conflicts
-            resolved_conflicts = self._resolve_conflicts_through_superseding(
-                input_data.old_adr_id,
-                creation_result.data["creation_result"].conflicts_detected,
+            resolved_conflicts = self._execute_step(
+                "resolve_conflicts", self._resolve_conflicts_through_superseding,
+                input_data.old_adr_id, creation_result.data["creation_result"].conflicts_detected
             )
 
             # Step 7: Optionally approve new ADR
@@ -104,16 +108,15 @@ class SupersedeWorkflow(BaseWorkflow):
             new_adr_status = "proposed"
 
             if input_data.auto_approve:
-                approval_workflow = ApprovalWorkflow(adr_dir=self.adr_dir)
-                approval_input = ApprovalInput(adr_id=new_adr_id, force_approve=True)
-                approval_result = approval_workflow.execute(input_data=approval_input)
-
-                if approval_result.status == WorkflowStatus.SUCCESS:
-                    automation_triggered = True
-                    new_adr_status = "accepted"
+                approval_result = self._execute_step(
+                    "auto_approve_new_adr", self._auto_approve_new_adr, new_adr_id
+                )
+                automation_triggered = approval_result.get("success", False)
+                new_adr_status = "accepted" if automation_triggered else "proposed"
 
             # Step 8: Generate guidance
-            next_steps = self._generate_supersede_guidance(
+            next_steps = self._execute_step(
+                "generate_supersede_guidance", self._generate_supersede_guidance,
                 new_adr_id, automation_triggered, resolved_conflicts
             )
 
@@ -128,21 +131,49 @@ class SupersedeWorkflow(BaseWorkflow):
                 next_steps=next_steps,
             )
 
-            return WorkflowResult(
+            self._complete_workflow(
                 success=True,
-                status=WorkflowStatus.SUCCESS,
                 message=f"ADR {input_data.old_adr_id} superseded by {new_adr_id}",
-                data={"supersede_result": result},
             )
+            self.result.data = {"supersede_result": result}
+            self.result.guidance = f"ADR {input_data.old_adr_id} has been superseded by {new_adr_id}"
+            self.result.next_steps = next_steps.split(". ") if isinstance(next_steps, str) else [
+                f"ADR {new_adr_id} has replaced {input_data.old_adr_id}",
+                "Review the new ADR and approve if ready",
+                "Update any dependent systems or documentation"
+            ]
 
         except Exception as e:
-            workflow_result = WorkflowResult(
+            self._complete_workflow(
                 success=False,
-                status=WorkflowStatus.FAILED,
                 message=f"Supersede workflow failed: {str(e)}",
             )
-            workflow_result.add_error(f"SupersedeError: {str(e)}")
-            return workflow_result
+            self.result.add_error(f"SupersedeError: {str(e)}")
+
+        return self.result
+
+    def _create_new_adr(self, new_proposal):
+        """Create new ADR using the creation workflow."""
+        creation_workflow = CreationWorkflow(adr_dir=self.adr_dir)
+        creation_result = creation_workflow.execute(input_data=new_proposal)
+
+        if creation_result.status != WorkflowStatus.SUCCESS:
+            raise Exception(f"Failed to create new ADR: {creation_result.message}")
+
+        return creation_result
+
+    def _auto_approve_new_adr(self, new_adr_id: str) -> dict:
+        """Auto-approve the new ADR if requested."""
+        from .approval import ApprovalWorkflow, ApprovalInput
+
+        approval_workflow = ApprovalWorkflow(adr_dir=self.adr_dir)
+        approval_input = ApprovalInput(adr_id=new_adr_id, force_approve=True)
+        approval_result = approval_workflow.execute(input_data=approval_input)
+
+        return {
+            "success": approval_result.status == WorkflowStatus.SUCCESS,
+            "result": approval_result
+        }
 
     def _validate_supersede_preconditions(self, old_adr_id: str) -> tuple[ADR, Path]:
         """Validate that the old ADR exists and can be superseded."""
