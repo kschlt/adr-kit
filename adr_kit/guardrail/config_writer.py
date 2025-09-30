@@ -7,10 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import tomli
-
-# Modern TOML handling - tomli/tomli_w are standard in Python 3.11+
-import tomli_w
+import toml
 
 from .models import (
     ApplicationStatus,
@@ -130,12 +127,12 @@ class ConfigWriter:
     ) -> str:
         """Apply fragments to TOML configuration files (Ruff, Mypy)."""
 
-        if tomli is None:
+        if toml is None:
             # TOML library not available, fall back to text mode
             return self._apply_text_fragments(content, fragments, target)
 
         try:
-            config = tomli.loads(content)
+            config = toml.loads(content)
         except (
             Exception
         ):  # Broad exception handling since different TOML libs have different exceptions
@@ -145,13 +142,13 @@ class ConfigWriter:
         # Merge fragment content into config
         for fragment in fragments:
             try:
-                fragment_config = tomli.loads(fragment.content)
+                fragment_config = toml.loads(fragment.content)
                 config = self._merge_dict_configs(config, fragment_config)
             except Exception:  # Broad exception handling
                 # Skip invalid TOML fragments
                 continue
 
-        return tomli_w.dumps(config)
+        return toml.dumps(config)
 
     def _apply_text_fragments(
         self, content: str, fragments: list[ConfigFragment], target: FragmentTarget
