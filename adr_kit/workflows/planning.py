@@ -6,7 +6,7 @@ from typing import Any
 
 from ..contract.builder import ConstraintsContractBuilder
 from ..core.model import ADR
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
+from .base import BaseWorkflow, WorkflowResult
 
 
 @dataclass
@@ -82,37 +82,51 @@ class PlanningWorkflow(BaseWorkflow):
 
             # Step 4: Extract applicable constraints
             applicable_constraints = self._execute_step(
-                "extract_applicable_constraints", self._extract_applicable_constraints,
-                task_analysis, contract
+                "extract_applicable_constraints",
+                self._extract_applicable_constraints,
+                task_analysis,
+                contract,
             )
 
             # Step 5: Generate technology recommendations
             tech_recommendations = self._execute_step(
-                "generate_technology_recommendations", self._generate_technology_recommendations,
-                task_analysis, relevant_adrs, contract
+                "generate_technology_recommendations",
+                self._generate_technology_recommendations,
+                task_analysis,
+                relevant_adrs,
+                contract,
             )
 
             # Step 6: Create guidance prompts
             guidance_prompts = self._execute_step(
-                "generate_guidance_prompts", self._generate_guidance_prompts,
-                task_analysis, relevant_adrs, input_data.context_type
+                "generate_guidance_prompts",
+                self._generate_guidance_prompts,
+                task_analysis,
+                relevant_adrs,
+                input_data.context_type,
             )
 
             # Step 7: Build compliance checklist
             compliance_checklist = self._execute_step(
-                "build_compliance_checklist", self._build_compliance_checklist,
-                task_analysis, applicable_constraints
+                "build_compliance_checklist",
+                self._build_compliance_checklist,
+                task_analysis,
+                applicable_constraints,
             )
 
             # Step 8: Extract architecture patterns
             architecture_patterns = self._execute_step(
-                "extract_architecture_patterns", self._extract_architecture_patterns, relevant_adrs
+                "extract_architecture_patterns",
+                self._extract_architecture_patterns,
+                relevant_adrs,
             )
 
             # Step 9: Identify related decisions
             related_decisions = self._execute_step(
-                "identify_related_decisions", self._identify_related_decisions,
-                task_analysis, relevant_adrs
+                "identify_related_decisions",
+                self._identify_related_decisions,
+                task_analysis,
+                relevant_adrs,
             )
 
             context = ArchitecturalContext(
@@ -129,12 +143,17 @@ class PlanningWorkflow(BaseWorkflow):
                 success=True,
                 message=f"Planning context generated for {input_data.context_type} task",
             )
-            self.result.data = {"architectural_context": context, "task_analysis": task_analysis}
-            self.result.guidance = f"Architectural context generated for {input_data.context_type} task"
+            self.result.data = {
+                "architectural_context": context,
+                "task_analysis": task_analysis,
+            }
+            self.result.guidance = (
+                f"Architectural context generated for {input_data.context_type} task"
+            )
             self.result.next_steps = [
                 "Use architectural context to guide implementation decisions",
                 "Review relevant ADRs before making technology choices",
-                "Validate implementation against compliance checklist"
+                "Validate implementation against compliance checklist",
             ]
 
         except Exception as e:

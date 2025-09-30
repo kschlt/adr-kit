@@ -1,10 +1,11 @@
 """Tests for CLI functionality."""
 
 import json
-import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+
+import pytest
 from typer.testing import CliRunner
 
 from adr_kit.cli import app
@@ -24,7 +25,9 @@ class TestCLI:
             tmpdir_path = Path(tmpdir)
             adr_dir = tmpdir_path / "docs" / "adr"
 
-            result = self.runner.invoke(app, ["init", "--adr-dir", str(adr_dir)], input="3\n")
+            result = self.runner.invoke(
+                app, ["init", "--adr-dir", str(adr_dir)], input="3\n"
+            )
 
             assert result.exit_code == 0
             assert adr_dir.exists()

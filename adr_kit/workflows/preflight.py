@@ -5,7 +5,7 @@ from typing import Any
 
 from ..contract.builder import ConstraintsContractBuilder
 from ..contract.models import ConstraintsContract
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
+from .base import BaseWorkflow, WorkflowResult
 
 
 @dataclass
@@ -71,26 +71,43 @@ class PreflightWorkflow(BaseWorkflow):
 
             # Step 3: Check against policy gates
             gate_result = self._execute_step(
-                "check_policy_gates", self._check_policy_gates, categorized_choice, contract
+                "check_policy_gates",
+                self._check_policy_gates,
+                categorized_choice,
+                contract,
             )
 
             # Step 4: Find related and conflicting ADRs
             related_adrs = self._execute_step(
-                "find_related_adrs", self._find_related_adrs, categorized_choice, contract
+                "find_related_adrs",
+                self._find_related_adrs,
+                categorized_choice,
+                contract,
             )
             conflicting_adrs = self._execute_step(
-                "find_conflicting_adrs", self._find_conflicting_adrs, categorized_choice, contract
+                "find_conflicting_adrs",
+                self._find_conflicting_adrs,
+                categorized_choice,
+                contract,
             )
 
             # Step 5: Evaluate decision
             decision = self._execute_step(
-                "make_preflight_decision", self._make_preflight_decision,
-                categorized_choice, gate_result, related_adrs, conflicting_adrs, contract
+                "make_preflight_decision",
+                self._make_preflight_decision,
+                categorized_choice,
+                gate_result,
+                related_adrs,
+                conflicting_adrs,
+                contract,
             )
 
             # Step 6: Generate guidance
             guidance = self._execute_step(
-                "generate_agent_guidance", self._generate_agent_guidance, decision, input_data
+                "generate_agent_guidance",
+                self._generate_agent_guidance,
+                decision,
+                input_data,
             )
 
             result_data = {
@@ -110,10 +127,14 @@ class PreflightWorkflow(BaseWorkflow):
             )
             self.result.data = result_data
             self.result.guidance = guidance
-            self.result.next_steps = decision.next_steps.split(". ") if hasattr(decision, 'next_steps') and decision.next_steps else [
-                f"Technical choice {input_data.choice} evaluated: {decision.status}",
-                "Review preflight decision and proceed accordingly"
-            ]
+            self.result.next_steps = (
+                decision.next_steps.split(". ")
+                if hasattr(decision, "next_steps") and decision.next_steps
+                else [
+                    f"Technical choice {input_data.choice} evaluated: {decision.status}",
+                    "Review preflight decision and proceed accordingly",
+                ]
+            )
 
         except Exception as e:
             self._complete_workflow(

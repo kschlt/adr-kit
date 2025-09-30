@@ -15,7 +15,7 @@ from ..enforce.eslint import generate_eslint_config
 from ..enforce.ruff import generate_ruff_config
 from ..guardrail.manager import GuardrailManager
 from ..index.json_index import generate_adr_index
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
+from .base import BaseWorkflow, WorkflowResult
 
 
 @dataclass
@@ -78,7 +78,10 @@ class ApprovalWorkflow(BaseWorkflow):
                 "load_adr", self._load_adr_for_approval, input_data.adr_id
             )
             self._execute_step(
-                "validate_preconditions", self._validate_approval_preconditions, adr, input_data
+                "validate_preconditions",
+                self._validate_approval_preconditions,
+                adr,
+                input_data,
             )
 
             previous_status = adr.status
@@ -86,14 +89,20 @@ class ApprovalWorkflow(BaseWorkflow):
             # Step 2: Content integrity check
             if input_data.digest_check:
                 content_digest = self._execute_step(
-                    "check_content_integrity", self._calculate_content_digest, str(file_path)
+                    "check_content_integrity",
+                    self._calculate_content_digest,
+                    str(file_path),
                 )
             else:
                 content_digest = "skipped"
 
             # Step 3: Update ADR status
             updated_adr = self._execute_step(
-                "update_adr_status", self._update_adr_status, adr, str(file_path), input_data
+                "update_adr_status",
+                self._update_adr_status,
+                adr,
+                str(file_path),
+                input_data,
             )
 
             # Step 4: Rebuild constraints contract
@@ -108,17 +117,19 @@ class ApprovalWorkflow(BaseWorkflow):
 
             # Step 6: Generate enforcement rules
             enforcement_result = self._execute_step(
-                "generate_enforcement_rules", self._generate_enforcement_rules, updated_adr
+                "generate_enforcement_rules",
+                self._generate_enforcement_rules,
+                updated_adr,
             )
 
             # Step 7: Update indexes
-            index_result = self._execute_step(
-                "update_indexes", self._update_indexes
-            )
+            index_result = self._execute_step("update_indexes", self._update_indexes)
 
             # Step 8: Validate codebase (optional, can be time-consuming)
             validation_result = self._execute_step(
-                "validate_codebase_compliance", self._validate_codebase_compliance, updated_adr
+                "validate_codebase_compliance",
+                self._validate_codebase_compliance,
+                updated_adr,
             )
 
             # Step 9: Generate approval report
@@ -136,8 +147,12 @@ class ApprovalWorkflow(BaseWorkflow):
             }
 
             approval_report = self._execute_step(
-                "generate_approval_report", self._generate_approval_report,
-                updated_adr, automation_results, content_digest, input_data
+                "generate_approval_report",
+                self._generate_approval_report,
+                updated_adr,
+                automation_results,
+                content_digest,
+                input_data,
             )
 
             result = ApprovalResult(
@@ -160,13 +175,19 @@ class ApprovalWorkflow(BaseWorkflow):
                 success=True,
                 message=f"ADR {input_data.adr_id} approved and automation completed",
             )
-            self.result.data = {"approval_result": result, "full_report": approval_report}
+            self.result.data = {
+                "approval_result": result,
+                "full_report": approval_report,
+            }
             self.result.guidance = approval_report.get("guidance", "")
-            self.result.next_steps = approval_report.get("next_steps_list", [
-                f"ADR {input_data.adr_id} is now active",
-                "Review automation results for any issues",
-                "Monitor compliance with generated policy rules"
-            ])
+            self.result.next_steps = approval_report.get(
+                "next_steps_list",
+                [
+                    f"ADR {input_data.adr_id} is now active",
+                    "Review automation results for any issues",
+                    "Monitor compliance with generated policy rules",
+                ],
+            )
 
         except Exception as e:
             self._complete_workflow(

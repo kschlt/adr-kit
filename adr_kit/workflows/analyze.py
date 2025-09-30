@@ -428,7 +428,11 @@ class AnalyzeProjectWorkflow(BaseWorkflow):
         if self.adr_dir not in possible_adr_dirs:
             possible_adr_dirs.append(self.adr_dir)
 
-        existing_adr_info: dict[str, Any] = {"adr_directory": None, "adr_count": 0, "adr_files": []}
+        existing_adr_info: dict[str, Any] = {
+            "adr_directory": None,
+            "adr_count": 0,
+            "adr_files": [],
+        }
 
         for adr_dir in possible_adr_dirs:
             if adr_dir.exists() and adr_dir.is_dir():

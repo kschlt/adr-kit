@@ -1,25 +1,27 @@
 """Integration tests for MCP server functionality."""
 
-import pytest
 import asyncio
-import tempfile
 import json
+import tempfile
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
+import pytest
 
 # Import FastMCP client for proper testing
 from fastmcp import Client
 
-# Import the MCP server instance for testing
-from adr_kit.mcp.server import mcp
 from adr_kit.mcp.models import (
     AnalyzeProjectRequest,
-    PreflightCheckRequest,
-    CreateADRRequest,
     ApproveADRRequest,
-    SupersedeADRRequest,
+    CreateADRRequest,
     PlanningContextRequest,
+    PreflightCheckRequest,
+    SupersedeADRRequest,
 )
+
+# Import the MCP server instance for testing
+from adr_kit.mcp.server import mcp
 
 
 @pytest.fixture
@@ -48,7 +50,7 @@ def sample_project_dir():
         yield str(project_dir)
 
 
-def assert_success_response(response: Dict[str, Any]) -> None:
+def assert_success_response(response: dict[str, Any]) -> None:
     """Assert that response follows success format."""
     assert response["status"] == "success"
     assert "message" in response
@@ -57,7 +59,7 @@ def assert_success_response(response: Dict[str, Any]) -> None:
     assert "metadata" in response
 
 
-def assert_error_response(response: Dict[str, Any]) -> None:
+def assert_error_response(response: dict[str, Any]) -> None:
     """Assert that response follows error format."""
     assert response["status"] == "error"
     assert "error" in response
@@ -80,13 +82,15 @@ class TestAnalyzeProject:
 
         async with Client(mcp) as client:
             # Use the Client to call the tool with correct parameter structure
-            result = await client.call_tool("adr_analyze_project", {"request": request.model_dump()})
-            
+            result = await client.call_tool(
+                "adr_analyze_project", {"request": request.model_dump()}
+            )
+
             # FastMCP returns CallToolResult with content list
             assert result is not None
-            assert hasattr(result, 'content')
+            assert hasattr(result, "content")
             assert len(result.content) > 0
-            
+
             # Extract JSON from the first content block
             content_block = result.content[0]
             response = json.loads(content_block.text)

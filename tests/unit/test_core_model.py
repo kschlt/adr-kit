@@ -1,8 +1,9 @@
 """Tests for core ADR models."""
 
-import pytest
 from datetime import date
 from pathlib import Path
+
+import pytest
 from pydantic import ValidationError
 
 from adr_kit.core.model import ADR, ADRFrontMatter, ADRStatus

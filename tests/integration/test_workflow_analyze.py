@@ -1,10 +1,11 @@
 """Unit tests for AnalyzeProjectWorkflow."""
 
-import pytest
-import tempfile
 import json
+import tempfile
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
+
+import pytest
 
 from adr_kit.workflows.analyze import AnalyzeProjectWorkflow
 from adr_kit.workflows.base import WorkflowStatus
@@ -138,7 +139,10 @@ We will use React for all frontend development.
         # Check agent guidance
         assert result.guidance
         assert len(result.next_steps) > 0
-        assert any("analyze" in step.lower() or "identify" in step.lower() for step in result.next_steps)
+        assert any(
+            "analyze" in step.lower() or "identify" in step.lower()
+            for step in result.next_steps
+        )
 
     def test_project_with_existing_adrs(
         self, temp_project_dir, temp_adr_dir, sample_existing_adr

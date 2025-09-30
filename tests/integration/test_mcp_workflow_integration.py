@@ -1,18 +1,19 @@
 """Integration tests for MCP server to workflow integration."""
 
-import pytest
-import tempfile
 import json
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from adr_kit.mcp.models import (
     AnalyzeProjectRequest,
-    PreflightCheckRequest,
-    CreateADRRequest,
     ApproveADRRequest,
-    SupersedeADRRequest,
+    CreateADRRequest,
     PlanningContextRequest,
+    PreflightCheckRequest,
+    SupersedeADRRequest,
 )
 
 
@@ -48,8 +49,8 @@ class TestMCPWorkflowIntegration:
         """Test MCP analyze project tool calls workflow correctly."""
         # Import the actual MCP tool function
         # Note: We can't call the decorated function directly, so we test the workflow
-        from adr_kit.workflows.analyze import AnalyzeProjectWorkflow
         from adr_kit.mcp.server import logger
+        from adr_kit.workflows.analyze import AnalyzeProjectWorkflow
 
         # Test request model validation
         request = AnalyzeProjectRequest(
@@ -78,7 +79,7 @@ class TestMCPWorkflowIntegration:
 
     def test_mcp_preflight_integration(self, temp_adr_dir):
         """Test MCP preflight tool calls workflow correctly."""
-        from adr_kit.workflows.preflight import PreflightWorkflow, PreflightInput
+        from adr_kit.workflows.preflight import PreflightInput, PreflightWorkflow
 
         # Test request model
         request = PreflightCheckRequest(
@@ -112,7 +113,7 @@ class TestMCPWorkflowIntegration:
 
     def test_mcp_create_integration(self, temp_adr_dir):
         """Test MCP create tool calls workflow correctly."""
-        from adr_kit.workflows.creation import CreationWorkflow, CreationInput
+        from adr_kit.workflows.creation import CreationInput, CreationWorkflow
 
         # Test request model
         request = CreateADRRequest(
@@ -166,8 +167,8 @@ class TestMCPWorkflowIntegration:
 
     def test_mcp_approve_integration(self, temp_adr_dir):
         """Test MCP approve tool integration."""
-        from adr_kit.workflows.creation import CreationWorkflow, CreationInput
-        from adr_kit.workflows.approval import ApprovalWorkflow, ApprovalInput
+        from adr_kit.workflows.approval import ApprovalInput, ApprovalWorkflow
+        from adr_kit.workflows.creation import CreationInput, CreationWorkflow
 
         # First create an ADR to approve
         creation_workflow = CreationWorkflow(adr_dir=temp_adr_dir)
@@ -214,8 +215,8 @@ class TestMCPWorkflowIntegration:
 
     def test_mcp_supersede_integration(self, temp_adr_dir):
         """Test MCP supersede tool integration."""
-        from adr_kit.workflows.creation import CreationWorkflow, CreationInput
-        from adr_kit.workflows.supersede import SupersedeWorkflow, SupersedeInput
+        from adr_kit.workflows.creation import CreationInput, CreationWorkflow
+        from adr_kit.workflows.supersede import SupersedeInput, SupersedeWorkflow
 
         # Create original ADR
         creation_workflow = CreationWorkflow(adr_dir=temp_adr_dir)
@@ -280,7 +281,7 @@ class TestMCPWorkflowIntegration:
 
     def test_mcp_planning_context_integration(self, temp_adr_dir):
         """Test MCP planning context tool integration."""
-        from adr_kit.workflows.planning import PlanningWorkflow, PlanningInput
+        from adr_kit.workflows.planning import PlanningInput, PlanningWorkflow
 
         # Test request model
         planning_request = PlanningContextRequest(
@@ -318,8 +319,8 @@ class TestMCPWorkflowIntegration:
 
     def test_response_format_consistency(self, temp_project_dir, temp_adr_dir):
         """Test that all workflows return consistent response formats for MCP."""
+        from adr_kit.mcp.models import error_response, success_response
         from adr_kit.workflows.analyze import AnalyzeProjectWorkflow
-        from adr_kit.mcp.models import success_response, error_response
 
         # Test successful workflow response
         workflow = AnalyzeProjectWorkflow(adr_dir=temp_adr_dir)
@@ -391,7 +392,7 @@ class TestMCPWorkflowIntegration:
 
     def test_error_propagation(self, temp_adr_dir):
         """Test that workflow errors are properly propagated to MCP responses."""
-        from adr_kit.workflows.creation import CreationWorkflow, CreationInput
+        from adr_kit.workflows.creation import CreationInput, CreationWorkflow
 
         # Create invalid input to trigger error
         invalid_input = CreationInput(
@@ -416,8 +417,8 @@ class TestMCPWorkflowIntegration:
     def test_end_to_end_workflow_chain(self, temp_project_dir, temp_adr_dir):
         """Test complete workflow chain: analyze → create → approve."""
         from adr_kit.workflows.analyze import AnalyzeProjectWorkflow
-        from adr_kit.workflows.creation import CreationWorkflow, CreationInput
-        from adr_kit.workflows.approval import ApprovalWorkflow, ApprovalInput
+        from adr_kit.workflows.approval import ApprovalInput, ApprovalWorkflow
+        from adr_kit.workflows.creation import CreationInput, CreationWorkflow
 
         # Step 1: Analyze project
         analyze_workflow = AnalyzeProjectWorkflow(adr_dir=temp_adr_dir)

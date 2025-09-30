@@ -100,39 +100,47 @@ class ADRValidator:
             with open(self.schema_path) as f:
                 schema = json.load(f)
                 if not isinstance(schema, dict):
-                    raise ValueError(f"Schema must be a JSON object, got {type(schema)}")
+                    raise ValueError(
+                        f"Schema must be a JSON object, got {type(schema)}"
+                    )
                 return schema
         except (OSError, json.JSONDecodeError) as e:
             raise ValueError(f"Cannot load schema from {self.schema_path}: {e}") from e
 
     def _convert_for_schema_validation(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert Pydantic model data to JSON Schema compatible format.
-        
+
         This handles the mismatch where Pydantic models use Python types (like datetime.date)
         but JSON Schema validation expects JSON-compatible types (like strings).
-        
+
         Args:
             data: Dictionary from Pydantic model
-            
+
         Returns:
             Schema-compatible dictionary with converted types
         """
         from datetime import date
-        
+
         converted = {}
         for key, value in data.items():
             if isinstance(value, date):
                 # Convert datetime.date to ISO format string
                 converted[key] = value.isoformat()
             elif isinstance(value, dict):
-                # Recursively handle nested dictionaries  
+                # Recursively handle nested dictionaries
                 converted[key] = self._convert_for_schema_validation(value)
             elif isinstance(value, list) and value:
                 # Handle lists that might contain dates
                 converted[key] = [
-                    item.isoformat() if isinstance(item, date) 
-                    else self._convert_for_schema_validation(item) if isinstance(item, dict)
-                    else item
+                    (
+                        item.isoformat()
+                        if isinstance(item, date)
+                        else (
+                            self._convert_for_schema_validation(item)
+                            if isinstance(item, dict)
+                            else item
+                        )
+                    )
                     for item in value
                 ]
             else:
@@ -156,7 +164,7 @@ class ADRValidator:
 
         try:
             # Convert datetime.date objects back to strings for JSON Schema validation
-            # This handles the mismatch between Pydantic model (uses datetime.date) 
+            # This handles the mismatch between Pydantic model (uses datetime.date)
             # and JSON Schema (expects string)
             schema_compatible_data = self._convert_for_schema_validation(front_matter)
             self.validator.validate(schema_compatible_data)

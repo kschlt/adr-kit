@@ -135,7 +135,9 @@ class PythonRuleExtractor:
 
         return None
 
-    def _extract_architectural_rules(self, content: str, adr: ADR) -> list[dict[str, Any]]:
+    def _extract_architectural_rules(
+        self, content: str, adr: ADR
+    ) -> list[dict[str, Any]]:
         """Extract architectural/layering rules."""
         rules = []
 

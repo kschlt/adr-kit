@@ -175,11 +175,11 @@ class ESLintRuleExtractor:
         banned_imports: list[str] = []
         preferred_imports: dict[str, str] = {}
         custom_rules: list[dict[str, Any]] = []
-        
+
         rules: dict[str, Any] = {
-            "banned_imports": banned_imports, 
-            "preferred_imports": preferred_imports, 
-            "custom_rules": custom_rules
+            "banned_imports": banned_imports,
+            "preferred_imports": preferred_imports,
+            "custom_rules": custom_rules,
         }
 
         # Only extract rules from accepted ADRs

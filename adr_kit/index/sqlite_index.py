@@ -302,7 +302,11 @@ class ADRSQLiteIndex:
         self.clear_index()
 
         adr_files = find_adr_files(adr_directory)
-        stats: dict[str, Any] = {"total_files": len(adr_files), "indexed": 0, "errors": []}
+        stats: dict[str, Any] = {
+            "total_files": len(adr_files),
+            "indexed": 0,
+            "errors": [],
+        }
 
         for file_path in adr_files:
             try:

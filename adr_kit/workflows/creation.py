@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +10,7 @@ from ..contract.builder import ConstraintsContractBuilder
 from ..core.model import ADR, ADRFrontMatter, ADRStatus, PolicyModel
 from ..core.parse import find_adr_files, parse_adr_file
 from ..core.validate import validate_adr
-from .base import BaseWorkflow, WorkflowResult, WorkflowStatus, WorkflowError
+from .base import BaseWorkflow, WorkflowError, WorkflowResult, WorkflowStatus
 
 
 @dataclass
@@ -57,7 +57,9 @@ class CreationWorkflow(BaseWorkflow):
     6. Return creation result with guidance for next steps
     """
 
-    def execute(self, input_data: CreationInput | None = None, **kwargs: Any) -> WorkflowResult:
+    def execute(
+        self, input_data: CreationInput | None = None, **kwargs: Any
+    ) -> WorkflowResult:
         """Execute ADR creation workflow."""
         # Use positional input_data if provided, otherwise extract from kwargs
         if input_data is None:
@@ -69,9 +71,7 @@ class CreationWorkflow(BaseWorkflow):
 
         try:
             # Step 1: Generate ADR ID
-            adr_id = self._execute_step(
-                "generate_adr_id", self._generate_adr_id
-            )
+            adr_id = self._execute_step("generate_adr_id", self._generate_adr_id)
 
             # Step 2: Validate input
             self._execute_step(
@@ -116,8 +116,7 @@ class CreationWorkflow(BaseWorkflow):
             )
 
             self._complete_workflow(
-                success=True,
-                message=f"ADR {adr_id} created successfully"
+                success=True, message=f"ADR {adr_id} created successfully"
             )
             self.result.data = {"creation_result": result}
             self.result.guidance = next_steps
@@ -132,19 +131,17 @@ class CreationWorkflow(BaseWorkflow):
                 self._complete_workflow(
                     success=False,
                     message=f"ADR creation failed: {str(e)}",
-                    status=WorkflowStatus.VALIDATION_ERROR
+                    status=WorkflowStatus.VALIDATION_ERROR,
                 )
             else:
                 self._complete_workflow(
-                    success=False,
-                    message=f"ADR creation failed: {str(e)}"
+                    success=False, message=f"ADR creation failed: {str(e)}"
                 )
             self.result.errors = [f"CreationError: {str(e)}"]
             return self.result
         except Exception as e:
             self._complete_workflow(
-                success=False,
-                message=f"ADR creation failed: {str(e)}"
+                success=False, message=f"ADR creation failed: {str(e)}"
             )
             self.result.errors = [f"CreationError: {str(e)}"]
             return self.result
@@ -231,7 +228,8 @@ class CreationWorkflow(BaseWorkflow):
                                     term for term in key_terms if term in existing_text
                                 ],
                                 "tags_overlap": bool(
-                                    set(input_data.tags or []) & set(existing_adr.front_matter.tags or [])
+                                    set(input_data.tags or [])
+                                    & set(existing_adr.front_matter.tags or [])
                                 ),
                             }
                         )
@@ -404,7 +402,6 @@ class CreationWorkflow(BaseWorkflow):
 
     def _build_adr_structure(self, adr_id: str, input_data: CreationInput) -> ADR:
         """Build ADR data structure from input."""
-        from ..core.model import ADRFrontMatter
 
         # Build front matter
         front_matter = ADRFrontMatter(
@@ -416,7 +413,11 @@ class CreationWorkflow(BaseWorkflow):
             tags=input_data.tags or [],
             supersedes=[],
             superseded_by=[],
-            policy=PolicyModel.model_validate(input_data.policy) if input_data.policy else None,
+            policy=(
+                PolicyModel.model_validate(input_data.policy)
+                if input_data.policy
+                else None
+            ),
         )
 
         # Build content sections
@@ -472,8 +473,8 @@ class CreationWorkflow(BaseWorkflow):
     def _generate_adr_file(self, adr: ADR) -> str:
         """Generate the ADR file."""
         # Create filename with slugified title
-        title_slug = re.sub(r'[^\w\s-]', '', adr.title.lower())
-        title_slug = re.sub(r'[\s_-]+', '-', title_slug).strip('-')
+        title_slug = re.sub(r"[^\w\s-]", "", adr.title.lower())
+        title_slug = re.sub(r"[\s_-]+", "-", title_slug).strip("-")
         file_path = Path(self.adr_dir) / f"{adr.id}-{title_slug}.md"
 
         # Ensure directory exists
@@ -613,17 +614,17 @@ class CreationWorkflow(BaseWorkflow):
             return [
                 f"Review conflicts with {', '.join(conflict_ids)}",
                 f"Consider using adr_supersede() if {adr_id} should replace existing decisions",
-                "Revise the proposal to avoid conflicts if superseding is not appropriate"
+                "Revise the proposal to avoid conflicts if superseding is not appropriate",
             ]
 
         if review_required:
             return [
                 f"Have a human review {adr_id} due to architectural significance",
-                f"Use adr_approve('{adr_id}') after review to activate the decision"
+                f"Use adr_approve('{adr_id}') after review to activate the decision",
             ]
 
         return [
             f"Review the created ADR {adr_id}",
             f"Use adr_approve('{adr_id}') to activate this decision",
-            "Trigger policy enforcement for the decision"
+            "Trigger policy enforcement for the decision",
         ]

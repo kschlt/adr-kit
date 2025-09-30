@@ -1,16 +1,17 @@
 """Comprehensive scenario tests for workflow edge cases and error handling."""
 
-import pytest
-import tempfile
 import json
 import os
+import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from adr_kit.workflows.base import WorkflowStatus, WorkflowError
+import pytest
+
 from adr_kit.workflows.analyze import AnalyzeProjectWorkflow
-from adr_kit.workflows.creation import CreationWorkflow, CreationInput
-from adr_kit.workflows.preflight import PreflightWorkflow, PreflightInput
+from adr_kit.workflows.base import WorkflowError, WorkflowStatus
+from adr_kit.workflows.creation import CreationInput, CreationWorkflow
+from adr_kit.workflows.preflight import PreflightInput, PreflightWorkflow
 
 
 class TestErrorScenarios:
@@ -423,8 +424,9 @@ Consequences for decision {i+1}
 
     def test_memory_efficient_processing(self, temp_adr_dir):
         """Test that workflows are memory efficient with large data."""
-        import psutil
         import os
+
+        import psutil
 
         # Get initial memory usage
         process = psutil.Process(os.getpid())
