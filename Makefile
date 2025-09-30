@@ -1,7 +1,7 @@
 # ADR Kit Development Makefile
 # This Makefile is for DEVELOPMENT ONLY (not included in distribution package)
 
-.PHONY: help install clean test test-all test-server lint format build uninstall reinstall server dev-setup dev-cycle dev-reload quality release-prep
+.PHONY: help install clean test-unit test-integration test-all test-server lint format build uninstall reinstall server dev-setup dev-cycle dev-reload quality release-prep
 
 # =============================================================================
 # Help & Documentation
@@ -17,9 +17,10 @@ help:
 	@echo "  clean        - Remove all generated artifacts"
 	@echo ""
 	@echo "Development & Testing:"
-	@echo "  test         - Run test suite (fast - excludes MCP server tests)"
-	@echo "  test-all     - Run comprehensive test suite (includes MCP server tests)"
-	@echo "  test-server  - Test MCP server specifically"
+	@echo "  test-unit    - Run unit tests only (fastest - no dependencies)"
+	@echo "  test-integration - Run unit + integration tests (requires installation)"
+	@echo "  test-all     - Run all tests (includes MCP server tests)"
+	@echo "  test-server  - Run MCP server tests only"
 	@echo "  lint         - Run linting (ruff + mypy)"
 	@echo "  format       - Format code (black + ruff)"
 	@echo "  server       - Start MCP server"
@@ -65,19 +66,24 @@ clean:
 # Development & Testing
 # =============================================================================
 
-test:
-	@echo "🧪 Running test suite (fast - excludes MCP server tests)..."
-	pytest tests/ --cov=adr_kit --cov-report=term-missing --ignore=tests/test_mcp_server.py
-	@echo "✅ Fast tests complete"
+test-unit:
+	@echo "🧪 Running unit tests (fastest - no dependencies)..."
+	pytest tests/unit/ --cov=adr_kit --cov-report=term-missing
+	@echo "✅ Unit tests complete"
+
+test-integration:
+	@echo "🧪 Running unit + integration tests (requires installation)..."
+	pytest tests/unit/ tests/integration/ --cov=adr_kit --cov-report=term-missing
+	@echo "✅ Integration tests complete"
 
 test-all:
-	@echo "🧪 Running comprehensive test suite (includes MCP server tests)..."
+	@echo "🧪 Running all tests (includes MCP server tests)..."
 	pytest tests/ -v --cov=adr_kit --cov-report=term-missing --cov-report=html
 	@echo "✅ All tests complete. Coverage report in htmlcov/"
 
 test-server:
 	@echo "🧪 Running MCP server tests..."
-	pytest tests/test_mcp_server.py -v
+	pytest tests/mcp/ -v
 	@echo "✅ MCP server tests complete"
 
 lint:
@@ -105,21 +111,23 @@ build:
 # Workflows
 # =============================================================================
 
-dev-setup: install test
+dev-setup: install test-integration
 	@echo "✅ Development setup complete"
 	@echo "💡 Next steps:"
 	@echo "   1. Run 'make server' to start MCP server"
 	@echo "   2. Run 'make test-server' to test server functionality"
 	@echo "   3. Use 'make dev-reload' after making code changes"
 
-dev-cycle: clean install test
+dev-cycle: clean install test-integration
 	@echo "✅ Development cycle complete"
 
-dev-reload: reinstall test
+dev-reload: reinstall test-integration
 	@echo "✅ Code reloaded and tested"
-	@echo "💡 Run 'make test-server' if you changed MCP server code"
+	@echo "💡 Next steps:"
+	@echo "   - Run 'make test-server' if you changed MCP server code"
+	@echo "   - Run 'make test-unit' for fastest feedback during development"
 
-quality: format lint test
+quality: format lint test-integration
 	@echo "✅ Quality checks passed"
 
 release-prep: clean install format lint test-all build

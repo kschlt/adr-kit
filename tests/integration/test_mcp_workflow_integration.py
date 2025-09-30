@@ -99,7 +99,7 @@ class TestMCPWorkflowIntegration:
             choice=request.choice, context=request.context, category=request.category
         )
 
-        result = workflow.execute(preflight_input)
+        result = workflow.execute(input_data=preflight_input)
 
         # Should return proper decision structure
         assert result.success is True or result.success is False  # Either is valid
@@ -154,7 +154,7 @@ class TestMCPWorkflowIntegration:
             alternatives=request.alternatives,
         )
 
-        result = workflow.execute(creation_input)
+        result = workflow.execute(input_data=creation_input)
 
         # Should create ADR successfully
         assert result.success is True
@@ -178,7 +178,7 @@ class TestMCPWorkflowIntegration:
             consequences="Test consequences",
         )
 
-        creation_result = creation_workflow.execute(creation_input)
+        creation_result = creation_workflow.execute(input_data=creation_input)
         assert creation_result.success is True
 
         created_adr_id = creation_result.data["creation_result"].adr_id
@@ -204,7 +204,7 @@ class TestMCPWorkflowIntegration:
             force_approve=approval_request.force_approve,
         )
 
-        result = approval_workflow.execute(approval_input)
+        result = approval_workflow.execute(input_data=approval_input)
 
         # Should complete approval (success depends on implementation)
         if result.success:
@@ -226,7 +226,7 @@ class TestMCPWorkflowIntegration:
             consequences="Good performance",
         )
 
-        creation_result = creation_workflow.execute(original_input)
+        creation_result = creation_workflow.execute(input_data=original_input)
         assert creation_result.success is True
         old_adr_id = creation_result.data["creation_result"].adr_id
 
@@ -269,7 +269,7 @@ class TestMCPWorkflowIntegration:
             auto_approve=supersede_request.auto_approve,
         )
 
-        result = workflow.execute(supersede_input)
+        result = workflow.execute(input_data=supersede_input)
 
         # Should handle supersession (success depends on implementation)
         if result.success:
@@ -306,7 +306,7 @@ class TestMCPWorkflowIntegration:
             priority_level=planning_request.priority_level,
         )
 
-        result = workflow.execute(planning_input)
+        result = workflow.execute(input_data=planning_input)
 
         # Should provide planning context
         if result.success:
@@ -402,7 +402,7 @@ class TestMCPWorkflowIntegration:
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(invalid_input)
+        result = workflow.execute(input_data=invalid_input)
 
         # Workflow should fail
         assert result.success is False
@@ -435,7 +435,7 @@ class TestMCPWorkflowIntegration:
             consequences="Consistent frontend architecture, team training needed",
         )
 
-        create_result = create_workflow.execute(create_input)
+        create_result = create_workflow.execute(input_data=create_input)
         assert create_result.success is True
 
         created_adr_id = create_result.data["creation_result"].adr_id
@@ -446,7 +446,7 @@ class TestMCPWorkflowIntegration:
             adr_id=created_adr_id, approval_notes="Approved after analysis"
         )
 
-        approve_result = approve_workflow.execute(approve_input)
+        approve_result = approve_workflow.execute(input_data=approve_input)
 
         # Approval might succeed or fail depending on implementation
         # But should not crash and should provide clear feedback

@@ -79,7 +79,7 @@ class TestErrorScenarios:
 
         # Mock write operation to raise disk full error
         with patch("builtins.open", side_effect=OSError("No space left on device")):
-            result = workflow.execute(creation_input)
+            result = workflow.execute(input_data=creation_input)
 
             # Should fail gracefully with clear error message
             assert result.success is False
@@ -115,7 +115,7 @@ class TestErrorScenarios:
             policy="invalid_policy_format",  # Should be dict, not string
         )
 
-        result = workflow.execute(malformed_input)
+        result = workflow.execute(input_data=malformed_input)
 
         # Should handle malformed input gracefully
         assert result is not None
@@ -135,7 +135,7 @@ class TestErrorScenarios:
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(large_input)
+        result = workflow.execute(input_data=large_input)
 
         # Should handle large content or provide clear size limits
         assert result is not None
@@ -168,7 +168,7 @@ class TestErrorScenarios:
                     consequences=f"Consequences {index}",
                 )
 
-                result = workflow.execute(input_data)
+                result = workflow.execute(input_data=input_data)
                 results.append((index, result))
             except Exception as e:
                 errors.append((index, str(e)))
@@ -228,7 +228,7 @@ class TestErrorScenarios:
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(unicode_input)
+        result = workflow.execute(input_data=unicode_input)
 
         # Should handle Unicode properly
         assert result.success is True
@@ -306,7 +306,7 @@ class TestErrorScenarios:
             consequences="Test consequences",
         )
 
-        result = workflow.execute(invalid_input)
+        result = workflow.execute(input_data=invalid_input)
 
         # Workflow should fail
         assert result.success is False
@@ -408,7 +408,7 @@ Consequences for decision {i+1}
             consequences="New consequences",
         )
 
-        result = workflow.execute(input_data)
+        result = workflow.execute(input_data=input_data)
 
         end_time = time.time()
         execution_time = end_time - start_time
@@ -440,7 +440,7 @@ Consequences for decision {i+1}
                 consequences=f"Consequences {i} " * 1000,
             )
 
-            result = workflow.execute(input_data)
+            result = workflow.execute(input_data=input_data)
             assert result is not None
 
         # Check memory usage hasn't grown excessively

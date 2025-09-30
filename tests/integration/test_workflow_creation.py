@@ -67,7 +67,7 @@ MySQL is reliable and well-supported.
         """Test successful creation of a new ADR."""
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
 
-        result = workflow.execute(sample_creation_input)
+        result = workflow.execute(input_data=sample_creation_input)
 
         # Check overall success
         assert result.success is True
@@ -125,7 +125,7 @@ MySQL is reliable and well-supported.
         """Test ADR ID generation when ADRs already exist."""
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
 
-        result = workflow.execute(sample_creation_input)
+        result = workflow.execute(input_data=sample_creation_input)
 
         assert result.success is True
 
@@ -145,7 +145,7 @@ MySQL is reliable and well-supported.
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(conflicting_input)
+        result = workflow.execute(input_data=conflicting_input)
 
         # Should still create the ADR but detect conflicts
         assert result.success is True
@@ -181,7 +181,7 @@ MySQL is reliable and well-supported.
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(policy_input)
+        result = workflow.execute(input_data=policy_input)
 
         assert result.success is True
 
@@ -207,7 +207,7 @@ MySQL is reliable and well-supported.
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(incomplete_input)
+        result = workflow.execute(input_data=incomplete_input)
 
         # Should fail validation
         assert result.success is False
@@ -237,7 +237,7 @@ MySQL is reliable and well-supported.
             adr_path.chmod(0o444)  # Read-only
 
             workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-            result = workflow.execute(sample_creation_input)
+            result = workflow.execute(input_data=sample_creation_input)
 
             # Should fail at file writing step
             assert result.success is False
@@ -270,7 +270,7 @@ MySQL is reliable and well-supported.
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(long_title_input)
+        result = workflow.execute(input_data=long_title_input)
 
         # Should handle long titles gracefully
         # Either succeed with truncated filename or provide clear error
@@ -297,7 +297,7 @@ MySQL is reliable and well-supported.
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(special_input)
+        result = workflow.execute(input_data=special_input)
 
         assert result.success is True
 
@@ -324,7 +324,7 @@ MySQL is reliable and well-supported.
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(similar_input)
+        result = workflow.execute(input_data=similar_input)
 
         assert result.success is True
 
@@ -337,7 +337,7 @@ MySQL is reliable and well-supported.
     def test_date_setting(self, temp_adr_dir, sample_creation_input):
         """Test that ADR gets proper date setting."""
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(sample_creation_input)
+        result = workflow.execute(input_data=sample_creation_input)
 
         assert result.success is True
 
@@ -355,7 +355,7 @@ MySQL is reliable and well-supported.
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
 
         # Create first ADR
-        result1 = workflow.execute(sample_creation_input)
+        result1 = workflow.execute(input_data=sample_creation_input)
         assert result1.success is True
         creation1 = result1.data["creation_result"]
         assert creation1.adr_id == "ADR-0001"
@@ -368,7 +368,7 @@ MySQL is reliable and well-supported.
             consequences="Fast caching but additional infrastructure",
         )
 
-        result2 = workflow.execute(second_input)
+        result2 = workflow.execute(input_data=second_input)
         assert result2.success is True
         creation2 = result2.data["creation_result"]
         assert creation2.adr_id == "ADR-0002"
