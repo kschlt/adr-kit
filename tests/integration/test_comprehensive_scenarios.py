@@ -189,7 +189,7 @@ class TestErrorScenarios:
         assert len(results) == 3
 
         # All should complete (success or controlled failure)
-        for index, result in results:
+        for _index, result in results:
             assert result is not None
             assert isinstance(result.success, bool)
 

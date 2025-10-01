@@ -138,7 +138,7 @@ class TestParseADRFile:
         adr_content = """---
 id: ADR-0001
 title: Use PostgreSQL
-status: accepted  
+status: accepted
 date: 2025-09-03
 tags: [database]
 ---

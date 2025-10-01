@@ -113,7 +113,7 @@ Test decision."""
             valid_adr = """---
 id: "ADR-0001"
 title: "Use PostgreSQL"
-status: "proposed"  
+status: "proposed"
 date: "2025-09-03"
 deciders: ["team-lead"]
 tags: ["database"]

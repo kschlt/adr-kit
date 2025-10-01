@@ -84,7 +84,7 @@ We will use React for all frontend development.
 - Modern component-based architecture
 - Large ecosystem and community support
 
-### Negative  
+### Negative
 - Learning curve for team members new to React
 """
 
@@ -298,8 +298,8 @@ We will use React for all frontend development.
 
         # Should have some confidence scores
         if len(confidence_scores) > 0:
-            for tech, score in confidence_scores.items():
-                assert isinstance(score, (int, float))
+            for _tech, score in confidence_scores.items():
+                assert isinstance(score, int | float)
                 assert 0 <= score <= 1  # Confidence should be between 0 and 1
 
     def test_analysis_prompt_quality(self, temp_project_dir, temp_adr_dir):

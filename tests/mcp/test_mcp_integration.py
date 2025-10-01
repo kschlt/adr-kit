@@ -4,7 +4,7 @@ import asyncio
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -105,28 +105,42 @@ class TestAnalyzeProject:
         # Should detect React and Express
         assert "React" in str(data["project_context"])
 
-    def test_analyze_nonexistent_project(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_analyze_nonexistent_project(self, temp_adr_dir):
         """Test analyzing a project that doesn't exist."""
         request = AnalyzeProjectRequest(
             project_path="/nonexistent/path", adr_dir=temp_adr_dir
         )
 
-        response = adr_analyze_project(request)
-        assert_error_response(response)
-        assert "not found" in response["error"].lower()
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "adr_analyze_project", {"request": request.model_dump()}
+            )
+            content_block = result.content[0]
+            response = json.loads(content_block.text)
+            assert_error_response(response)
+            assert "not found" in response["error"].lower()
 
 
 class TestPreflight:
     """Test adr_preflight tool."""
 
-    def test_preflight_simple_choice(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_preflight_simple_choice(self, temp_adr_dir):
         """Test preflight check for a simple technical choice."""
         request = PreflightCheckRequest(
             choice="lodash", category="library", adr_dir=temp_adr_dir
         )
 
-        response = adr_preflight(request)
-        assert_success_response(response)
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "adr_preflight", {"request": request.model_dump()}
+            )
+            content_block = result.content[0]
+            response = json.loads(content_block.text)
+            assert_success_response(response)
 
         data = response["data"]
         assert data["decision"] in ["ALLOWED", "REQUIRES_ADR", "BLOCKED"]
@@ -135,24 +149,33 @@ class TestPreflight:
         assert "related_adrs" in data
         assert "urgency" in data
 
-    def test_preflight_significant_choice(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_preflight_significant_choice(self, temp_adr_dir):
         """Test preflight check for significant architectural choice."""
         request = PreflightCheckRequest(
             choice="PostgreSQL", category="database", adr_dir=temp_adr_dir
         )
 
-        response = adr_preflight(request)
-        assert_success_response(response)
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "adr_preflight", {"request": request.model_dump()}
+            )
+            content_block = result.content[0]
+            response = json.loads(content_block.text)
+            assert_success_response(response)
 
-        data = response["data"]
-        # Database choices should typically require ADR
-        assert data["decision"] in ["REQUIRES_ADR", "BLOCKED"]
+            data = response["data"]
+            # Database choices should typically require ADR
+            assert data["decision"] in ["REQUIRES_ADR", "BLOCKED"]
 
 
 class TestCreateADR:
     """Test adr_create tool."""
 
-    def test_create_basic_adr(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_create_basic_adr(self, temp_adr_dir):
         """Test creating a basic ADR."""
         request = CreateADRRequest(
             title="Use PostgreSQL for primary database",
@@ -162,21 +185,28 @@ class TestCreateADR:
             adr_dir=temp_adr_dir,
         )
 
-        response = adr_create(request)
-        assert_success_response(response)
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "adr_create", {"request": request.model_dump()}
+            )
+            content_block = result.content[0]
+            response = json.loads(content_block.text)
+            assert_success_response(response)
 
-        data = response["data"]
-        assert data["adr_id"].startswith("ADR-")
-        assert data["status"] == "proposed"
-        assert Path(data["file_path"]).exists()
+            data = response["data"]
+            assert data["adr_id"].startswith("ADR-")
+            assert data["status"] == "proposed"
+            assert Path(data["file_path"]).exists()
 
-        # Verify file content
-        with open(data["file_path"]) as f:
-            content = f.read()
-            assert "PostgreSQL" in content
-            assert "status: proposed" in content
+            # Verify file content
+            with open(data["file_path"]) as f:
+                content = f.read()
+                assert "PostgreSQL" in content
+                assert "status: proposed" in content
 
-    def test_create_adr_with_policy(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_create_adr_with_policy(self, temp_adr_dir):
         """Test creating ADR with policy block."""
         request = CreateADRRequest(
             title="Use React for frontend",
@@ -187,21 +217,28 @@ class TestCreateADR:
             adr_dir=temp_adr_dir,
         )
 
-        response = adr_create(request)
-        assert_success_response(response)
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "adr_create", {"request": request.model_dump()}
+            )
+            content_block = result.content[0]
+            response = json.loads(content_block.text)
+            assert_success_response(response)
 
-        # Verify policy is in file
-        data = response["data"]
-        with open(data["file_path"]) as f:
-            content = f.read()
-            assert "policy:" in content
-            assert "prefer:" in content
+            # Verify policy is in file
+            data = response["data"]
+            with open(data["file_path"]) as f:
+                content = f.read()
+                assert "policy:" in content
+                assert "prefer:" in content
 
 
 class TestApproveADR:
     """Test adr_approve tool."""
 
-    def test_approve_proposed_adr(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_approve_proposed_adr(self, temp_adr_dir):
         """Test approving a proposed ADR."""
         # First create an ADR
         create_request = CreateADRRequest(
@@ -212,34 +249,50 @@ class TestApproveADR:
             adr_dir=temp_adr_dir,
         )
 
-        create_response = adr_create(create_request)
-        adr_id = create_response["data"]["adr_id"]
+        async with Client(mcp) as client:
+            create_result = await client.call_tool(
+                "adr_create", {"request": create_request.model_dump()}
+            )
+            create_response = json.loads(create_result.content[0].text)
+            adr_id = create_response["data"]["adr_id"]
 
-        # Now approve it
-        approve_request = ApproveADRRequest(
-            adr_id=adr_id, approval_notes="Approved by team", adr_dir=temp_adr_dir
-        )
+            # Now approve it
+            approve_request = ApproveADRRequest(
+                adr_id=adr_id, approval_notes="Approved by team", adr_dir=temp_adr_dir
+            )
 
-        response = adr_approve(approve_request)
-        assert_success_response(response)
+            approve_result = await client.call_tool(
+                "adr_approve", {"request": approve_request.model_dump()}
+            )
+            response = json.loads(approve_result.content[0].text)
+            assert_success_response(response)
 
-        data = response["data"]
-        assert data["status"] == "approved"
-        assert data["adr_id"] == adr_id
+            data = response["data"]
+            assert data["status"] == "approved"
+            assert data["adr_id"] == adr_id
 
-    def test_approve_nonexistent_adr(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_approve_nonexistent_adr(self, temp_adr_dir):
         """Test approving an ADR that doesn't exist."""
         request = ApproveADRRequest(adr_id="ADR-9999", adr_dir=temp_adr_dir)
 
-        response = adr_approve(request)
-        assert_error_response(response)
-        assert "not found" in response["error"].lower()
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "adr_approve", {"request": request.model_dump()}
+            )
+            content_block = result.content[0]
+            response = json.loads(content_block.text)
+            assert_error_response(response)
+            assert "not found" in response["error"].lower()
 
 
 class TestSupersede:
     """Test adr_supersede tool."""
 
-    def test_supersede_existing_adr(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_supersede_existing_adr(self, temp_adr_dir):
         """Test superseding an existing ADR."""
         # First create and approve an ADR
         create_request = CreateADRRequest(
@@ -250,36 +303,47 @@ class TestSupersede:
             adr_dir=temp_adr_dir,
         )
 
-        create_response = adr_create(create_request)
-        old_adr_id = create_response["data"]["adr_id"]
+        async with Client(mcp) as client:
+            create_result = await client.call_tool(
+                "adr_create", {"request": create_request.model_dump()}
+            )
+            create_response = json.loads(create_result.content[0].text)
+            old_adr_id = create_response["data"]["adr_id"]
 
-        approve_request = ApproveADRRequest(adr_id=old_adr_id, adr_dir=temp_adr_dir)
-        adr_approve(approve_request)
+            approve_request = ApproveADRRequest(adr_id=old_adr_id, adr_dir=temp_adr_dir)
+            await client.call_tool(
+                "adr_approve", {"request": approve_request.model_dump()}
+            )
 
-        # Now supersede it
-        supersede_request = SupersedeADRRequest(
-            old_adr_id=old_adr_id,
-            new_title="Use PostgreSQL for database",
-            new_context="MySQL licensing issues arose",
-            new_decision="Migrate to PostgreSQL",
-            new_consequences="Better licensing, migration effort",
-            supersede_reason="MySQL licensing concerns",
-            adr_dir=temp_adr_dir,
-        )
+            # Now supersede it
+            supersede_request = SupersedeADRRequest(
+                old_adr_id=old_adr_id,
+                new_title="Use PostgreSQL for database",
+                new_context="MySQL licensing issues arose",
+                new_decision="Migrate to PostgreSQL",
+                new_consequences="Better licensing, migration effort",
+                supersede_reason="MySQL licensing concerns",
+                adr_dir=temp_adr_dir,
+            )
 
-        response = adr_supersede(supersede_request)
-        assert_success_response(response)
+            supersede_result = await client.call_tool(
+                "adr_supersede", {"request": supersede_request.model_dump()}
+            )
+            response = json.loads(supersede_result.content[0].text)
+            assert_success_response(response)
 
-        data = response["data"]
-        assert data["old_adr_id"] == old_adr_id
-        assert data["new_adr_id"].startswith("ADR-")
-        assert data["old_status"] == "superseded"
+            data = response["data"]
+            assert data["old_adr_id"] == old_adr_id
+            assert data["new_adr_id"].startswith("ADR-")
+            assert data["old_status"] == "superseded"
 
 
 class TestPlanningContext:
     """Test adr_planning_context tool."""
 
-    def test_planning_context_basic(self, temp_adr_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_planning_context_basic(self, temp_adr_dir):
         """Test getting planning context for a task."""
         request = PlanningContextRequest(
             task_description="Implement user authentication system",
@@ -288,65 +352,88 @@ class TestPlanningContext:
             adr_dir=temp_adr_dir,
         )
 
-        response = adr_planning_context(request)
-        assert_success_response(response)
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "adr_planning_context", {"request": request.model_dump()}
+            )
+            content_block = result.content[0]
+            response = json.loads(content_block.text)
+            assert_success_response(response)
 
-        data = response["data"]
-        assert "relevant_adrs" in data
-        assert "constraints" in data
-        assert "guidance" in data
-        assert "use_technologies" in data
-        assert "avoid_technologies" in data
-        assert "patterns" in data
-        assert "checklist" in data
+            data = response["data"]
+            assert "relevant_adrs" in data
+            assert "constraints" in data
+            assert "guidance" in data
+            assert "use_technologies" in data
+            assert "avoid_technologies" in data
+            assert "patterns" in data
+            assert "checklist" in data
 
 
 class TestEndToEndWorkflow:
     """Test complete ADR workflow."""
 
-    def test_complete_adr_workflow(self, temp_adr_dir, sample_project_dir):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_complete_adr_workflow(self, temp_adr_dir, sample_project_dir):
         """Test complete workflow: analyze -> preflight -> create -> approve."""
-        # Step 1: Analyze project
-        analyze_request = AnalyzeProjectRequest(
-            project_path=sample_project_dir, adr_dir=temp_adr_dir
-        )
-        analyze_response = adr_analyze_project(analyze_request)
-        assert_success_response(analyze_response)
+        async with Client(mcp) as client:
+            # Step 1: Analyze project
+            analyze_request = AnalyzeProjectRequest(
+                project_path=sample_project_dir, adr_dir=temp_adr_dir
+            )
+            analyze_result = await client.call_tool(
+                "adr_analyze_project", {"request": analyze_request.model_dump()}
+            )
+            analyze_response = json.loads(analyze_result.content[0].text)
+            assert_success_response(analyze_response)
 
-        # Step 2: Preflight check
-        preflight_request = PreflightCheckRequest(
-            choice="React", category="frontend", adr_dir=temp_adr_dir
-        )
-        preflight_response = adr_preflight(preflight_request)
-        assert_success_response(preflight_response)
+            # Step 2: Preflight check
+            preflight_request = PreflightCheckRequest(
+                choice="React", category="frontend", adr_dir=temp_adr_dir
+            )
+            preflight_result = await client.call_tool(
+                "adr_preflight", {"request": preflight_request.model_dump()}
+            )
+            preflight_response = json.loads(preflight_result.content[0].text)
+            assert_success_response(preflight_response)
 
-        # Step 3: Create ADR
-        create_request = CreateADRRequest(
-            title="Use React for frontend development",
-            context="Modern frontend framework needed",
-            decision="Use React for all frontend components",
-            consequences="Better user experience, steeper learning curve",
-            tags=["frontend", "javascript"],
-            adr_dir=temp_adr_dir,
-        )
-        create_response = adr_create(create_request)
-        assert_success_response(create_response)
-        adr_id = create_response["data"]["adr_id"]
+            # Step 3: Create ADR
+            create_request = CreateADRRequest(
+                title="Use React for frontend development",
+                context="Modern frontend framework needed",
+                decision="Use React for all frontend components",
+                consequences="Better user experience, steeper learning curve",
+                tags=["frontend", "javascript"],
+                adr_dir=temp_adr_dir,
+            )
+            create_result = await client.call_tool(
+                "adr_create", {"request": create_request.model_dump()}
+            )
+            create_response = json.loads(create_result.content[0].text)
+            assert_success_response(create_response)
+            adr_id = create_response["data"]["adr_id"]
 
-        # Step 4: Approve ADR
-        approve_request = ApproveADRRequest(adr_id=adr_id, adr_dir=temp_adr_dir)
-        approve_response = adr_approve(approve_request)
-        assert_success_response(approve_response)
+            # Step 4: Approve ADR
+            approve_request = ApproveADRRequest(adr_id=adr_id, adr_dir=temp_adr_dir)
+            approve_result = await client.call_tool(
+                "adr_approve", {"request": approve_request.model_dump()}
+            )
+            approve_response = json.loads(approve_result.content[0].text)
+            assert_success_response(approve_response)
 
-        # Step 5: Get planning context (should now include our ADR)
-        planning_request = PlanningContextRequest(
-            task_description="Build user dashboard component",
-            context_type="implementation",
-            domain_hints=["frontend"],
-            adr_dir=temp_adr_dir,
-        )
-        planning_response = adr_planning_context(planning_request)
-        assert_success_response(planning_response)
+            # Step 5: Get planning context (should now include our ADR)
+            planning_request = PlanningContextRequest(
+                task_description="Build user dashboard component",
+                context_type="implementation",
+                domain_hints=["frontend"],
+                adr_dir=temp_adr_dir,
+            )
+            planning_result = await client.call_tool(
+                "adr_planning_context", {"request": planning_request.model_dump()}
+            )
+            planning_response = json.loads(planning_result.content[0].text)
+            assert_success_response(planning_response)
 
         # Should find our React ADR as relevant
         relevant_adrs = planning_response["data"]["relevant_adrs"]
