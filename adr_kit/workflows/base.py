@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -42,7 +42,7 @@ class WorkflowResult:
     # Execution details
     steps: list[WorkflowStep] = field(default_factory=list)
     duration_ms: int = 0
-    executed_at: datetime = field(default_factory=datetime.now)
+    executed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Output data (workflow-specific)
     data: dict[str, Any] = field(default_factory=dict)

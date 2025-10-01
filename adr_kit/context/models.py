@@ -1,6 +1,6 @@
 """Data models for the Planning Context Service."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -94,7 +94,8 @@ class ContextPacket(BaseModel):
 
     # Metadata
     generated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When this packet was generated"
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="When this packet was generated",
     )
     token_estimate: int = Field(
         ..., description="Estimated token count for this packet"

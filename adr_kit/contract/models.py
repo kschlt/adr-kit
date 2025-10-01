@@ -31,7 +31,8 @@ class ContractMetadata(BaseModel):
 
     version: str = Field("1.0", description="Contract format version")
     generated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When contract was generated"
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="When contract was generated",
     )
     hash: str = Field(..., description="SHA-256 hash of the contract content")
     source_adrs: list[str] = Field(
