@@ -93,7 +93,16 @@ reinstall() {
     clean_artifacts
     echo ""
     echo "📦 Installing $PROJECT_NAME in editable mode..."
-    pip install -e ".[dev]"
+
+    # Use uv if available, otherwise fall back to pip
+    if command -v uv >/dev/null 2>&1; then
+        echo "   Using uv..."
+        uv pip install -e ".[dev]"
+    else
+        echo "   Using pip..."
+        pip install -e ".[dev]"
+    fi
+
     echo "✅ Reinstall complete"
     echo ""
     test_installation

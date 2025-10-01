@@ -41,30 +41,45 @@ Agent Request → Clean MCP Interface → Sophisticated Workflow → Business Lo
 
 ### 1. Installation & Setup
 
-**Recommended Installation (Virtual Environment):**
+**Recommended Installation (Using uv):**
 ```bash
-# Create and activate virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
+# or: brew install uv
+# or: pip install uv
 
-# Install ADR Kit with all dependencies
-pip install adr-kit
+# Install ADR Kit globally
+uv tool install adr-kit
+
+# Or upgrade
+uv tool install --upgrade adr-kit
 
 # Initialize in your project
 cd your-project
 adr-kit init
 
-# Start MCP server for AI integration  
+# Start MCP server
 adr-kit mcp-server
 ```
 
-**Alternative Installation (Global with pipx):**
+**Quick Trial:**
 ```bash
-# Install globally with pipx (recommended for CLI tools)
-pipx install adr-kit
+# Run without installing
+uvx adr-kit --help
+uvx adr-kit init
+```
 
-# Or upgrade if already installed
-pipx upgrade adr-kit
+**Alternative Installation (Virtual Environment):**
+```bash
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install with uv
+uv pip install adr-kit
+
+# Or with pip
+pip install adr-kit
 ```
 
 **Built-in Updates:**
@@ -287,9 +302,19 @@ adr-kit export-lint eslint --out .eslintrc.adrs.json
 ### CI/CD Pipeline
 ```yaml
 # .github/workflows/adr.yml
-- run: pip install adr-kit
-- run: adr-kit validate
-- run: git diff --exit-code .eslintrc.adrs.json  # Ensure rules are current
+- name: Install uv
+  uses: astral-sh/setup-uv@v4
+  with:
+    enable-cache: true
+
+- name: Install ADR Kit
+  run: uv tool install adr-kit
+
+- name: Validate ADRs
+  run: adr-kit validate
+
+- name: Check lint rules are current
+  run: git diff --exit-code .eslintrc.adrs.json
 ```
 
 ### Pre-commit Hooks
@@ -307,11 +332,18 @@ adr-kit export-lint eslint --out .eslintrc.adrs.json
 For development on ADR Kit itself:
 
 ```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Development commands
 make dev-setup     # Set up development environment
-make reinstall     # Clean uninstall + fresh install (for testing changes)
+make reinstall     # Clean uninstall + fresh install
 make test          # Run test suite
 make quality       # Format + lint + test
+
+# Or use uv directly
+uv pip install -e ".[dev]"  # Editable install with dev dependencies
+uv run pytest                # Run tests
 ```
 
 See `scripts/` directory for additional development tools.
