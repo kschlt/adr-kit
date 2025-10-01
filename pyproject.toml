@@ -44,6 +44,11 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "psutil>=5.9.0",  # Required for performance tests
+    # Type stubs for mypy
+    "types-PyYAML>=6.0.0",
+    "types-toml>=0.10.0",
+    "types-jsonschema>=4.17.0",
+    "types-requests>=2.25.0",
 ]
 
 [project.scripts]
