@@ -6,7 +6,7 @@ as their definitive source of truth for architectural decisions.
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -126,7 +126,7 @@ class ConstraintsContract(BaseModel):
     def update_hash(self) -> None:
         """Update the metadata hash to match current content."""
         self.metadata.hash = self.calculate_content_hash()
-        self.metadata.generated_at = datetime.now(datetime.UTC)
+        self.metadata.generated_at = datetime.now(timezone.utc)
 
     def to_json_file(self, file_path: Path) -> None:
         """Write contract to JSON file with proper formatting."""

@@ -6,7 +6,7 @@ content hashes, avoiding expensive rebuilds when ADRs haven't changed.
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +60,7 @@ class ContractCache:
             cache_data = {
                 "adr_content_hash": adr_content_hash,
                 "contract_hash": contract.metadata.hash,
-                "cached_at": datetime.now(datetime.UTC).isoformat(),
+                "cached_at": datetime.now(timezone.utc).isoformat(),
                 "adr_directory": str(adr_dir),
                 "source_adrs": contract.metadata.source_adrs,
             }

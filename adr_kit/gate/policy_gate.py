@@ -1,7 +1,7 @@
 """Main policy gate for intercepting and evaluating technical choices."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -111,7 +111,7 @@ class PolicyGate:
             decision=decision,
             reasoning=reasoning,
             metadata=metadata,
-            evaluated_at=datetime.now(datetime.UTC),
+            evaluated_at=datetime.now(timezone.utc),
         )
 
     def evaluate_dependency(

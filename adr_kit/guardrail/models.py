@@ -1,7 +1,7 @@
 """Data models for the Automatic Guardrail Management System."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -46,7 +46,7 @@ class ConfigFragment(BaseModel):
     content: str = Field(..., description="The configuration content")
     source_adr_ids: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SentinelBlock(BaseModel):
