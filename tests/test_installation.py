@@ -1,7 +1,7 @@
 """Tests for installation and package availability.
 
-These tests verify that ADR Kit can be installed correctly using various
-methods (uv, pip) and that the CLI is properly accessible.
+These tests verify that ADR Kit can be installed correctly using uv
+and that the CLI is properly accessible.
 """
 
 import shutil

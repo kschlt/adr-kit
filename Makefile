@@ -11,7 +11,7 @@ help:
 	@echo "ADR Kit Development Commands"
 	@echo ""
 	@echo "Setup & Installation:"
-	@echo "  install      - Install in editable mode with dev dependencies (uses uv if available)"
+	@echo "  install      - Install in editable mode with uv"
 	@echo "  uninstall    - Remove adr-kit package"
 	@echo "  reinstall    - Clean uninstall + fresh install"
 	@echo "  clean        - Remove all generated artifacts"
@@ -40,14 +40,8 @@ help:
 # =============================================================================
 
 install:
-	@echo "🔧 Installing in editable mode with dev dependencies..."
-	@if command -v uv >/dev/null 2>&1; then \
-		echo "Using uv (faster)..."; \
-		uv pip install -e ".[dev]"; \
-	else \
-		echo "Using pip..."; \
-		pip install -e ".[dev]"; \
-	fi
+	@echo "🔧 Installing with uv..."
+	uv pip install -e ".[dev]"
 	@echo "✅ Installation complete"
 
 uninstall:

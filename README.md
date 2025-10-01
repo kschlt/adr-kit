@@ -37,17 +37,33 @@ Agent Request → Clean MCP Interface → Sophisticated Workflow → Business Lo
 - **🔍 Semantic Search** - Vector-based ADR discovery and relationship detection
 - **🌐 Static Site Generation** - Beautiful documentation sites for developer transparency
 
+## Prerequisites
+
+ADR Kit requires uv for package management.
+
+Install uv:
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Homebrew
+brew install uv
+
+# pip
+pip install uv
+```
+
+Verify:
+```bash
+uv --version
+```
+
 ## Quick Start for AI Agents
 
 ### 1. Installation & Setup
 
-**Recommended Installation (Using uv):**
+**Global Installation:**
 ```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
-# or: brew install uv
-# or: pip install uv
-
 # Install ADR Kit globally
 uv tool install adr-kit
 
@@ -62,24 +78,21 @@ adr-kit init
 adr-kit mcp-server
 ```
 
-**Quick Trial:**
+**Quick Trial (No Installation):**
 ```bash
 # Run without installing
 uvx adr-kit --help
 uvx adr-kit init
 ```
 
-**Alternative Installation (Virtual Environment):**
+**Virtual Environment Installation:**
 ```bash
 # Create and activate virtual environment
-python -m venv .venv
+uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install with uv
+# Install ADR Kit
 uv pip install adr-kit
-
-# Or with pip
-pip install adr-kit
 ```
 
 **Built-in Updates:**
@@ -329,21 +342,18 @@ adr-kit export-lint eslint --out .eslintrc.adrs.json
 
 ## Development
 
-For development on ADR Kit itself:
+For development on ADR Kit:
 
 ```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
 # Development commands
 make dev-setup     # Set up development environment
 make reinstall     # Clean uninstall + fresh install
 make test          # Run test suite
 make quality       # Format + lint + test
 
-# Or use uv directly
-uv pip install -e ".[dev]"  # Editable install with dev dependencies
-uv run pytest                # Run tests
+# Direct uv commands
+uv pip install -e ".[dev]"
+uv run pytest
 ```
 
 See `scripts/` directory for additional development tools.

@@ -6,6 +6,17 @@ set -e
 
 PROJECT_NAME="adr-kit"
 
+# Check that uv is installed
+if ! command -v uv >/dev/null 2>&1; then
+    echo "❌ Error: uv is not installed"
+    echo ""
+    echo "Install uv with:"
+    echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo "  or: brew install uv"
+    echo ""
+    exit 1
+fi
+
 usage() {
     echo "ADR Kit Development - Clean Install Script"
     echo ""
@@ -19,7 +30,7 @@ usage() {
     echo ""
     echo "⚠️  This script is for DEVELOPMENT use in the $PROJECT_NAME project itself."
     echo "   It safely removes/cleans generated artifacts but preserves source code."
-    echo "   For end-users, simple 'pip uninstall $PROJECT_NAME' is sufficient."
+    echo "   Requires uv to be installed."
 }
 
 uninstall_package() {
@@ -92,17 +103,8 @@ reinstall() {
     uninstall_package
     clean_artifacts
     echo ""
-    echo "📦 Installing $PROJECT_NAME in editable mode..."
-
-    # Use uv if available, otherwise fall back to pip
-    if command -v uv >/dev/null 2>&1; then
-        echo "   Using uv..."
-        uv pip install -e ".[dev]"
-    else
-        echo "   Using pip..."
-        pip install -e ".[dev]"
-    fi
-
+    echo "📦 Installing $PROJECT_NAME with uv..."
+    uv pip install -e ".[dev]"
     echo "✅ Reinstall complete"
     echo ""
     test_installation

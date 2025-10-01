@@ -5,7 +5,7 @@
 **Key understanding:**
 - You're building the tool itself, NOT using it
 - Any ADRs in `docs/adr/` or `tests/fixtures/` are test fixtures, not real decisions
-- Real users will: `uv tool install adr-kit` → `adr-kit mcp-server` → use MCP tools in their project
+- Real users: `uv tool install adr-kit` → `adr-kit mcp-server` → use MCP tools in their project
 
 **Mental model:** Ask "Does this make ADR Kit better for other projects?"
 
@@ -20,11 +20,7 @@
 ## Quick Start
 
 ```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
-# or: brew install uv
-
-# Install in editable mode
+# Install in editable mode (requires uv)
 uv pip install -e ".[dev]"
 
 # Run unit tests
