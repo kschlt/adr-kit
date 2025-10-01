@@ -172,7 +172,7 @@ class SupersedeWorkflow(BaseWorkflow):
 
         return self.result
 
-    def _create_new_adr(self, new_proposal):
+    def _create_new_adr(self, new_proposal: Any) -> WorkflowResult:
         """Create new ADR using the creation workflow."""
         creation_workflow = CreationWorkflow(adr_dir=self.adr_dir)
         creation_result = creation_workflow.execute(input_data=new_proposal)

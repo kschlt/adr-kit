@@ -238,7 +238,14 @@ class CreationWorkflow(BaseWorkflow):
                     continue  # Skip problematic files
 
             # Sort by relevance
-            related.sort(key=lambda x: x["relevance_score"], reverse=True)
+            related.sort(
+                key=lambda x: (
+                    float(x["relevance_score"])
+                    if isinstance(x["relevance_score"], int | float | str)
+                    else 0.0
+                ),
+                reverse=True,
+            )
             return related[:10]  # Return top 10 most relevant
 
         except Exception:
@@ -328,7 +335,7 @@ class CreationWorkflow(BaseWorkflow):
         return conflicts
 
     def _detect_policy_conflicts(
-        self, proposed_policy: dict[str, Any], contract
+        self, proposed_policy: dict[str, Any], contract: Any
     ) -> list[dict[str, Any]]:
         """Detect conflicts between proposed policy and existing policies."""
         conflicts = []

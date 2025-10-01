@@ -90,7 +90,7 @@ banned-api = [
     def apply_guardrails(self, force: bool = False) -> list[ApplyResult]:
         """Apply guardrails based on current ADR policies."""
 
-        results = []
+        results: list[ApplyResult] = []
 
         if not self.config.enabled:
             return results
@@ -133,7 +133,7 @@ banned-api = [
     def watch_and_apply(self) -> list[ApplyResult]:
         """Watch for ADR changes and apply guardrails automatically."""
 
-        results = []
+        results: list[ApplyResult] = []
 
         if not self.config.auto_apply:
             return results
@@ -151,10 +151,12 @@ banned-api = [
 
         return results
 
-    def _generate_fragments(self, contract) -> dict[FragmentType, list[ConfigFragment]]:
+    def _generate_fragments(
+        self, contract: Any
+    ) -> dict[FragmentType, list[ConfigFragment]]:
         """Generate configuration fragments from constraints contract."""
 
-        fragments = {
+        fragments: dict[FragmentType, list[ConfigFragment]] = {
             FragmentType.ESLINT: [],
             FragmentType.RUFF: [],
             FragmentType.IMPORT_LINTER: [],
@@ -183,7 +185,7 @@ banned-api = [
 
         return fragments
 
-    def _generate_eslint_fragment(self, contract) -> ConfigFragment | None:
+    def _generate_eslint_fragment(self, contract: Any) -> ConfigFragment | None:
         """Generate ESLint configuration fragment."""
 
         if (
@@ -236,7 +238,7 @@ banned-api = [
             source_adr_ids=list(contract.provenance.keys()),
         )
 
-    def _generate_ruff_fragment(self, contract) -> ConfigFragment | None:
+    def _generate_ruff_fragment(self, contract: Any) -> ConfigFragment | None:
         """Generate Ruff configuration fragment."""
 
         if (
@@ -275,7 +277,7 @@ banned-api = [
             source_adr_ids=list(contract.provenance.keys()),
         )
 
-    def _generate_import_linter_fragment(self, contract) -> ConfigFragment | None:
+    def _generate_import_linter_fragment(self, contract: Any) -> ConfigFragment | None:
         """Generate import-linter configuration fragment."""
 
         if (
@@ -306,7 +308,7 @@ forbidden_modules = ["{rule.forbid}"]"""
 
     def _log_policy_changes(
         self, changes: list[ChangeEvent], results: list[ApplyResult]
-    ):
+    ) -> None:
         """Log policy changes for audit purposes."""
 
         if not self.config.notify_on_apply:
@@ -348,9 +350,20 @@ forbidden_modules = ["{rule.forbid}"]"""
             contract_valid = True
             constraint_count = (
                 len(contract.constraints.imports.disallow or [])
-                + len(contract.constraints.imports.prefer or [])
-                + len(contract.constraints.boundaries.rules or [])
-                + len(contract.constraints.python.disallow_imports or [])
+                if contract.constraints.imports
+                else (
+                    0 + len(contract.constraints.imports.prefer or [])
+                    if contract.constraints.imports
+                    else (
+                        0 + len(contract.constraints.boundaries.rules or [])
+                        if contract.constraints.boundaries
+                        else (
+                            0 + len(contract.constraints.python.disallow_imports or [])
+                            if contract.constraints.python
+                            else 0
+                        )
+                    )
+                )
             )
         except Exception:
             contract_valid = False

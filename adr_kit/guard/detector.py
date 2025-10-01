@@ -59,7 +59,7 @@ class CodeAnalysisResult:
 class DiffParser:
     """Parse git diffs to extract meaningful code changes."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.import_patterns = {
             "python": [
                 r"^import\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)",
@@ -84,8 +84,8 @@ class DiffParser:
         Returns:
             Dictionary mapping file paths to lists of added imports
         """
-        file_changes = {}
-        current_file = None
+        file_changes: dict[str, list[str]] = {}
+        current_file: str | None = None
 
         lines = diff_text.split("\n")
         for line in lines:
@@ -156,7 +156,7 @@ class SemanticPolicyMatcher:
             List of relevant ADR matches
         """
         # Build query from file paths, imports, and context
-        query_parts = []
+        query_parts: list[str] = []
 
         # Add file path context
         for file_path in file_changes.keys():
@@ -207,10 +207,10 @@ class GuardSystem:
         self.semantic_matcher = SemanticPolicyMatcher(self.semantic_index)
 
         # Load ADR policies cache
-        self._policy_cache = {}
+        self._policy_cache: dict[str, Any] = {}
         self._load_adr_policies()
 
-    def _load_adr_policies(self):
+    def _load_adr_policies(self) -> None:
         """Load and cache policies from all ADRs."""
         print("🔍 Loading ADR policies for guard system...")
 
@@ -393,7 +393,7 @@ class GuardSystem:
         self, file_path: str, imports: list[str], adr: ADR, policy: Any
     ) -> list[PolicyViolation]:
         """Check for architectural boundary violations."""
-        violations = []
+        violations: list[PolicyViolation] = []
 
         if not policy.boundaries or not policy.boundaries.rules:
             return violations
@@ -441,7 +441,7 @@ class GuardSystem:
             # Find a preferred import that might replace this one
             for preferred in policy.imports.prefer:
                 if self._are_similar_imports(import_name, preferred):
-                    return preferred
+                    return str(preferred)
         return None
 
     def _find_preferred_alternative(

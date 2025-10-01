@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from ..contract import ConstraintsContractBuilder
 from .models import GateConfig, GateDecision
@@ -15,7 +16,7 @@ class PolicyConfig:
     adr_dir: Path
     gate_config_path: Path | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.gate_config_path is None:
             self.gate_config_path = self.adr_dir / ".adr" / "policy.json"
 
@@ -53,7 +54,7 @@ class PolicyEngine:
 
     def evaluate_choice(
         self, choice: TechnicalChoice
-    ) -> tuple[GateDecision, str, dict[str, any]]:
+    ) -> tuple[GateDecision, str, dict[str, Any]]:
         """Evaluate a technical choice and return decision with reasoning.
 
         Returns:
@@ -89,8 +90,12 @@ class PolicyEngine:
             )
 
         # Apply default policies based on category and choice type
-        decision = self._apply_default_policy(choice, category, normalized_name)
-        reasoning = self._get_default_policy_reasoning(choice, category, decision)
+        decision = self._apply_default_policy(
+            choice, category or "general", normalized_name
+        )
+        reasoning = self._get_default_policy_reasoning(
+            choice, category or "general", decision
+        )
 
         return (
             decision,
@@ -220,7 +225,7 @@ class PolicyEngine:
         else:
             return f"Default policy decision: {decision.value}"
 
-    def get_config_summary(self) -> dict[str, any]:
+    def get_config_summary(self) -> dict[str, Any]:
         """Get summary of current gate configuration."""
         return {
             "config_file": str(self.config.gate_config_path),

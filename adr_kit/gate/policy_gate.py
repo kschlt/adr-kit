@@ -122,7 +122,7 @@ class PolicyGate:
         version_constraint: str | None = None,
         is_dev_dependency: bool = False,
         alternatives_considered: list[str] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> GateResult:
         """Convenience method for evaluating dependency choices.
 
@@ -160,7 +160,7 @@ class PolicyGate:
         current_solution: str | None = None,
         migration_required: bool = False,
         alternatives_considered: list[str] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> GateResult:
         """Convenience method for evaluating framework choices.
 
@@ -291,7 +291,7 @@ class PolicyGate:
         try:
             contract = self.engine.contract_builder.build_contract()
 
-            recommendations = {
+            recommendations: dict[str, Any] = {
                 "choice_name": choice_name,
                 "normalized_name": self.engine.gate_config.normalize_name(choice_name),
                 "category": self.engine.gate_config.categorize_choice(choice_name),
@@ -340,9 +340,9 @@ class PolicyGate:
                 "message": "Unable to get recommendations",
             }
 
-    def _find_source_adr(self, contract, rule_path: str) -> str | None:
+    def _find_source_adr(self, contract: Any, rule_path: str) -> str | None:
         """Find the source ADR for a specific rule path."""
         for path, provenance in contract.provenance.items():
             if path == rule_path:
-                return provenance.adr_id
+                return str(provenance.adr_id)
         return None

@@ -23,7 +23,7 @@ class PlanningConfig:
     ranking_strategy: RankingStrategy = RankingStrategy.HYBRID
     include_superseded: bool = False  # Whether to include superseded ADRs
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.adr_dir = Path(self.adr_dir)
 
 
@@ -112,6 +112,7 @@ class PlanningContext:
             changed_files=changed_files,
             technologies_mentioned=list(technologies),
             task_type=task_type,
+            priority="medium",  # Default priority
         )
 
         return self.create_context_packet(task_hint)
@@ -174,7 +175,7 @@ class PlanningContext:
         if not contract or contract.constraints.is_empty():
             return {}
 
-        constraints = {}
+        constraints: dict[str, Any] = {}
 
         # Import constraints
         if contract.constraints.imports:

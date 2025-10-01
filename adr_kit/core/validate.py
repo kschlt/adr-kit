@@ -121,7 +121,7 @@ class ADRValidator:
         """
         from datetime import date
 
-        converted = {}
+        converted: dict[str, Any] = {}
         for key, value in data.items():
             if isinstance(value, date):
                 # Convert datetime.date to ISO format string

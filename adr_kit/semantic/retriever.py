@@ -13,13 +13,17 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import jsonlines
 import numpy as np
+from numpy.typing import NDArray
 
 from ..core.model import ADR
 from ..core.parse import ParseError, find_adr_files, parse_adr_file
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 
 @dataclass
@@ -52,7 +56,7 @@ class SemanticMatch:
 class SemanticChunker:
     """Splits ADR content into semantic chunks for embedding."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.max_chunk_size = 300  # Maximum characters per chunk
         self.overlap_size = 50  # Overlap between chunks
         self.section_headers = [
@@ -111,7 +115,7 @@ class SemanticChunker:
 
         return chunks
 
-    def _extract_policy_summary(self, policy) -> str | None:
+    def _extract_policy_summary(self, policy: Any) -> str | None:
         """Extract a text summary from structured policy."""
         parts = []
 
@@ -165,9 +169,9 @@ class SemanticChunker:
     def _split_by_headers(self, content: str) -> list[tuple[str | None, str]]:
         """Split content by markdown headers."""
         lines = content.split("\n")
-        sections = []
-        current_section = None
-        current_content = []
+        sections: list[tuple[str | None, str]] = []
+        current_section: str | None = None
+        current_content: list[str] = []
 
         for line in lines:
             # Check for markdown header
@@ -255,13 +259,13 @@ class SemanticIndex:
 
         # Initialize components
         self.chunker = SemanticChunker()
-        self._model = None
-        self._embeddings = None
-        self._chunks = []
-        self._meta = {}
+        self._model: SentenceTransformer | None = None
+        self._embeddings: NDArray[Any] | None = None
+        self._chunks: list[SemanticChunk] = []
+        self._meta: dict[str, Any] = {}
 
     @property
-    def model(self):
+    def model(self) -> "SentenceTransformer":
         """Lazy load the sentence transformer model."""
         if self._model is None:
             try:
@@ -373,7 +377,7 @@ class SemanticIndex:
             "status": "updated",
         }
 
-    def _generate_embeddings(self, texts: list[str]) -> np.ndarray:
+    def _generate_embeddings(self, texts: list[str]) -> NDArray[Any]:
         """Generate embeddings for a list of texts."""
         print(f"🧠 Generating embeddings for {len(texts)} chunks...")
         embeddings = self.model.encode(texts, show_progress_bar=True)
@@ -405,10 +409,10 @@ class SemanticIndex:
             print(f"⚠️ Could not load existing index: {e}")
             return False
 
-    def _update_metadata(self):
+    def _update_metadata(self) -> None:
         """Update metadata mappings."""
-        chunk_to_row = {}
-        adr_to_chunks = {}
+        chunk_to_row: dict[str, int] = {}
+        adr_to_chunks: dict[str, list[str]] = {}
 
         for i, chunk in enumerate(self._chunks):
             chunk_to_row[chunk.chunk_id] = i
@@ -427,7 +431,7 @@ class SemanticIndex:
             "adr_to_chunks": adr_to_chunks,
         }
 
-    def _save_index(self):
+    def _save_index(self) -> None:
         """Save index to disk."""
         print("💾 Saving semantic index...")
 
@@ -445,7 +449,8 @@ class SemanticIndex:
                 )
 
         # Save embeddings as NPZ
-        np.savez_compressed(self.embeddings_file, embeddings=self._embeddings)
+        if self._embeddings is not None:
+            np.savez_compressed(self.embeddings_file, embeddings=self._embeddings)
 
         # Save metadata as JSON
         with open(self.meta_file, "w") as f:
@@ -480,8 +485,8 @@ class SemanticIndex:
         top_indices = np.argsort(similarities)[::-1][: k * 3]  # Get more for filtering
 
         # Group by ADR and aggregate scores
-        adr_scores = {}
-        adr_chunks = {}
+        adr_scores: dict[str, list[float]] = {}
+        adr_chunks: dict[str, list[SemanticChunk]] = {}
 
         for idx in top_indices:
             chunk = self._chunks[idx]
@@ -491,7 +496,7 @@ class SemanticIndex:
                 adr_scores[chunk.adr_id] = []
                 adr_chunks[chunk.adr_id] = []
 
-            adr_scores[chunk.adr_id].append(score)
+            adr_scores[chunk.adr_id].append(float(score))
             adr_chunks[chunk.adr_id].append(chunk)
 
         # Create matches

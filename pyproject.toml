@@ -110,6 +110,13 @@ warn_unused_ignores = true
 warn_return_any = true
 strict_equality = true
 
+# Relax strictness for test files (industry standard practice)
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --cov=adr_kit --cov-report=term-missing"

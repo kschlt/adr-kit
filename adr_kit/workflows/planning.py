@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..contract.builder import ConstraintsContractBuilder
+from ..contract.models import ConstraintsContract
 from ..core.model import ADR
 from .base import BaseWorkflow, WorkflowResult
 
@@ -195,7 +196,7 @@ class PlanningWorkflow(BaseWorkflow):
             "priority_level": input_data.priority_level,
         }
 
-    def _extract_technologies(self, task_text: str) -> list[str]:
+    def _extract_technologies(self, task_text: str) -> list[dict[str, Any]]:
         """Extract mentioned technologies from task description."""
         # Common technology patterns
         tech_patterns = {
@@ -211,7 +212,7 @@ class PlanningWorkflow(BaseWorkflow):
             r"\b(microservice|monolith|serverless|graphql|rest|grpc|api)\b": "architecture",
         }
 
-        technologies = []
+        technologies: list[dict[str, Any]] = []
         for pattern, category in tech_patterns.items():
             matches = re.findall(pattern, task_text, re.IGNORECASE)
             for match in matches:
@@ -336,7 +337,7 @@ class PlanningWorkflow(BaseWorkflow):
         else:
             return "low"
 
-    def _load_constraints_contract(self):
+    def _load_constraints_contract(self) -> ConstraintsContract:
         """Load current constraints contract."""
         try:
             builder = ConstraintsContractBuilder(adr_dir=self.adr_dir)
@@ -345,13 +346,11 @@ class PlanningWorkflow(BaseWorkflow):
             # Return empty contract if none exists
             from pathlib import Path
 
-            from ..contract.models import ConstraintsContract
-
             # Use the proper create_empty method instead of incorrect constructor
             return ConstraintsContract.create_empty(Path("."))
 
     def _find_relevant_adrs(
-        self, task_analysis: dict[str, Any], contract
+        self, task_analysis: dict[str, Any], contract: ConstraintsContract
     ) -> list[dict[str, Any]]:
         """Find ADRs relevant to the task."""
         relevant_adrs = []
@@ -385,7 +384,14 @@ class PlanningWorkflow(BaseWorkflow):
                 )
 
         # Sort by relevance
-        relevant_adrs.sort(key=lambda x: x["relevance_score"], reverse=True)
+        relevant_adrs.sort(
+            key=lambda x: (
+                float(x["relevance_score"])
+                if isinstance(x["relevance_score"], int | float | str)
+                else 0.0
+            ),
+            reverse=True,
+        )
 
         # Return top relevant ADRs (limit based on priority)
         limit = {"high": 10, "normal": 6, "low": 3}[task_analysis["priority_level"]]
@@ -393,9 +399,8 @@ class PlanningWorkflow(BaseWorkflow):
 
     def _calculate_adr_relevance(self, adr: ADR, task_keywords: set[str]) -> float:
         """Calculate relevance score between ADR and task."""
-        adr_text = (
-            f"{adr.title} {adr.decision} {' '.join(adr.tags)} {adr.context}"
-        ).lower()
+        tags_str = " ".join(adr.tags) if adr.tags else ""
+        adr_text = (f"{adr.title} {adr.decision} {tags_str} {adr.context}").lower()
 
         matches = 0
         total_keywords = len(task_keywords)
@@ -411,7 +416,7 @@ class PlanningWorkflow(BaseWorkflow):
         relevance = matches / total_keywords
 
         # Boost for tag matches (tags are more specific)
-        tag_matches = len(set(adr.tags) & task_keywords)
+        tag_matches = len(set(adr.tags or []) & task_keywords)
         relevance += tag_matches * 0.3
 
         # Boost for title matches (titles are very specific)
@@ -424,7 +429,8 @@ class PlanningWorkflow(BaseWorkflow):
 
     def _get_matching_areas(self, adr: ADR, task_keywords: set[str]) -> list[str]:
         """Get areas where ADR and task overlap."""
-        adr_text = f"{adr.title} {adr.decision} {' '.join(adr.tags)}".lower()
+        tags_str = " ".join(adr.tags) if adr.tags else ""
+        adr_text = f"{adr.title} {adr.decision} {tags_str}".lower()
 
         matching_areas = []
         for keyword in task_keywords:
@@ -438,25 +444,27 @@ class PlanningWorkflow(BaseWorkflow):
         policies = []
 
         if adr.policy:
-            for _policy_type, policy_content in adr.policy.items():
-                if isinstance(policy_content, dict):
-                    if "disallow" in policy_content:
-                        policies.append(
-                            f"Disallows: {', '.join(policy_content['disallow'])}"
-                        )
-                    if "prefer" in policy_content:
-                        policies.append(
-                            f"Prefers: {', '.join(policy_content['prefer'])}"
-                        )
-                    if "require" in policy_content:
-                        policies.append(
-                            f"Requires: {', '.join(policy_content['require'])}"
-                        )
+            # Handle import policies
+            if adr.policy.imports:
+                if adr.policy.imports.disallow:
+                    policies.append(
+                        f"Disallows imports: {', '.join(adr.policy.imports.disallow)}"
+                    )
+                if adr.policy.imports.prefer:
+                    policies.append(
+                        f"Prefers imports: {', '.join(adr.policy.imports.prefer)}"
+                    )
+
+            # Handle Python policies
+            if adr.policy.python and adr.policy.python.disallow_imports:
+                policies.append(
+                    f"Disallows Python imports: {', '.join(adr.policy.python.disallow_imports)}"
+                )
 
         return policies
 
     def _extract_applicable_constraints(
-        self, task_analysis: dict[str, Any], contract
+        self, task_analysis: dict[str, Any], contract: ConstraintsContract
     ) -> list[dict[str, Any]]:
         """Extract constraints applicable to the task."""
         applicable = []
@@ -464,17 +472,18 @@ class PlanningWorkflow(BaseWorkflow):
         task_domains = set(task_analysis["domains"])
         task_tech = {tech["name"] for tech in task_analysis["technologies"]}
 
-        for constraint in contract.constraints:
+        # Iterate over provenance to get individual constraint rules
+        for adr_id, prov in contract.provenance.items():
             constraint_relevance = self._assess_constraint_relevance(
-                constraint, task_domains, task_tech
+                contract.constraints, task_domains, task_tech
             )
 
             if constraint_relevance > 0.3:  # Relevance threshold
                 applicable.append(
                     {
-                        "adr_id": constraint.adr_id,
-                        "constraint_type": constraint.constraint_type,
-                        "policy_summary": self._summarize_policy(constraint.policy),
+                        "adr_id": adr_id,
+                        "constraint_type": prov.rule_path.split(".")[0],
+                        "policy_summary": self._summarize_policy(contract.constraints),
                         "relevance": constraint_relevance,
                         "enforcement_level": (
                             "required" if constraint_relevance > 0.7 else "recommended"
@@ -485,7 +494,7 @@ class PlanningWorkflow(BaseWorkflow):
         return applicable
 
     def _assess_constraint_relevance(
-        self, constraint, task_domains: set[str], task_tech: set[str]
+        self, constraint: Any, task_domains: set[str], task_tech: set[str]
     ) -> float:
         """Assess how relevant a constraint is to the task."""
         relevance = 0.0
@@ -503,18 +512,39 @@ class PlanningWorkflow(BaseWorkflow):
 
         return min(relevance, 1.0)
 
-    def _summarize_policy(self, policy: dict[str, Any]) -> str:
+    def _summarize_policy(self, policy: Any) -> str:
         """Create human-readable summary of policy."""
-        summary_parts = []
+        from ..contract.models import MergedConstraints
 
-        for _policy_type, content in policy.items():
-            if isinstance(content, dict):
-                if "disallow" in content:
-                    summary_parts.append(f"Avoid {', '.join(content['disallow'])}")
-                if "prefer" in content:
-                    summary_parts.append(f"Use {', '.join(content['prefer'])}")
-                if "require" in content:
-                    summary_parts.append(f"Must use {', '.join(content['require'])}")
+        summary_parts: list[str] = []
+
+        # Handle MergedConstraints object
+        if isinstance(policy, MergedConstraints):
+            if policy.imports:
+                if policy.imports.disallow:
+                    summary_parts.append(
+                        f"Avoid imports: {', '.join(policy.imports.disallow)}"
+                    )
+                if policy.imports.prefer:
+                    summary_parts.append(
+                        f"Use imports: {', '.join(policy.imports.prefer)}"
+                    )
+            if policy.python and policy.python.disallow_imports:
+                summary_parts.append(
+                    f"Avoid Python: {', '.join(policy.python.disallow_imports)}"
+                )
+        # Handle dict fallback
+        elif isinstance(policy, dict):
+            for _policy_type, content in policy.items():
+                if isinstance(content, dict):
+                    if "disallow" in content:
+                        summary_parts.append(f"Avoid {', '.join(content['disallow'])}")
+                    if "prefer" in content:
+                        summary_parts.append(f"Use {', '.join(content['prefer'])}")
+                    if "require" in content:
+                        summary_parts.append(
+                            f"Must use {', '.join(content['require'])}"
+                        )
 
         return "; ".join(summary_parts) if summary_parts else "No specific constraints"
 
@@ -522,10 +552,14 @@ class PlanningWorkflow(BaseWorkflow):
         self,
         task_analysis: dict[str, Any],
         relevant_adrs: list[dict[str, Any]],
-        contract,
+        contract: ConstraintsContract,
     ) -> dict[str, list[str]]:
         """Generate technology recommendations based on ADRs."""
-        recommendations = {"recommended": [], "avoid": [], "required": []}
+        recommendations: dict[str, list[str]] = {
+            "recommended": [],
+            "avoid": [],
+            "required": [],
+        }
 
         # Extract recommendations from relevant ADRs
         for adr_info in relevant_adrs:
