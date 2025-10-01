@@ -228,7 +228,11 @@ class ApprovalWorkflow(BaseWorkflow):
         # Validate ADR structure
         # Note: validate_adr signature is (adr, schema_path, project_root)
         # Pass None for schema_path to use default, and self.adr_dir.parent as project_root
-        validation_result = validate_adr(adr, schema_path=None, project_root=self.adr_dir.parent if self.adr_dir else None)
+        validation_result = validate_adr(
+            adr,
+            schema_path=None,
+            project_root=self.adr_dir.parent if self.adr_dir else None,
+        )
         if not validation_result.is_valid and not input_data.force_approve:
             errors = [str(error) for error in validation_result.errors]
             raise ValueError(f"ADR {adr.id} has validation errors: {', '.join(errors)}")

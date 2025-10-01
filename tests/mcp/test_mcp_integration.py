@@ -121,8 +121,15 @@ class TestAnalyzeProject:
             response = json.loads(content_block.text)
             assert_error_response(response)
             # Check that error indicates analysis failure and details mention path issue
-            assert response["error"].lower() in ["project analysis failed", "analysis failed"]
-            assert "not found" in response["details"].lower() or "nonexistent" in response["details"].lower() or "does not exist" in response["details"].lower()
+            assert response["error"].lower() in [
+                "project analysis failed",
+                "analysis failed",
+            ]
+            assert (
+                "not found" in response["details"].lower()
+                or "nonexistent" in response["details"].lower()
+                or "does not exist" in response["details"].lower()
+            )
 
 
 class TestPreflight:
@@ -234,8 +241,8 @@ class TestCreateADR:
                 assert "policy:" in content
                 assert "imports:" in content
                 # Verify policy dict is present (handles both YAML and dict repr)
-                assert ("prefer" in content or "'prefer'" in content)
-                assert ("react" in content.lower())
+                assert "prefer" in content or "'prefer'" in content
+                assert "react" in content.lower()
 
 
 class TestApproveADR:
@@ -290,8 +297,14 @@ class TestApproveADR:
             response = json.loads(content_block.text)
             assert_error_response(response)
             # Check that error indicates approval failure and details mention ADR not found
-            assert response["error"].lower() in ["adr approval failed", "approval failed"]
-            assert "not found" in response["details"].lower() or "does not exist" in response["details"].lower()
+            assert response["error"].lower() in [
+                "adr approval failed",
+                "approval failed",
+            ]
+            assert (
+                "not found" in response["details"].lower()
+                or "does not exist" in response["details"].lower()
+            )
 
 
 class TestSupersede:
@@ -349,7 +362,9 @@ class TestSupersede:
             # Files are named like "ADR-0001-use-mysql-for-database.md"
             adr_dir_path = Path(temp_adr_dir)
             adr_files = list(adr_dir_path.glob(f"{old_adr_id}-*.md"))
-            assert len(adr_files) > 0, f"Old ADR file {old_adr_id}-*.md not found in {temp_adr_dir}"
+            assert (
+                len(adr_files) > 0
+            ), f"Old ADR file {old_adr_id}-*.md not found in {temp_adr_dir}"
             old_adr_file = adr_files[0]
             with open(old_adr_file) as f:
                 updated_content = f.read()

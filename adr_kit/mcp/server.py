@@ -108,7 +108,11 @@ def adr_preflight(request: PreflightCheckRequest) -> dict[str, Any]:
                     "related_adrs": decision.related_adrs,
                     "urgency": decision.urgency,
                 },
-                next_steps=[decision.next_steps] if isinstance(decision.next_steps, str) else decision.next_steps,
+                next_steps=(
+                    [decision.next_steps]
+                    if isinstance(decision.next_steps, str)
+                    else decision.next_steps
+                ),
                 metadata={"choice": request.choice, "category": request.category},
             )
         else:
@@ -167,7 +171,11 @@ def adr_create(request: CreateADRRequest) -> dict[str, Any]:
                     "related_adrs": creation_result.related_adrs,
                     "validation_warnings": creation_result.validation_warnings,
                 },
-                next_steps=[creation_result.next_steps] if isinstance(creation_result.next_steps, str) else creation_result.next_steps,
+                next_steps=(
+                    [creation_result.next_steps]
+                    if isinstance(creation_result.next_steps, str)
+                    else creation_result.next_steps
+                ),
                 metadata={"adr_id": creation_result.adr_id},
             )
         else:
@@ -220,7 +228,11 @@ def adr_approve(request: ApproveADRRequest) -> dict[str, Any]:
                     "configurations_updated": approval_result.configurations_updated,
                     "warnings": approval_result.warnings,
                 },
-                next_steps=[approval_result.next_steps] if isinstance(approval_result.next_steps, str) else approval_result.next_steps,
+                next_steps=(
+                    [approval_result.next_steps]
+                    if isinstance(approval_result.next_steps, str)
+                    else approval_result.next_steps
+                ),
                 metadata={"adr_id": request.adr_id},
             )
         else:
@@ -287,7 +299,11 @@ def adr_supersede(request: SupersedeADRRequest) -> dict[str, Any]:
                     "new_status": supersede_result.new_adr_status,
                     "relationships_updated": supersede_result.relationships_updated,
                 },
-                next_steps=[supersede_result.next_steps] if isinstance(supersede_result.next_steps, str) else supersede_result.next_steps,
+                next_steps=(
+                    [supersede_result.next_steps]
+                    if isinstance(supersede_result.next_steps, str)
+                    else supersede_result.next_steps
+                ),
                 metadata={
                     "old_adr": request.old_adr_id,
                     "new_adr": supersede_result.new_adr_id,
