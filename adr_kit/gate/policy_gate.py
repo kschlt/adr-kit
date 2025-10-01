@@ -111,7 +111,7 @@ class PolicyGate:
             decision=decision,
             reasoning=reasoning,
             metadata=metadata,
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(datetime.UTC),
         )
 
     def evaluate_dependency(

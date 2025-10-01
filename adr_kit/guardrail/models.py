@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FragmentType(str, Enum):
@@ -46,7 +46,7 @@ class ConfigFragment(BaseModel):
     content: str = Field(..., description="The configuration content")
     source_adr_ids: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
 
 
 class SentinelBlock(BaseModel):
@@ -148,8 +148,7 @@ class GuardrailConfig(BaseModel):
     notify_on_apply: bool = True
     notify_on_error: bool = True
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
     def get_targets_for_type(self, fragment_type: FragmentType) -> list[FragmentTarget]:
         """Get all targets for a specific fragment type."""

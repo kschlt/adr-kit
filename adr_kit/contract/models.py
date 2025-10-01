@@ -126,7 +126,7 @@ class ConstraintsContract(BaseModel):
     def update_hash(self) -> None:
         """Update the metadata hash to match current content."""
         self.metadata.hash = self.calculate_content_hash()
-        self.metadata.generated_at = datetime.utcnow()
+        self.metadata.generated_at = datetime.now(datetime.UTC)
 
     def to_json_file(self, file_path: Path) -> None:
         """Write contract to JSON file with proper formatting."""

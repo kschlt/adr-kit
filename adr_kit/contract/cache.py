@@ -60,7 +60,7 @@ class ContractCache:
             cache_data = {
                 "adr_content_hash": adr_content_hash,
                 "contract_hash": contract.metadata.hash,
-                "cached_at": datetime.utcnow().isoformat(),
+                "cached_at": datetime.now(datetime.UTC).isoformat(),
                 "adr_directory": str(adr_dir),
                 "source_adrs": contract.metadata.source_adrs,
             }
