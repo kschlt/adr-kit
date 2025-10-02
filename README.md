@@ -1,246 +1,264 @@
 # ADR Kit
 
-**AI-First Architectural Decision Records** - A production-ready toolkit designed for AI agents to manage ADRs with sophisticated workflow automation and policy enforcement.
+Document architectural decisions. Enforce them automatically.
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-comprehensive-green)](#testing--validation)
 
-## What is ADR Kit?
+## The Problem
 
-ADR Kit transforms architectural decisions into **enforceable code policies** through a sophisticated workflow system. It provides **clean agent-friendly interfaces** backed by **comprehensive Python automation workflows**.
+Your team decides "use React Query for all data fetching." Three months later, new code uses axios and fetch(). No one remembers the decision or why it was made. Code reviews catch some violations, but not all.
 
-**Key Philosophy:** Simple entry points for agents, sophisticated automation underneath.
+## The Solution
 
-## Architecture: Clean Separation of Concerns
+ADR Kit makes architectural decisions enforceable:
 
-```
-Agent Request → Clean MCP Interface → Sophisticated Workflow → Business Logic
-     ↑               ↑                      ↑                    ↑
-  FastMCP        Agent-Friendly       Step-by-Step         Core Components
- Compatible        Interfaces         Automation           & Intelligence  
-```
+1. **Document decisions** in standard MADR format
+2. **Extract policies** from decision documents automatically
+3. **Generate lint rules** that prevent violations
+4. **Integrate with AI agents** for autonomous ADR management
 
-**Perfect for:**
-- **Agent Integration**: Clean, predictable MCP interfaces
-- **Business Logic Evolution**: Sophisticated workflows can evolve independently  
-- **Debugging & Maintenance**: Clear separation, comprehensive logging
-- **Testing**: Each component tested thoroughly
+**Example**: An ADR that says `disallow: [axios]` becomes an ESLint rule that blocks axios imports with a message pointing to your ADR.
 
-## Core Features
+## Quick Start
 
-- **🎯 6-Entry-Point Architecture** - Simple interface for AI agents, comprehensive automation underneath
-- **🧠 Intelligent Conflict Detection** - Semantic search prevents duplicate or conflicting decisions
-- **🛡️ Automatic Policy Enforcement** - ADRs become ESLint/Ruff rules automatically
-- **🚪 Preflight Validation** - Check technical choices before implementation
-- **📝 MADR Format** - Industry standard with structured policy enforcement
-- **🔍 Semantic Search** - Vector-based ADR discovery and relationship detection
-- **🌐 Static Site Generation** - Beautiful documentation sites for developer transparency
+### Install
 
-## Prerequisites
-
-ADR Kit requires uv for package management.
-
-Install uv:
 ```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Homebrew
-brew install uv
-
-# pip
-pip install uv
-```
-
-Verify:
-```bash
-uv --version
-```
-
-## Quick Start for AI Agents
-
-### 1. Installation & Setup
-
-**Global Installation:**
-```bash
-# Install ADR Kit globally
 uv tool install adr-kit
+```
 
-# Or upgrade
-uv tool install --upgrade adr-kit
+### Initialize Your Project
 
-# Initialize in your project
+```bash
 cd your-project
 adr-kit init
-
-# Start MCP server
-adr-kit mcp-server
 ```
 
-**Quick Trial (No Installation):**
+### Choose Your Path
+
+**Path A: Greenfield (New Project)**
+Start creating ADRs as you make architectural decisions.
+
 ```bash
-# Run without installing
-uvx adr-kit --help
-uvx adr-kit init
+# Setup AI agent to help you
+adr-kit setup-cursor  # or setup-claude
+
+# Then in Cursor/Claude Code:
+# "Create an ADR for our decision to use React with TypeScript"
 ```
 
-**Virtual Environment Installation:**
+**Path B: Brownfield (Existing Project)**
+Analyze existing codebase to discover decisions already made.
+
 ```bash
-# Create and activate virtual environment
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Setup AI agent
+adr-kit setup-cursor  # or setup-claude
 
-# Install ADR Kit
-uv pip install adr-kit
+# Then in Cursor/Claude Code:
+# "Analyze my project for architectural decisions that need ADRs"
+# AI will detect your tech stack and propose ADRs
 ```
 
-**Built-in Updates:**
-```bash
-# Check for and install updates
-adr-kit update
+## How It Works
 
-# Just check for updates
-adr-kit update --check
+### Design Pattern: MCP Tools → Workflows → Internal Functions
+
+```
+AI Agent
+  ↓
+MCP Tool (6 simple interfaces)
+  ↓
+Workflow (multi-step automation)
+  ↓
+Internal Functions (automatic)
+  ├─ generate_adr_index()
+  ├─ generate_eslint_config()
+  ├─ generate_ruff_config()
+  ├─ apply_guardrails()
+  └─ rebuild_contract()
 ```
 
-### 2. Configure Your AI Agent (Claude Code/Cursor)
+**Why this matters**: When you approve an ADR, one MCP tool call triggers a 9-step automation pipeline. You don't manually generate indexes or lint rules—it all happens automatically.
 
-Add to your MCP settings.json:
-```json
-{
-  "mcpServers": {
-    "adr-kit": {
-      "command": "adr-kit", 
-      "args": ["mcp-server"]
-    }
-  }
-}
-```
+### The 6 MCP Tools
 
-**Quick Setup:**
-```bash
-# For Cursor IDE
-adr-kit setup-cursor
+ADR Kit exposes 6 MCP tools for AI agents. Each tool triggers a comprehensive workflow:
 
-# For Claude Code  
-adr-kit setup-claude
-```
+| MCP Tool | When To Use | What It Does |
+|----------|-------------|--------------|
+| `adr_analyze_project` | Starting with existing codebase | Detects technologies, proposes ADRs for existing decisions |
+| `adr_preflight` | Before making technical choice | Returns ALLOWED/REQUIRES_ADR/BLOCKED |
+| `adr_create` | Documenting a decision | Creates ADR file with conflict detection |
+| `adr_approve` | After human review | **Triggers full automation**: contract rebuild, lint rules, guardrails, indexes |
+| `adr_supersede` | Replacing existing decision | Manages relationships, updates old ADR to superseded |
+| `adr_planning_context` | Before implementing feature | Returns relevant ADRs, constraints, technology recommendations |
 
-### 3. Start Using with Your AI Agent
+### The Approval Automation Pipeline
 
-Tell your AI agent:
-- *"Analyze my project for architectural decisions that need ADRs"*
-- *"Check if I can use PostgreSQL in this project"* 
-- *"Create an ADR for switching to React Query"*
-- *"Give me architectural context for implementing authentication"*
-
-## How It Works: 6 MCP Entry Points → Sophisticated Workflows
-
-ADR Kit provides **6 clean MCP interfaces** that trigger **comprehensive internal workflows**:
-
-| MCP Tool | Workflow Backend | Purpose |
-|----------|------------------|---------|
-| `adr_analyze_project()` | AnalyzeProjectWorkflow | Technology detection, project scanning |
-| `adr_preflight()` | PreflightWorkflow | Policy conflict detection, decision validation |
-| `adr_create()` | CreationWorkflow | Semantic analysis, ADR generation |
-| `adr_approve()` | ApprovalWorkflow | Policy activation, automation triggers |
-| `adr_supersede()` | SupersedeWorkflow | Relationship management, history tracking |
-| `adr_planning_context()` | PlanningWorkflow | Contextual guidance, constraint extraction |
-
-### 🔍 1. `adr_analyze_project()` - Discover Missing ADRs
-Scans your codebase and generates prompts for the agent to identify architectural decisions that need documentation.
-
-### 🚦 2. `adr_preflight(choice)` - Validate Technical Choices
-Before any technical decision, check: **ALLOWED** | **REQUIRES_ADR** | **BLOCKED**
-- Prevents conflicts with existing decisions
-- Routes agent to create ADRs when needed
-
-### 📝 3. `adr_create(proposal)` - Create ADR Proposals  
-Agent writes comprehensive ADRs with:
-- Context, decision, consequences, alternatives
-- Structured policies for automatic enforcement
-- Conflict detection and validation
-
-### ✅ 4. `adr_approve(adr_id)` - Trigger Full Automation
-When human approves an ADR, automatically:
-- Updates constraints contract
-- Generates lint rules (ESLint, Ruff, import-linter)
-- Rebuilds indexes and relationships
-- Enables policy enforcement
-
-### 🔄 5. `adr_supersede(old, new)` - Replace Decisions
-Manages decision evolution with proper relationships and history tracking.
-
-### 🗺️ 6. `adr_planning_context(task)` - Get Architectural Context
-Provides curated guidance for specific development tasks based on existing ADRs.
-
-## The Agent Workflow
+When you approve an ADR, this happens automatically:
 
 ```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant Agent as AI Agent  
-    participant ADR as ADR Kit
+graph LR
+    Approve[adr_approve] --> Validate[Validate ADR]
+    Validate --> Status[Update status to accepted]
+    Status --> Contract[Rebuild constraints contract]
+    Contract --> Guardrails[Apply guardrails]
+    Guardrails --> ESLint[Generate ESLint rules]
+    Guardrails --> Ruff[Generate Ruff rules]
+    ESLint --> Index[Update indexes]
+    Ruff --> Index
+    Index --> Done[Enforcement active]
 
-    Dev->>Agent: "We need to switch to PostgreSQL"
-    Agent->>ADR: adr_preflight("postgresql")
-    ADR-->>Agent: REQUIRES_ADR (conflicts with ADR-0003)
-    Agent->>ADR: adr_create({title: "Use PostgreSQL", supersedes: ["ADR-0003"]})
-    ADR-->>Agent: Created ADR-0007, conflicts detected
-    Agent->>Dev: "Created ADR-0007. Please review."
-    Dev->>Agent: "Approved" 
-    Agent->>ADR: adr_approve("ADR-0007")
-    ADR-->>Agent: ✅ Contract updated, lint rules generated, enforcement active
+    style Contract fill:#90EE90
+    style Guardrails fill:#90EE90
+    style ESLint fill:#FFE4B5
+    style Ruff fill:#FFE4B5
+    style Index fill:#FFE4B5
 ```
 
-## ADR Format with Policy Enforcement
+**No manual steps required**. Index generation, lint rule creation, and config updates all happen automatically.
 
-ADRs use MADR format with structured policies that become executable rules:
+## Example: Complete Lifecycle
+
+### Greenfield (New Project)
+
+```bash
+# 1. Initialize
+adr-kit init
+adr-kit setup-cursor
+
+# 2. Make a decision
+# In Cursor: "I want to use React Query for data fetching"
+
+# 3. AI calls adr_preflight({choice: "react-query"})
+# Returns: REQUIRES_ADR (no existing ADR for this)
+
+# 4. AI calls adr_create({title: "Use React Query", ...})
+# Creates: docs/adr/ADR-0001-react-query.md (status: proposed)
+
+# 5. You review the ADR
+# In Cursor: "Approve ADR-0001"
+
+# 6. AI calls adr_approve({adr_id: "ADR-0001"})
+# Automatically:
+#   - Updates status to "accepted"
+#   - Rebuilds constraints contract
+#   - Generates ESLint rules blocking axios
+#   - Applies guardrails to .eslintrc.adrs.json
+#   - Updates adr-index.json
+
+# 7. Enforcement active
+# Developer tries: import axios from 'axios'
+# ESLint error: "Use React Query instead (ADR-0001)"
+```
+
+### Brownfield (Existing Project)
+
+```bash
+# 1. Initialize
+cd existing-project
+adr-kit init
+adr-kit setup-cursor
+
+# 2. Analyze existing architecture
+# In Cursor: "Analyze my project for architectural decisions"
+
+# 3. AI calls adr_analyze_project()
+# Detects: React, TypeScript, Express, PostgreSQL, Docker
+# Generates tech-specific analysis prompts
+
+# 4. AI creates ADRs for existing decisions
+# ADR-0001: Use React for Frontend
+# ADR-0002: Use TypeScript for Type Safety
+# ADR-0003: Use PostgreSQL for Data Storage
+# ADR-0004: Use Docker for Containerization
+
+# 5. You review all proposed ADRs
+# In Cursor: "Approve ADR-0001 through ADR-0004"
+
+# 6. AI approves each one (4 automation pipelines run)
+# Now your existing decisions are documented AND enforced
+
+# 7. Future decisions follow greenfield workflow
+```
+
+## Brownfield Analysis Details
+
+ADR Kit includes sophisticated technology detection for brownfield projects:
+
+**Detected Technologies** (20+):
+- **Frontend**: React, Vue, Angular, Svelte
+- **Backend**: Express.js, FastAPI, Django, Flask, Spring
+- **Databases**: PostgreSQL, MySQL, MongoDB, Redis
+- **Languages**: TypeScript, JavaScript, Python, Rust, Go
+- **Tools**: Docker, Kubernetes
+
+**How It Works**:
+```python
+# Scans for config files
+package.json → Detects React, TypeScript, Express
+requirements.txt → Detects FastAPI, PostgreSQL
+Dockerfile → Detects Docker
+
+# Generates technology-specific prompts
+"React: Document component architecture, state management decisions"
+"PostgreSQL: Document schema design, migration strategy"
+"Docker: Document containerization approach"
+```
+
+**Different prompts based on existing ADRs**:
+- **0 ADRs found** → "Identify ALL architectural decisions in this project"
+- **N ADRs found** → "Find decisions MISSING from existing ADR set"
+
+## ADR Format with Structured Policies
+
+ADRs use MADR format with policy extensions for enforcement:
 
 ```markdown
 ---
 id: ADR-0001
 title: Use React Query for data fetching
-status: accepted
+status: proposed
+date: 2025-10-01
 deciders: [frontend-team, tech-lead]
-tags: [frontend, data]
+tags: [frontend, data-fetching]
 policy:
   imports:
-    disallow: [axios, fetch]
     prefer: [react-query, @tanstack/react-query]
-  boundaries:
-    rules:
-      - forbid: "components -> database"
+    disallow: [axios]
+  rationales:
+    - "Standardize data fetching patterns"
 ---
 
 ## Context
 Custom data fetching is scattered across components...
 
-## Decision  
-Use React Query for all data fetching operations.
+## Decision
+Use React Query for all data fetching.
 
 ## Consequences
 ### Positive
-- Standardized patterns, built-in caching, better DX
+- Standardized caching, built-in loading states
 ### Negative
 - Additional dependency, learning curve
-
-## Alternatives
-- **Native fetch()**: Simple but lacks caching
-- **Axios**: Good client but no state management
 ```
 
-**This automatically generates:**
+**After approval, this automatically generates**:
+
 ```json
-// .eslintrc.adrs.json
+// .eslintrc.adrs.json (auto-generated, don't edit)
 {
   "rules": {
     "no-restricted-imports": [
       "error",
       {
         "paths": [
-          {"name": "axios", "message": "Use React Query instead (ADR-0001)"}
+          {
+            "name": "axios",
+            "message": "Use React Query instead (ADR-0001)"
+          }
         ]
       }
     ]
@@ -248,121 +266,297 @@ Use React Query for all data fetching operations.
 }
 ```
 
-## Testing & Validation
+## AI Agent Integration
 
-ADR Kit includes **comprehensive test coverage** for reliable production use:
+### Setup for Cursor IDE
 
-### Quick Validation
 ```bash
-# Test core functionality
-python run_workflow_tests.py
-
-# Quick component check
-adr-kit mcp-health
+# Automatic configuration
+adr-kit setup-cursor
 ```
 
-### Test Coverage
-- **Unit Tests**: Individual workflow components and business logic
-- **Integration Tests**: MCP server ↔ workflow integration 
-- **End-to-End Tests**: Complete workflow chains (analyze → create → approve)
-- **Error Scenarios**: Permission errors, disk full, concurrent execution
-- **Performance Tests**: Large projects, memory efficiency, timing
-- **Edge Cases**: Unicode handling, malformed input, corruption recovery
-
-### Test Architecture Benefits
-```python
-# Each workflow is a testable Python function
-workflow = CreationWorkflow(adr_dir="/test")
-result = workflow.execute(creation_input)
-
-assert result.success is True
-assert result.data["creation_result"].adr_id.startswith("ADR-")
+Or manually add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "adr-kit": {
+      "command": "adr-kit",
+      "args": ["mcp-server"]
+    }
+  }
+}
 ```
+
+### Setup for Claude Code
+
+```bash
+# Automatic configuration
+adr-kit setup-claude
+```
+
+Or manually add to Claude Code MCP settings.
+
+### Example Conversations
+
+**Scenario 1: Before Making a Decision**
+```
+You: "I want to use PostgreSQL for this project"
+AI: [calls adr_preflight({choice: "postgresql"})]
+AI: "This requires an ADR. Let me help you create one..."
+AI: [calls adr_create()]
+AI: "Created ADR-0003 for PostgreSQL. Review and approve?"
+```
+
+**Scenario 2: Analyzing Existing Project**
+```
+You: "What architectural decisions should we document?"
+AI: [calls adr_analyze_project()]
+AI: "I found: React, TypeScript, Next.js, PostgreSQL"
+AI: "Creating ADRs for each decision..."
+AI: [creates 4 ADRs]
+AI: "Review these proposed ADRs?"
+```
+
+**Scenario 3: Getting Context for Task**
+```
+You: "I need to implement user authentication"
+AI: [calls adr_planning_context({task: "implement authentication"})]
+AI: "Based on ADR-0005, you must use Auth0"
+AI: "Here's the authentication pattern to follow..."
+```
+
+## Manual CLI Usage (Without AI)
+
+For direct usage without AI agents:
+
+```bash
+# Validation
+adr-kit validate                # Validate all ADRs
+adr-kit validate --id ADR-0001  # Validate specific ADR
+
+# Policy management
+adr-kit contract-build          # Build constraints contract
+adr-kit contract-status         # View current contract
+adr-kit preflight postgresql    # Manual preflight check
+
+# Enforcement
+adr-kit guardrail-apply        # Apply lint rules
+adr-kit guardrail-status       # Check guardrail status
+
+# Maintenance
+adr-kit update                  # Check for updates
+adr-kit mcp-health             # Test MCP server
+```
+
+## Advanced: What's Automatic vs Manual
+
+### Automatic (Triggered by Approval)
+
+When you call `adr_approve()` or AI agent approves an ADR:
+- ✅ Index generation (`generate_adr_index()`)
+- ✅ ESLint rule generation (`generate_eslint_config()`)
+- ✅ Ruff rule generation (`generate_ruff_config()`)
+- ✅ Guardrail application (`GuardrailManager.apply_guardrails()`)
+- ✅ Constraints contract rebuild (`ConstraintsContractBuilder.build()`)
+- ✅ Codebase validation
+
+**You never manually call these functions**. They're internal to the approval workflow.
+
+### Manual (When Needed)
+
+- 🔧 Project initialization (`adr-kit init`)
+- 🔧 Validation (`adr-kit validate`)
+- 🔧 Health checks (`adr-kit mcp-health`)
+- 🔧 Manual preflight checks (`adr-kit preflight <choice>`)
+
+## Advanced: Semantic Search
+
+ADR Kit includes built-in semantic search for finding related ADRs:
+
+**Status**: Fully implemented, currently used as optional fallback
+- Uses sentence-transformers (`all-MiniLM-L6-v2`)
+- Stores embeddings in `.project-index/adr-vectors/`
+- Finds ADRs by meaning, not just keywords
+
+**Current behavior**: Primary method is keyword matching, semantic search available as enhancement
+
+**Future**: Will become primary method for conflict detection
 
 ## Directory Structure
 
 ```
 your-project/
-├── docs/adr/                    # ADR files
+├── docs/adr/                      # ADR files
 │   ├── ADR-0001-react-query.md
-│   └── adr-index.json          # Generated index
-├── .eslintrc.adrs.json         # Generated lint rules
-├── .adr-kit/                   # System files
-│   └── constraints.json        # Policy contract
-└── tests/                      # Comprehensive test suite
-    ├── test_workflow_base.py    # Workflow infrastructure tests
-    ├── test_workflow_*.py       # Individual workflow tests
-    └── test_mcp_integration.py  # MCP ↔ workflow integration
+│   ├── ADR-0002-typescript.md
+│   └── adr-index.json            # Auto-generated index
+├── .adr-kit/                     # System files
+│   └── constraints_accepted.json  # Merged policies
+├── .project-index/               # Indexes
+│   └── adr-vectors/              # Semantic search embeddings (optional)
+├── .eslintrc.adrs.json           # Auto-generated lint rules
+└── pyproject.toml                # Auto-managed [tool.ruff] section
 ```
 
-## Manual Usage (Optional)
+**Important**: Files in `.adr-kit/` and `.eslintrc.adrs.json` are auto-generated. Don't edit them manually.
 
-Basic CLI commands for non-AI workflows:
+## Installation Options
+
+### Recommended: Global Install
 
 ```bash
-# Validate ADRs
-adr-kit validate
-
-# Generate documentation site  
-adr-kit render-site
-
-# Export lint configurations
-adr-kit export-lint eslint --out .eslintrc.adrs.json
+uv tool install adr-kit
 ```
 
-## Integration
+Use ADR Kit across all your projects. The `adr-kit` command is available system-wide.
 
-### CI/CD Pipeline
+### Virtual Environment Install
+
+```bash
+cd your-project
+uv venv
+source .venv/bin/activate
+uv pip install adr-kit
+```
+
+Project-specific installation.
+
+### Quick Trial (No Install)
+
+```bash
+uvx adr-kit --help
+uvx adr-kit init
+```
+
+Try ADR Kit without installing.
+
+## CI/CD Integration
+
 ```yaml
 # .github/workflows/adr.yml
-- name: Install uv
-  uses: astral-sh/setup-uv@v4
-  with:
-    enable-cache: true
+name: ADR Validation
 
-- name: Install ADR Kit
-  run: uv tool install adr-kit
+on: [push, pull_request]
 
-- name: Validate ADRs
-  run: adr-kit validate
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-- name: Check lint rules are current
-  run: git diff --exit-code .eslintrc.adrs.json
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install ADR Kit
+        run: uv tool install adr-kit
+
+      - name: Validate ADRs
+        run: adr-kit validate
+
+      - name: Check lint rules are current
+        run: git diff --exit-code .eslintrc.adrs.json
 ```
 
-### Pre-commit Hooks
-```yaml
-# .pre-commit-config.yaml
-- repo: local
-  hooks:
-    - id: adr-validate
-      entry: adr-kit validate
-      language: system
-```
+## Testing & Validation
 
-## Development
+ADR Kit includes comprehensive test coverage:
 
-For development on ADR Kit:
+### Quick Health Check
 
 ```bash
-# Development commands
-make dev-setup     # Set up development environment
-make reinstall     # Clean uninstall + fresh install
-make test          # Run test suite
-make quality       # Format + lint + test
-
-# Direct uv commands
-uv pip install -e ".[dev]"
-uv run pytest
+adr-kit mcp-health
 ```
 
-See `scripts/` directory for additional development tools.
+Expected output:
+- ✅ FastMCP dependency: OK
+- ✅ MCP server: OK
+- ✅ Workflow backend system: OK
+- 📡 6 MCP Tools available
+
+### Test Coverage
+
+- **Unit Tests**: Individual workflow components
+- **Integration Tests**: MCP server ↔ workflow integration
+- **End-to-End Tests**: Complete lifecycle (analyze → create → approve)
+- **Error Scenarios**: Permission errors, malformed input
+- **Performance Tests**: Large projects, memory efficiency
+
+Each workflow is testable Python code:
+```python
+workflow = CreationWorkflow(adr_dir="/test")
+result = workflow.execute(creation_input)
+assert result.success is True
+```
+
+## FAQ
+
+**Q: Do I need to use AI agents?**
+A: No. CLI works standalone. But AI agents make it much more useful—they can analyze your codebase, propose ADRs, and manage the entire lifecycle.
+
+**Q: What if I don't use JavaScript/Python?**
+A: ADRs are still valuable for documentation. Policy enforcement is limited to supported linters (ESLint, Ruff, import-linter).
+
+**Q: Can I use this with existing ADRs?**
+A: Yes. ADR Kit reads standard MADR format. Add the `policy:` section to enable enforcement.
+
+**Q: How much setup time?**
+A: 5-10 minutes for basic setup. Brownfield analysis: 15-30 minutes depending on project size.
+
+**Q: Greenfield vs Brownfield—what's the difference?**
+A: **Greenfield** = new project, create ADRs as you make decisions.
+**Brownfield** = existing project, use `adr_analyze_project()` to find and document existing decisions.
+
+**Q: Is semantic search working?**
+A: Yes, fully implemented. Currently used as optional fallback. Keyword matching is primary method.
+
+**Q: Does this work offline?**
+A: Yes. No external API calls. Semantic search uses local models (sentence-transformers).
+
+**Q: What's the difference between MCP tools and CLI commands?**
+A: **MCP tools** (6) are for AI agents. **CLI commands** (20+) are for manual use, debugging, and CI/CD. Different interfaces for different purposes.
+
+## What's Coming
+
+- Enhanced semantic search as primary conflict detection method
+- Additional linter integrations (import-linter templates)
+- ADR templates for common decision types
+- Static site generation for ADR documentation
+
+See [.agent/GAP_ANALYSIS.md](.agent/GAP_ANALYSIS.md) for detailed feature status and roadmap.
 
 ## Learn More
 
-- **MADR Format**: [Markdown ADR specification](https://adr.github.io/madr/)
-- **MCP Protocol**: [Model Context Protocol for AI agents](https://modelcontextprotocol.io)
-- **Example ADR**: See `docs/adr/ADR-0001-sample.md` for complete example
+- **MADR Format**: [Markdown ADR Specification](https://adr.github.io/madr/)
+- **MCP Protocol**: [Model Context Protocol](https://modelcontextprotocol.io)
+- **Getting Started Guide**: [GETTING_STARTED.md](GETTING_STARTED.md) *(coming soon)*
+- **Workflows Deep Dive**: [WORKFLOWS.md](WORKFLOWS.md) *(coming soon)*
+- **AI Integration Guide**: [AI_INTEGRATION.md](AI_INTEGRATION.md) *(coming soon)*
+- **Core Concepts**: [CONCEPTS.md](CONCEPTS.md) *(coming soon)*
+
+## Development
+
+For development on ADR Kit itself:
+
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/adr-kit
+cd adr-kit
+
+# Install in editable mode
+uv pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Development commands (see Makefile)
+make dev-setup     # Initial setup
+make test-all      # Run all tests
+make quality       # Format + lint + test
+```
+
+See [CLAUDE.md](CLAUDE.md) for developer documentation.
 
 ## License
 
