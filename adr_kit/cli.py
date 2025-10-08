@@ -87,7 +87,10 @@ def get_next_adr_id(adr_dir: Path = Path("docs/adr")) -> str:
 def init(
     adr_dir: Path = typer.Option(
         Path("docs/adr"), "--adr-dir", help="ADR directory to initialize"
-    )
+    ),
+    skip_setup: bool = typer.Option(
+        False, "--skip-setup", help="Skip interactive AI agent setup"
+    ),
 ) -> None:
     """Initialize ADR structure in repository."""
     try:
@@ -109,33 +112,38 @@ def init(
         except Exception as e:
             console.print(f"⚠️  Could not generate initial JSON index: {e}")
 
-        # Interactive setup prompt
-        console.print("\n🤖 [bold]Setup AI Agent Integration?[/bold]")
-        console.print("1. Cursor IDE - Set up MCP server for Cursor's built-in AI")
-        console.print("2. Claude Code - Set up MCP server for Claude Code terminal")
-        console.print(
-            "3. Skip - Set up later with 'adr-kit setup-cursor' or 'adr-kit setup-claude'"
-        )
+        # Interactive setup prompt (skip if --skip-setup flag is provided)
+        if not skip_setup:
+            console.print("\n🤖 [bold]Setup AI Agent Integration?[/bold]")
+            console.print("1. Cursor IDE - Set up MCP server for Cursor's built-in AI")
+            console.print("2. Claude Code - Set up MCP server for Claude Code terminal")
+            console.print(
+                "3. Skip - Set up later with 'adr-kit setup-cursor' or 'adr-kit setup-claude'"
+            )
 
-        choice = typer.prompt("Choose option (1/2/3)", default="3")
+            choice = typer.prompt("Choose option (1/2/3)", default="3")
 
-        if choice == "1":
-            console.print("\n🎯 Setting up for Cursor IDE...")
-            try:
-                _setup_cursor_impl()
-            except Exception as e:
-                console.print(f"⚠️  Setup failed: {e}")
-                console.print("You can run 'adr-kit setup-cursor' later")
-        elif choice == "2":
-            console.print("\n🤖 Setting up for Claude Code...")
-            try:
-                _setup_claude_impl()
-            except Exception as e:
-                console.print(f"⚠️  Setup failed: {e}")
-                console.print("You can run 'adr-kit setup-claude' later")
+            if choice == "1":
+                console.print("\n🎯 Setting up for Cursor IDE...")
+                try:
+                    _setup_cursor_impl()
+                except Exception as e:
+                    console.print(f"⚠️  Setup failed: {e}")
+                    console.print("You can run 'adr-kit setup-cursor' later")
+            elif choice == "2":
+                console.print("\n🤖 Setting up for Claude Code...")
+                try:
+                    _setup_claude_impl()
+                except Exception as e:
+                    console.print(f"⚠️  Setup failed: {e}")
+                    console.print("You can run 'adr-kit setup-claude' later")
+            else:
+                console.print(
+                    "✅ Skipped AI setup. Run 'adr-kit setup-cursor' or 'adr-kit setup-claude' when ready."
+                )
         else:
             console.print(
-                "✅ Skipped AI setup. Run 'adr-kit setup-cursor' or 'adr-kit setup-claude' when ready."
+                "\n✅ Skipped AI setup. Run 'adr-kit setup-cursor' or 'adr-kit setup-claude' when ready."
             )
 
         sys.exit(0)

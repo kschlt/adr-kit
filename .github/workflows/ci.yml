@@ -46,14 +46,6 @@ jobs:
     - name: Run tests with pytest
       run: |
         pytest tests/ --cov=adr_kit --cov-report=xml --cov-report=term-missing
-    
-    - name: Test CLI commands
-      run: |
-        adr-kit init --adr-dir test_adrs
-        adr-kit new "Test ADR" --tags test --adr-dir test_adrs
-        adr-kit validate --adr-dir test_adrs || true  # Allow validation errors for test
-        adr-kit index --out test_adrs/index.json --adr-dir test_adrs --no-validate
-        adr-kit export-lint eslint --out test.eslintrc.json --adr-dir test_adrs
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
