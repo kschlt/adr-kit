@@ -345,7 +345,9 @@ We will use React for all frontend development.
 
         workflow._scan_project_structure = failing_scan
 
-        result = workflow.execute(project_path="/tmp")  # Use a simple existing path
+        result = workflow.execute(
+            project_path=tempfile.gettempdir()
+        )  # Use platform-independent temp directory
 
         assert result.success is False
         assert result.status == WorkflowStatus.FAILED
