@@ -352,7 +352,7 @@ We will use React for all frontend development.
 
         # Should have error details
         assert len(result.errors) > 0
-        assert any("scan failure" in error for error in result.errors)
+        assert any("Simulated scan failure" in error for error in result.errors)
 
         # Should have failed step
         failed_steps = [

@@ -1,5 +1,6 @@
 """Unit tests for CreationWorkflow."""
 
+import sys
 import tempfile
 from datetime import date
 from pathlib import Path
@@ -228,6 +229,10 @@ MySQL is reliable and well-supported.
         assert len(failed_steps) > 0
         assert any("validate" in step.name.lower() for step in failed_steps)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows doesn't enforce chmod permissions the same way as Unix",
+    )
     def test_file_system_errors(self, temp_adr_dir, sample_creation_input):
         """Test handling of file system errors."""
         # Make ADR directory read-only to simulate permission errors
