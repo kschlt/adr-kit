@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+      "adr-kit": {
+        "command": "uv",
+        "args": ["run", "adr-kit", "mcp-server"],
+        "env": {}
+      }
+    }
+  }
+  
