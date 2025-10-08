@@ -16,6 +16,7 @@ from ..workflows.creation import CreationInput, CreationWorkflow
 from ..workflows.planning import PlanningInput, PlanningWorkflow
 from ..workflows.preflight import PreflightInput, PreflightWorkflow
 from ..workflows.supersede import SupersedeInput, SupersedeWorkflow
+from .middleware import StringifiedParameterFixMiddleware
 from .models import (
     AnalyzeProjectRequest,
     ApproveADRRequest,
@@ -33,6 +34,10 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastMCP server with proper name
 mcp = FastMCP("ADR Kit")
+
+# Add middleware to fix stringified parameters from buggy MCP clients
+# (Claude Code, Cursor have bugs where they stringify nested objects)
+mcp.add_middleware(StringifiedParameterFixMiddleware(debug=True))
 
 
 @mcp.tool()
