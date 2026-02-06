@@ -343,17 +343,17 @@ def update(
     """Check for and install adr-kit updates.
 
     This command checks PyPI for newer versions of adr-kit and optionally
-    installs them using pip. Useful for staying current with new features
-    and bug fixes.
+    installs them. Detects whether adr-kit was installed via uv or pip
+    and uses the appropriate upgrade method.
     """
+    import shutil
     import subprocess
-    import sys
 
     try:
         import requests
     except ImportError as e:
         console.print("❌ requests library not available for update checking")
-        console.print("💡 Install manually: pip install --upgrade adr-kit")
+        console.print("💡 Install manually: uv tool upgrade adr-kit (or pip install --upgrade adr-kit)")
         raise typer.Exit(code=1) from e
 
     from . import __version__
@@ -368,9 +368,18 @@ def update(
         latest_version = response.json()["info"]["version"]
         current_version = __version__
 
-        if current_version == latest_version and not force:
-            console.print(f"✅ Already up to date (v{current_version})")
-            return
+        # Use semantic version comparison
+        try:
+            from packaging.version import parse
+
+            if parse(current_version) >= parse(latest_version) and not force:
+                console.print(f"✅ Already up to date (v{current_version})")
+                return
+        except Exception:
+            # Fallback to string comparison
+            if current_version == latest_version and not force:
+                console.print(f"✅ Already up to date (v{current_version})")
+                return
 
         console.print(f"📦 Update available: v{current_version} → v{latest_version}")
 
@@ -378,8 +387,31 @@ def update(
             console.print("💡 Run 'adr-kit update' to install the update")
             return
 
-        # Perform the update
+        # Detect installation method and use appropriate upgrade command
         console.print("⬇️ Installing update...")
+
+        # Check if uv is available and adr-kit is a uv tool
+        uv_path = shutil.which("uv")
+        if uv_path:
+            # Try uv tool upgrade (works for uv-managed installations)
+            result = subprocess.run(
+                ["uv", "tool", "upgrade", "adr-kit"],
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode == 0:
+                console.print(f"✅ Successfully updated to v{latest_version}")
+                console.print("💡 Restart your MCP server to use the new version")
+                return
+            else:
+                # uv upgrade failed, might not be a uv tool installation
+                console.print("[dim]uv tool upgrade failed, trying pip...[/dim]")
+
+        # Fallback to pip (works for pip installations)
+        # Use sys.executable to find python in the current environment
+        import sys
+
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", "adr-kit"],
             capture_output=True,
@@ -391,16 +423,18 @@ def update(
             console.print("💡 Restart your MCP server to use the new version")
         else:
             console.print(f"❌ Update failed: {result.stderr}")
-            console.print("💡 Try manually: pip install --upgrade adr-kit")
+            console.print("💡 Try manually:")
+            console.print("   - uv tool upgrade adr-kit")
+            console.print("   - OR: pip install --upgrade adr-kit")
             raise typer.Exit(code=1)
 
     except requests.RequestException as e:
         console.print("❌ Failed to check for updates (network error)")
-        console.print("💡 Try manually: pip install --upgrade adr-kit")
+        console.print("💡 Try manually: uv tool upgrade adr-kit")
         raise typer.Exit(code=1) from e
     except Exception as e:
         console.print(f"❌ Update check failed: {e}")
-        console.print("💡 Try manually: pip install --upgrade adr-kit")
+        console.print("💡 Try manually: uv tool upgrade adr-kit")
         raise typer.Exit(code=1) from e
 
 
