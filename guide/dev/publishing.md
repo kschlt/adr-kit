@@ -81,19 +81,29 @@ ls -lh dist/
 
 ### 6. Publish to PyPI
 
-**Important**: Use `twine` (not `uv publish`) because it reads credentials from `~/.pypirc`:
+Use the publish helper script:
+
+```bash
+./scripts/publish.sh
+```
+
+Or manually with environment variables:
+
+```bash
+UV_PUBLISH_USERNAME="__token__" \
+UV_PUBLISH_PASSWORD=$(grep -A1 '\[pypi\]' ~/.pypirc | grep password | cut -d' ' -f3) \
+uv publish
+```
+
+If `uv publish` fails, use `twine`:
 
 ```bash
 uv run twine upload dist/*
 ```
 
-The upload will use credentials from `~/.pypirc`:
-- Username: `__token__`
-- Password: Your PyPI API token (already configured)
-
 You should see:
 ```
-Uploading distributions to https://upload.pypi.org/legacy/
+Publishing 2 files to https://upload.pypi.org/legacy/
 Uploading adr_kit-0.X.Y-py3-none-any.whl
 Uploading adr_kit-0.X.Y.tar.gz
 
@@ -175,11 +185,18 @@ If missing, recreate PyPI API token:
 2. Create token for "adr-kit" project
 3. Update `~/.pypirc` with new token
 
-### Issue: "`uv publish` doesn't work"
+### Issue: "`uv publish` doesn't find credentials"
 
-**Problem**: `uv publish` doesn't read `~/.pypirc` credentials.
+`uv publish` doesn't automatically read `~/.pypirc`. Set environment variables:
 
-**Solution**: Use `twine` instead:
+```bash
+export UV_PUBLISH_USERNAME="__token__"
+export UV_PUBLISH_PASSWORD=$(grep -A1 '\[pypi\]' ~/.pypirc | grep password | cut -d' ' -f3)
+uv publish
+```
+
+Or use `twine`:
+
 ```bash
 uv run twine upload dist/*
 ```
@@ -193,21 +210,25 @@ uv run twine upload dist/*
 2. Ensure you own the package name on PyPI
 3. If name is taken, choose a different name in `pyproject.toml`
 
-## Quick Reference Commands
+## Quick Reference
+
+Complete publishing workflow:
 
 ```bash
-# Complete publishing workflow
 make clean                          # Clean artifacts
-vim pyproject.toml                  # Update version
+vim pyproject.toml                  # Update version to 0.X.Y
 git add pyproject.toml
 git commit -m "chore: Bump version to 0.X.Y for release"
 git push
 uv build                            # Build packages
-uv run twine upload dist/*          # Upload to PyPI
+./scripts/publish.sh                # Publish to PyPI
 git tag v0.X.Y                      # Tag release
 git push origin v0.X.Y              # Push tag
+```
 
-# Verify
+Verify publication:
+
+```bash
 curl -s https://pypi.org/pypi/adr-kit/json | \
   python3 -c "import sys, json; print(json.load(sys.stdin)['info']['version'])"
 ```
@@ -237,7 +258,7 @@ The health check in `adr-kit mcp-health` will notify users when updates are avai
 
 - `pyproject.toml` - Package metadata and version number
 - `~/.pypirc` - PyPI credentials (not in repo)
-- `.agent/publish-guide.md` - Original detailed notes (archived)
+- `scripts/publish.sh` - Publishing helper script
 - `Makefile` - Automation commands (`make clean`, `make build`)
 
 ## Rollback
