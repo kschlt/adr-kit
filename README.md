@@ -123,6 +123,164 @@ graph LR
 
 **No manual steps required**. Index generation, lint rule creation, and config updates all happen automatically.
 
+## Writing ADRs for Constraint Extraction
+
+ADR Kit can automatically extract constraints from your ADRs to provide architectural guidance to AI agents and developers. To enable this feature, your ADRs should include policy information in one of two formats:
+
+### Approach 1: Structured Policy (Recommended)
+
+Include a `policy` block in your ADR front-matter for reliable, machine-readable constraints:
+
+```yaml
+---
+id: "ADR-0002"
+title: "Use FastAPI as Web Framework"
+status: proposed
+policy:
+  imports:
+    disallow: ["flask", "django", "litestar"]
+    prefer: ["fastapi"]
+  python:
+    disallow_imports: ["flask", "django"]
+  rationales:
+    - "FastAPI provides native async support required for I/O operations"
+    - "Automatic OpenAPI documentation reduces maintenance burden"
+---
+```
+
+**Benefits**:
+- ✅ Reliable, explicit constraint extraction
+- ✅ Machine-readable policies for automation
+- ✅ Clear separation of concerns
+- ✅ Works perfectly with `adr_planning_context` and `adr_preflight`
+
+**Policy Schema**:
+```typescript
+{
+  imports: {
+    disallow: string[],  // Libraries/packages to ban
+    prefer: string[]     // Recommended alternatives
+  },
+  python: {
+    disallow_imports: string[]  // Python-specific module bans
+  },
+  boundaries: {
+    rules: [{ forbid: string }]  // Architecture rules like "ui -> database"
+  },
+  rationales: string[]  // Reasons for the policies
+}
+```
+
+### Approach 2: Pattern-Matching Language
+
+Use specific phrases in your decision and consequences sections:
+
+```markdown
+## Decision
+
+Use FastAPI as the backend web framework. **Don't use Flask** or Django
+as they lack native async support. **Prefer FastAPI over Flask** for
+this use case.
+
+## Consequences
+
+**Avoid** synchronous frameworks like Flask. Backend **should not use**
+Django REST Framework for new services.
+```
+
+**Recognized patterns**:
+- `Don't use X` / `Avoid X` / `X is deprecated`
+- `Use Y instead of X` / `Prefer Y over X`
+- `Layer A should not access Layer B`
+
+**Benefits**:
+- ✅ Natural language - reads well in documentation
+- ✅ Works with existing ADRs without modification
+- ✅ No schema knowledge needed
+
+**Limitations**:
+- ⚠️ Less reliable than structured policy
+- ⚠️ May miss nuanced constraints
+- ⚠️ Harder to validate programmatically
+
+### When to Use Which Approach
+
+| Scenario | Recommendation |
+|----------|----------------|
+| **New ADRs** (AI agents) | Structured policy - most reliable |
+| **Existing ADRs** (manual) | Pattern language - easier to retrofit |
+| **Critical constraints** | Structured policy - no ambiguity |
+| **Documentation focus** | Pattern language - more readable |
+| **Best of both** | Combine both approaches |
+
+### Validation and Feedback
+
+When creating ADRs through `adr_create`, ADR Kit validates policy completeness:
+
+```json
+{
+  "validation_warnings": [
+    "No structured policy provided and no pattern-matching language detected in content.
+     Constraint extraction may not work. Consider adding a 'policy' block or using
+     phrases like 'Don't use X' in your decision text.",
+    "Suggested policy structure: {
+      \"imports\": {
+        \"disallow\": [\"flask\"],
+        \"prefer\": [\"fastapi\"]
+      }
+    }"
+  ]
+}
+```
+
+If you receive this warning:
+1. **Option A**: Add a structured `policy` block to your ADR front-matter
+2. **Option B**: Update your decision/consequences text with pattern-friendly language
+3. **Option C**: Accept that this ADR won't provide automated constraints (documentation only)
+
+### Example ADRs
+
+See [tests/fixtures/examples/](tests/fixtures/examples/) for complete examples:
+- `good-adr-with-structured-policy.md` - FastAPI ADR with full policy schema
+- `good-adr-with-pattern-language.md` - React Query ADR using patterns
+- `bad-adr-no-policy.md` - PostgreSQL ADR without constraints (triggers warnings)
+
+### Checking Constraint Extraction
+
+Verify your ADRs have extractable constraints:
+
+```python
+# Via Python API
+from adr_kit.core.policy_extractor import PolicyExtractor
+from adr_kit.core.parse import parse_adr_file
+
+adr = parse_adr_file("docs/adr/ADR-0001-fastapi.md")
+extractor = PolicyExtractor()
+
+if extractor.has_extractable_policy(adr):
+    policy = extractor.extract_policy(adr)
+    print(f"Disallowed: {policy.get_disallowed_imports()}")
+    print(f"Preferred: {policy.get_preferred_imports()}")
+else:
+    print("⚠️  No extractable constraints found")
+```
+
+```bash
+# Via MCP (AI agents use this automatically)
+# The agent calls: adr_planning_context({
+#   task_description: "Implement new API endpoint",
+#   domain_hints: ["backend"]
+# })
+#
+# Response includes extracted constraints:
+# {
+#   "constraints": [
+#     "Use fastapi (ADR-0001)",
+#     "Don't use flask (ADR-0001)"
+#   ]
+# }
+```
+
 ## Example: Complete Lifecycle
 
 ### Greenfield (New Project)
