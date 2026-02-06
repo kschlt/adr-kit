@@ -141,10 +141,63 @@ def adr_preflight(request: PreflightCheckRequest) -> dict[str, Any]:
 @mcp.tool()
 def adr_create(request: CreateADRRequest) -> dict[str, Any]:
     """
-    Create a new architectural decision record.
+    Create a new architectural decision record with optional policy enforcement.
 
     WHEN TO USE: Document significant technical decisions.
     RETURNS: Created ADR details in 'proposed' status.
+
+    POLICY STRUCTURE (for constraint extraction):
+    To enable automatic constraint extraction and preflight checks, include a 'policy'
+    parameter with structured enforcement rules:
+
+    {
+      "imports": {
+        "disallow": ["library-to-ban", "another-banned-lib"],
+        "prefer": ["preferred-library"]
+      },
+      "python": {
+        "disallow_imports": ["banned.module"]
+      },
+      "boundaries": {
+        "rules": [
+          {"forbid": "frontend -> database"}
+        ]
+      },
+      "rationales": [
+        "Reason for policy constraint"
+      ]
+    }
+
+    EXAMPLE (FastAPI decision):
+    {
+      "policy": {
+        "imports": {
+          "disallow": ["flask", "django", "litestar"],
+          "prefer": ["fastapi"]
+        },
+        "python": {
+          "disallow_imports": ["flask", "django"]
+        },
+        "rationales": [
+          "FastAPI provides native async support required for I/O operations",
+          "Automatic OpenAPI documentation reduces maintenance burden"
+        ]
+      }
+    }
+
+    ALTERNATIVE (pattern matching):
+    If policy is not provided, use pattern-friendly language in the decision/consequences text:
+    - "Don't use X" / "Avoid X" / "X is deprecated"
+    - "Use Y instead of X" / "Prefer Y over X"
+    - "Layer A should not access Layer B"
+
+    Example:
+    "Use FastAPI as the backend framework. **Don't use Flask** or Django as they
+    lack native async support. **Prefer FastAPI over Flask** for this use case."
+
+    NOTE: Structured policy is strongly preferred for reliable constraint extraction.
+    Without structured policy or pattern-matching language, adr_planning_context will
+    not be able to extract constraints from this ADR.
     """
     try:
         logger.info(f"Creating ADR: {request.title}")

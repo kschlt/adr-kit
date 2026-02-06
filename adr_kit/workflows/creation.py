@@ -98,6 +98,8 @@ class CreationWorkflow(BaseWorkflow):
 
             # Additional processing
             validation_result = self._validate_adr_structure(adr)
+            policy_warnings = self._validate_policy_completeness(adr, input_data)
+            validation_result["warnings"].extend(policy_warnings)
             review_required = self._determine_review_requirements(
                 adr, conflicts, validation_result
             )
@@ -476,6 +478,86 @@ class CreationWorkflow(BaseWorkflow):
                 "errors": [f"Validation failed: {str(e)}"],
                 "warnings": [],
             }
+
+    def _validate_policy_completeness(
+        self, adr: ADR, creation_input: CreationInput
+    ) -> list[str]:
+        """Validate that ADR has extractable policy information.
+
+        Returns list of warnings if policy is missing or insufficient.
+        """
+        from ..core.policy_extractor import PolicyExtractor
+
+        extractor = PolicyExtractor()
+        warnings = []
+
+        # Check if policy is extractable
+        if not extractor.has_extractable_policy(adr):
+            warnings.append(
+                "No structured policy provided and no pattern-matching language "
+                "detected in content. Constraint extraction may not work. "
+                "Consider adding a 'policy' block or using phrases like "
+                "'Don't use X' in your decision text."
+            )
+
+            # Suggest policy based on alternatives mentioned
+            if creation_input.alternatives:
+                suggested = self._suggest_policy_from_alternatives(
+                    creation_input.decision, creation_input.alternatives
+                )
+                if suggested:
+                    import json
+
+                    warnings.append(
+                        f"Suggested policy structure: {json.dumps(suggested, indent=2)}"
+                    )
+
+        return warnings
+
+    def _suggest_policy_from_alternatives(
+        self, decision: str, alternatives: str
+    ) -> dict[str, Any] | None:
+        """Suggest policy structure based on decision and alternatives text."""
+        suggested_policy: dict[str, Any] = {}
+
+        # Extract "rejected" items from alternatives (more specific patterns)
+        # Pattern 1: ### Technology Name\n- Rejected
+        heading_matches = re.findall(
+            r"(?i)###\s+([a-zA-Z0-9\-_@/. ]+?)\n\s*-\s*Reject(?:ed)?", alternatives
+        )
+
+        # Pattern 2: "Rejected: Technology" or bullet points
+        rejected_matches = re.findall(
+            r"(?i)Reject(?:ed)?[:\s]+([a-zA-Z0-9\-_@/]+)", alternatives
+        )
+
+        # Combine and clean
+        rejected_items = []
+        for match in heading_matches + rejected_matches:
+            # Take only the first word (technology name) - conservative approach
+            first_word = match.strip().split()[0] if match.strip().split() else ""
+            if first_word and len(first_word) > 2:
+                # Keep only if it looks like a technology name (has letters and possibly numbers/dashes)
+                if re.match(r"^[A-Za-z][A-Za-z0-9\-_.]*$", first_word):
+                    rejected_items.append(first_word)
+
+        # Extract chosen technology from decision
+        chosen_items = []
+        use_matches = re.findall(r"(?i)Use\s+([a-zA-Z0-9\-_@/]+)", decision)
+        chosen_items.extend(use_matches)
+
+        if rejected_items or chosen_items:
+            suggested_policy["imports"] = {}
+
+            if rejected_items:
+                # Remove duplicates, keep lowercase-normalized unique items
+                unique_rejected = list({item.lower(): item for item in rejected_items}.values())
+                suggested_policy["imports"]["disallow"] = unique_rejected
+
+            if chosen_items:
+                suggested_policy["imports"]["prefer"] = [chosen_items[0]]
+
+        return suggested_policy if suggested_policy else None
 
     def _generate_adr_file(self, adr: ADR) -> str:
         """Generate the ADR file."""

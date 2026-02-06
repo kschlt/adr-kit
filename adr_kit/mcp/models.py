@@ -90,7 +90,28 @@ class CreateADRRequest(BaseModel):
     )
     tags: list[str] = Field(default_factory=list, description="Tags for categorization")
     policy: dict[str, Any] = Field(
-        default_factory=dict, description="Structured policy block for enforcement"
+        default_factory=dict,
+        description="""Structured policy block for automated enforcement.
+
+        Schema: {
+          'imports': {
+            'disallow': [str],  # Libraries to ban
+            'prefer': [str]     # Libraries to recommend
+          },
+          'python': {
+            'disallow_imports': [str]  # Python modules to ban
+          },
+          'boundaries': {
+            'rules': [{'forbid': str}]  # Architecture rules like "ui -> database"
+          },
+          'rationales': [str]  # Reasons for policies
+        }
+
+        If omitted, pattern matching from content text will be attempted as fallback.
+        For reliable constraint extraction, structured policy is strongly recommended.
+
+        Example: {"imports": {"disallow": ["flask"], "prefer": ["fastapi"]}}
+        """,
     )
     alternatives: str | None = Field(None, description="Alternative options considered")
     adr_dir: str = Field("docs/adr", description="ADR directory path")

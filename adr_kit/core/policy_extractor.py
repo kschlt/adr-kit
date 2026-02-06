@@ -244,18 +244,24 @@ class PolicyExtractor:
         return list1 or list2
 
     def has_extractable_policy(self, adr: ADR) -> bool:
-        """Check if ADR has any extractable policy information."""
+        """Check if ADR has any extractable policy information.
+
+        Note: Rationales alone don't count as extractable policy since they
+        don't provide actionable constraints for adr_planning_context.
+        """
         policy = self.extract_policy(adr)
 
-        return (
+        has_policy = (
             (policy.imports and bool(policy.imports.disallow or policy.imports.prefer))
             or (
                 policy.boundaries
                 and bool(policy.boundaries.layers or policy.boundaries.rules)
             )
             or (policy.python and bool(policy.python.disallow_imports))
-            or bool(policy.rationales)
+            # Note: rationales alone don't count - we need actual constraints
         )
+
+        return bool(has_policy)
 
     def validate_policy_completeness(self, adr: ADR) -> list[str]:
         """Validate that accepted ADRs have sufficient policy information."""
