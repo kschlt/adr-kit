@@ -33,6 +33,7 @@ dependencies = [
     "jsonlines>=4.0.0",
     "toml>=0.10.2",
     "requests>=2.25.0",
+    "packaging>=23.0",  # For semantic version comparison
 ]
 
 [project.optional-dependencies]

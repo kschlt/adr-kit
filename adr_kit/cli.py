@@ -34,21 +34,50 @@ def check_for_updates_async() -> None:
 
     def _check() -> None:
         try:
+            import importlib.metadata
+
             import requests
 
-            from . import __version__
+            # Get current version directly from package metadata for accuracy
+            try:
+                current_version = importlib.metadata.version("adr-kit")
+            except importlib.metadata.PackageNotFoundError:
+                # Fallback to __version__ if not installed properly
+                from . import __version__
 
+                current_version = __version__
+
+            # Get latest version from PyPI
             response = requests.get("https://pypi.org/pypi/adr-kit/json", timeout=5)
             response.raise_for_status()
 
             latest_version = response.json()["info"]["version"]
-            current_version = __version__
 
+            # Use semantic version comparison instead of string equality
             if current_version != latest_version:
-                stderr_console.print(
-                    f"🔄 [yellow]Update available:[/yellow] v{current_version} → v{latest_version}"
-                )
-                stderr_console.print("💡 [dim]Run 'adr-kit update' to upgrade[/dim]")
+                try:
+                    from packaging.version import parse
+
+                    current_ver = parse(current_version)
+                    latest_ver = parse(latest_version)
+
+                    # Only show update if latest is actually newer
+                    if current_ver < latest_ver:
+                        stderr_console.print(
+                            f"🔄 [yellow]Update available:[/yellow] v{current_version} → v{latest_version}"
+                        )
+                        stderr_console.print(
+                            "💡 [dim]Run 'uv tool upgrade adr-kit' to upgrade[/dim]"
+                        )
+                except Exception:
+                    # Fallback to string comparison if packaging not available
+                    if current_version != latest_version:
+                        stderr_console.print(
+                            f"🔄 [yellow]Update available:[/yellow] v{current_version} → v{latest_version}"
+                        )
+                        stderr_console.print(
+                            "💡 [dim]Run 'uv tool upgrade adr-kit' to upgrade[/dim]"
+                        )
 
         except Exception:
             # Silently ignore update check failures
