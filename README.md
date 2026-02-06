@@ -6,6 +6,9 @@ Document architectural decisions. Enforce them automatically.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-comprehensive-green)](#testing--validation)
 
+> **👥 For users:** Install ADR Kit in your project → [Quick Start](#quick-start)
+> **🔧 For contributors:** Develop on ADR Kit itself → [Development](#development)
+
 ## The Problem
 
 Your team decides "use React Query for all data fetching." Three months later, new code uses axios and fetch(). No one remembers the decision or why it was made. Code reviews catch some violations, but not all.
@@ -501,15 +504,9 @@ A: ADRs are still valuable for documentation. Policy enforcement is limited to s
 **Q: Can I use this with existing ADRs?**
 A: Yes. ADR Kit reads standard MADR format. Add the `policy:` section to enable enforcement.
 
-**Q: How much setup time?**
-A: 5-10 minutes for basic setup. Brownfield analysis: 15-30 minutes depending on project size.
-
 **Q: Greenfield vs Brownfield—what's the difference?**
 A: **Greenfield** = new project, create ADRs as you make decisions.
 **Brownfield** = existing project, use `adr_analyze_project()` to find and document existing decisions.
-
-**Q: Is semantic search working?**
-A: Yes, fully implemented. Currently used as optional fallback. Keyword matching is primary method.
 
 **Q: Does this work offline?**
 A: Yes. No external API calls. Semantic search uses local models (sentence-transformers).
@@ -535,28 +532,39 @@ See [.agent/GAP_ANALYSIS.md](.agent/GAP_ANALYSIS.md) for detailed feature status
 - **AI Integration Guide**: [AI_INTEGRATION.md](AI_INTEGRATION.md) *(coming soon)*
 - **Core Concepts**: [CONCEPTS.md](CONCEPTS.md) *(coming soon)*
 
-## Development
+---
 
-For development on ADR Kit itself:
+# Development
+
+**This section is for developers working on ADR Kit itself, not for users installing it.**
+
+If you're looking to **use** ADR Kit in your project, see [Quick Start](#quick-start) above.
+
+## Contributing to ADR Kit
 
 ```bash
-# Clone and setup
+# Clone the repository
 git clone https://github.com/yourusername/adr-kit
 cd adr-kit
 
-# Install in editable mode
+# Install in editable mode with development dependencies
 uv pip install -e ".[dev]"
 
 # Run tests
 pytest
 
-# Development commands (see Makefile)
-make dev-setup     # Initial setup
-make test-all      # Run all tests
+# Development commands (see Makefile for full list)
+make dev-setup     # Initial setup with guidance
+make test-all      # Run all tests including MCP server
 make quality       # Format + lint + test
+make reinstall     # Clean install (recommended when testing changes)
 ```
 
-See [CLAUDE.md](CLAUDE.md) for developer documentation.
+**Detailed developer documentation:** See [CLAUDE.md](CLAUDE.md) for comprehensive development instructions, including:
+- Understanding the three versions of ADR Kit (source, local install, system install)
+- Development workflow (Edit → Test → Verify)
+- Testing the MCP server with local changes
+- Project structure and what gets packaged vs what's dev-only
 
 ## License
 

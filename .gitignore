@@ -65,16 +65,18 @@ coverage.xml
 .dmypy.json
 dmypy.json
 
-# ADR Kit specific
+# ADR Kit specific - Generated when using ADR Kit to test itself
 .adr-kit/
 .project-index/
 .log4brains/
-PHASE5_SUMMARY.md
-PROJECT_STATUS_REPORT.md
-.agent/
-# Generated ADR indexes (for this project - other projects should commit these)
-docs/adr/adr-index.json
-docs/adr/*.backup
+
+# ADR Kit self-testing artifacts (when running adr-kit init in this project)
+# These are created when ADR Kit is installed/tested in its own directory
+# For ADR Kit development: project docs live in guide/, ADRs from self-testing in docs/adr/
+docs/adr/              # Test ADRs (created by adr-kit init, gitignored for this project only)
+
+# MCP configuration files
+.mcp.json
 
 # IDE integration files
 .claude/
