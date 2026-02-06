@@ -20,7 +20,7 @@ fi
 
 # Extract PyPI token from ~/.pypirc
 echo "🔑 Extracting credentials from ~/.pypirc..."
-TOKEN=$(grep -A1 '\[pypi\]' ~/.pypirc | grep password | cut -d' ' -f3)
+TOKEN=$(grep -A2 '\[pypi\]' ~/.pypirc | grep password | sed 's/password = //' | tr -d ' ')
 
 if [ -z "$TOKEN" ]; then
     echo "❌ Error: Could not extract password from ~/.pypirc"
