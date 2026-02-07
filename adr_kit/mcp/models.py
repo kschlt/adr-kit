@@ -174,6 +174,20 @@ class PlanningContextRequest(BaseModel):
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
 
+class DeleteADRRequest(BaseModel):
+    """Parameters for safe ADR deletion with immutability protection."""
+
+    adr_id: str = Field(..., description="ID of the ADR to delete")
+    force: bool = Field(
+        False,
+        description="Force deletion even for accepted/superseded ADRs (requires explicit confirmation)",
+    )
+    reason: str | None = Field(
+        None, description="Reason for deletion (for audit trail, especially with force flag)"
+    )
+    adr_dir: str = Field("docs/adr", description="ADR directory path")
+
+
 # Response Data Models for Tool-Specific Data
 
 
@@ -279,6 +293,17 @@ class PlanningContextData(BaseModel):
     )
     checklist: list[str] = Field(
         default_factory=list, description="Steps to ensure ADR compliance"
+    )
+
+
+class DeleteADRData(BaseModel):
+    """Data returned by adr_delete tool."""
+
+    adr_id: str = Field(..., description="The deleted ADR ID")
+    deleted_file: str = Field(..., description="Path to the deleted file")
+    was_forced: bool = Field(False, description="Whether force deletion was used")
+    warnings: list[str] = Field(
+        default_factory=list, description="Warnings about broken relationships or impacts"
     )
 
 

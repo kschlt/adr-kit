@@ -13,6 +13,7 @@ from fastmcp import FastMCP
 from ..workflows.analyze import AnalyzeProjectWorkflow
 from ..workflows.approval import ApprovalInput, ApprovalWorkflow
 from ..workflows.creation import CreationInput, CreationWorkflow
+from ..workflows.deletion import DeletionInput, DeletionWorkflow
 from ..workflows.planning import PlanningInput, PlanningWorkflow
 from ..workflows.preflight import PreflightInput, PreflightWorkflow
 from ..workflows.supersede import SupersedeInput, SupersedeWorkflow
@@ -21,6 +22,7 @@ from .models import (
     AnalyzeProjectRequest,
     ApproveADRRequest,
     CreateADRRequest,
+    DeleteADRRequest,
     PlanningContextRequest,
     PreflightCheckRequest,
     SupersedeADRRequest,
@@ -382,6 +384,71 @@ def adr_supersede(request: SupersedeADRRequest) -> dict[str, Any]:
             details=str(e),
             suggested_action="Verify the old ADR exists and new ADR details are valid",
             error_code="SUPERSEDE_ERROR",
+        )
+
+
+@mcp.tool()
+def adr_delete(request: DeleteADRRequest) -> dict[str, Any]:
+    """
+    Safely delete an ADR with immutability protection.
+
+    WHEN TO USE: Remove proposed/rejected ADRs that are no longer needed.
+    RETURNS: Deletion confirmation or blocking reason with guidance.
+
+    PROTECTION RULES:
+    - PROPOSED/REJECTED ADRs: Can be deleted (with confirmation)
+    - ACCEPTED ADRs: Cannot be deleted (suggest supersede/deprecate)
+    - SUPERSEDED ADRs: Cannot be deleted (historical record)
+    - DEPRECATED ADRs: Cannot be deleted (historical record)
+
+    With force=true: Allows deletion of any ADR (requires explicit confirmation).
+
+    IMPORTANT: Accepted, superseded, and deprecated ADRs follow the immutability
+    principle - they represent historical decisions and must be preserved for
+    audit trail. Use supersede or deprecate workflows instead of deletion.
+    """
+    try:
+        logger.info(f"Attempting to delete ADR: {request.adr_id}")
+
+        # Use the full workflow system
+        workflow = DeletionWorkflow(adr_dir=request.adr_dir)
+        deletion_input = DeletionInput(
+            adr_id=request.adr_id,
+            force=request.force,
+            reason=request.reason,
+        )
+
+        result = workflow.execute(input_data=deletion_input)
+
+        if result.success:
+            # Successful deletion
+            return success_response(
+                message=result.message,
+                data={
+                    "adr_id": result.data["adr_id"],
+                    "deleted_file": result.data["deleted_file"],
+                    "was_forced": result.data["was_forced"],
+                    "warnings": result.data.get("warnings", []),
+                },
+                next_steps=result.next_steps,
+                metadata={"adr_id": request.adr_id, "force": request.force},
+            )
+        else:
+            # Deletion blocked or failed
+            return error_response(
+                error="ADR deletion blocked",
+                details=result.message,
+                suggested_action=result.guidance or "Review ADR status and use appropriate workflow",
+                error_code="DELETION_BLOCKED",
+            )
+
+    except Exception as e:
+        logger.error(f"ADR deletion error: {e}")
+        return error_response(
+            error="ADR deletion failed",
+            details=str(e),
+            suggested_action="Verify ADR ID exists and you have write permissions",
+            error_code="DELETION_ERROR",
         )
 
 

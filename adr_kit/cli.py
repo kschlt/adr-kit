@@ -1106,6 +1106,89 @@ def guardrail_status(
 
 
 @app.command()
+def delete(
+    adr_id: str = typer.Argument(..., help="ID of the ADR to delete (e.g., ADR-0001)"),
+    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force deletion even for accepted/superseded ADRs (use with caution)",
+    ),
+    reason: str | None = typer.Option(
+        None, "--reason", help="Reason for deletion (for audit trail)"
+    ),
+) -> None:
+    """Safely delete an ADR with immutability protection.
+
+    This command implements the ADR immutability principle:
+    - PROPOSED/REJECTED: Can be deleted freely
+    - ACCEPTED/SUPERSEDED/DEPRECATED: Cannot be deleted (use supersede/deprecate)
+    - Force flag: Allows deletion with explicit confirmation (use with caution)
+    """
+    try:
+        from .workflows.deletion import DeletionInput, DeletionWorkflow
+
+        # Create workflow
+        workflow = DeletionWorkflow(adr_dir=adr_dir)
+        deletion_input = DeletionInput(adr_id=adr_id, force=force, reason=reason)
+
+        # Execute deletion
+        result = workflow.execute(input_data=deletion_input)
+
+        if result.success:
+            # Success
+            console.print(f"✅ {result.message}")
+            console.print(f"   📄 Deleted: {result.data['deleted_file']}")
+
+            if result.data.get("was_forced"):
+                console.print(
+                    "   ⚠️  [yellow]Force deletion was used (breaks immutability)[/yellow]"
+                )
+
+            if result.warnings:
+                console.print("\n⚠️  Warnings:")
+                for warning in result.warnings:
+                    console.print(f"   • {warning}")
+
+            if result.next_steps:
+                console.print("\n💡 Next Steps:")
+                for step in result.next_steps:
+                    console.print(f"   • {step}")
+
+            sys.exit(0)
+
+        else:
+            # Deletion blocked
+            console.print(f"❌ {result.message}")
+
+            if result.guidance:
+                console.print(f"\n💭 {result.guidance}")
+
+            if result.next_steps:
+                console.print("\n💡 Suggested Actions:")
+                for step in result.next_steps:
+                    console.print(f"   • {step}")
+
+            # Show ADR details if available
+            if result.data:
+                console.print(f"\n📋 ADR Details:")
+                console.print(f"   ID: {result.data.get('adr_id', 'N/A')}")
+                console.print(f"   Status: {result.data.get('status', 'N/A')}")
+                console.print(
+                    f"   File: {result.data.get('file_path', 'N/A')}"
+                )
+                console.print(
+                    f"   Deletion Allowed: {result.data.get('deletion_allowed', False)}"
+                )
+
+            sys.exit(1)
+
+    except Exception as e:
+        console.print(f"❌ Deletion failed: {e}")
+        raise typer.Exit(code=3) from e
+
+
+@app.command()
 def legacy() -> None:
     """Show legacy CLI commands (use MCP server instead).
 
@@ -1120,6 +1203,7 @@ def legacy() -> None:
     console.print("\nMinimal CLI commands still available:")
     console.print("• [dim]adr-kit init[/dim] - Initialize ADR structure")
     console.print("• [dim]adr-kit validate[/dim] - Validate existing ADRs")
+    console.print("• [dim]adr-kit delete[/dim] - Safely delete ADRs")
 
     console.print("\n💡 Use MCP tools for rich, contextual ADR management!")
     console.print()
