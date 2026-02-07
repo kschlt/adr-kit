@@ -81,6 +81,7 @@ docs/adr/              # Test ADRs (created by adr-kit init, gitignored for this
 # IDE integration files
 .claude/
 .cursor/
+.agent/
 
 # Generated lint config examples (keep actual configs)
 .eslintrc.adrs.json
