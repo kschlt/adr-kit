@@ -73,7 +73,7 @@ dmypy.json
 # ADR Kit self-testing artifacts (when running adr-kit init in this project)
 # These are created when ADR Kit is installed/tested in its own directory
 # For ADR Kit development: project docs live in guide/, ADRs from self-testing in docs/adr/
-docs/adr/              # Test ADRs (created by adr-kit init, gitignored for this project only)
+docs/adr
 
 # MCP configuration files
 .mcp.json
