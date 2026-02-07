@@ -86,13 +86,13 @@ class ADRValidator:
 
     def _get_default_schema_path(self) -> Path:
         """Get path to the bundled ADR schema."""
-        # Assume schema is in the schemas/ directory relative to project root
-        # __file__ = .../adr-kit/adr_kit/core/validate.py
-        # current_dir = .../adr-kit/adr_kit/core
-        # project_root = .../adr-kit
+        # Schema is bundled inside the adr_kit package
+        # __file__ = .../adr_kit/core/validate.py
+        # current_dir = .../adr_kit/core
+        # package_root = .../adr_kit
         current_dir = Path(__file__).parent
-        project_root = current_dir.parent.parent
-        return project_root / "schemas" / "adr.schema.json"
+        package_root = current_dir.parent
+        return package_root / "schemas" / "adr.schema.json"
 
     def _load_schema(self) -> dict[str, Any]:
         """Load and parse the JSON schema."""

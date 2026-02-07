@@ -240,10 +240,19 @@ class SupersedeWorkflow(BaseWorkflow):
             # Add superseded_by before end of YAML front-matter
             yaml_end = content.find("\n---\n")
             if yaml_end != -1:
+                import yaml as yaml_lib
+
+                # Properly serialize reason as YAML (handles multiline, quotes, special chars)
+                reason_yaml = yaml_lib.dump(
+                    {"supersede_reason": reason}, default_flow_style=False
+                ).strip()
+                # Extract just the value part (remove 'supersede_reason:' prefix)
+                reason_value = reason_yaml.split(":", 1)[1].strip()
+
                 supersede_metadata = (
-                    f"{superseded_by_line}\n"
+                    f"\n{superseded_by_line}\n"
                     f'supersede_date: {datetime.now().strftime("%Y-%m-%d")}\n'
-                    f'supersede_reason: "{reason}"\n'
+                    f"supersede_reason: {reason_value}\n"
                 )
                 content = content[:yaml_end] + supersede_metadata + content[yaml_end:]
 
@@ -281,6 +290,7 @@ class SupersedeWorkflow(BaseWorkflow):
                         if yaml_end != -1:
                             content = (
                                 content[:yaml_end]
+                                + "\n"
                                 + supersedes_line
                                 + "\n"
                                 + content[yaml_end:]

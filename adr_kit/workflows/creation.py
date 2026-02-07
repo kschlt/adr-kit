@@ -551,7 +551,9 @@ class CreationWorkflow(BaseWorkflow):
 
             if rejected_items:
                 # Remove duplicates, keep lowercase-normalized unique items
-                unique_rejected = list({item.lower(): item for item in rejected_items}.values())
+                unique_rejected = list(
+                    {item.lower(): item for item in rejected_items}.values()
+                )
                 suggested_policy["imports"]["disallow"] = unique_rejected
 
             if chosen_items:

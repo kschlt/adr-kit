@@ -63,6 +63,9 @@ where = ["."]
 include = ["adr_kit*"]
 exclude = ["tests*", "scripts*", ".agent*"]
 
+[tool.setuptools.package-data]
+adr_kit = ["schemas/*.json"]
+
 [tool.black]
 line-length = 88
 target-version = ['py310']
