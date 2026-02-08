@@ -685,6 +685,8 @@ See [.agent/GAP_ANALYSIS.md](.agent/GAP_ANALYSIS.md) for detailed feature status
 
 - **MADR Format**: [Markdown ADR Specification](https://adr.github.io/madr/)
 - **MCP Protocol**: [Model Context Protocol](https://modelcontextprotocol.io)
+- **AI-Centric Evaluation**: [guide/AI-CENTRIC-EVALUATION.md](guide/AI-CENTRIC-EVALUATION.md) - How to evaluate decisions for AI-driven development
+- **Policy Format Guide**: [guide/POLICY-FORMAT.md](guide/POLICY-FORMAT.md) - Structured policy block reference
 - **Getting Started Guide**: [GETTING_STARTED.md](GETTING_STARTED.md) *(coming soon)*
 - **Workflows Deep Dive**: [WORKFLOWS.md](WORKFLOWS.md) *(coming soon)*
 - **AI Integration Guide**: [AI_INTEGRATION.md](AI_INTEGRATION.md) *(coming soon)*
