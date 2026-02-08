@@ -312,7 +312,12 @@ class ADR(BaseModel):
         import yaml
 
         # Convert front-matter to dict for YAML serialization
-        fm_dict = self.front_matter.model_dump(exclude_none=True)
+        # Use mode='python' to serialize enums as their values
+        fm_dict = self.front_matter.model_dump(exclude_none=True, mode='python')
+
+        # Ensure status is serialized as string value
+        if 'status' in fm_dict and hasattr(fm_dict['status'], 'value'):
+            fm_dict['status'] = fm_dict['status'].value
 
         # Format YAML front-matter
         yaml_str = yaml.dump(fm_dict, default_flow_style=False, sort_keys=False)

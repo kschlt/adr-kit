@@ -214,3 +214,121 @@ Good things happen.
         assert summary["total_checks"] == (
             summary["ok"] + summary["warnings"] + summary["errors"]
         )
+
+    def test_actionable_items_with_commands(self, tmp_path: Path) -> None:
+        """Test that actionable items include commands and are sorted by severity."""
+        adr_dir = tmp_path / "docs/adr"
+        # Don't create directory to trigger error
+
+        checker = HealthChecker(adr_dir=adr_dir)
+        result = checker.check_all()
+
+        # Get actionable items
+        actionable = result.get_actionable_items()
+        assert len(actionable) > 0
+
+        # Each item should have (recommendation, command, severity)
+        for rec, cmd, severity in actionable:
+            assert isinstance(rec, str)
+            assert cmd is None or isinstance(cmd, str)
+            assert isinstance(severity, int)
+            assert 0 <= severity <= 3
+
+        # Items should be sorted by severity (high to low)
+        severities = [item[2] for item in actionable]
+        assert severities == sorted(severities, reverse=True)
+
+    def test_duplicate_id_detection(self, tmp_path: Path) -> None:
+        """Test detection of duplicate ADR IDs."""
+        adr_dir = tmp_path / "docs/adr"
+        adr_dir.mkdir(parents=True)
+
+        # Create two ADRs with the same ID
+        adr_id = "ADR-0001"
+        for i in range(2):
+            front_matter = ADRFrontMatter(
+                id=adr_id,
+                title=f"Duplicate ADR {i}",
+                status=ADRStatus.PROPOSED,
+                date=date(2025, 1, 1),
+                deciders=["test"],
+            )
+            adr = ADR(front_matter=front_matter, content="Test content")
+            file_path = adr_dir / f"{adr_id}-duplicate-{i}.md"
+            with open(file_path, "w") as f:
+                f.write(adr.to_markdown())
+
+        checker = HealthChecker(adr_dir=adr_dir)
+        result = checker.check_all()
+
+        # Should have error about duplicates
+        assert not result.success
+        duplicate_issues = [
+            issue for issue in result.issues if issue.category == "Duplicate IDs"
+        ]
+        assert len(duplicate_issues) == 1
+        assert duplicate_issues[0].level == "error"
+        assert adr_id in duplicate_issues[0].message
+        assert duplicate_issues[0].severity == 3  # High severity
+
+    def test_parse_error_detection(self, tmp_path: Path) -> None:
+        """Test detection of ADR files with parsing errors."""
+        adr_dir = tmp_path / "docs/adr"
+        adr_dir.mkdir(parents=True)
+
+        # Create ADR with malformed YAML
+        bad_adr = adr_dir / "ADR-0001-bad.md"
+        with open(bad_adr, "w") as f:
+            f.write("""---
+id: ADR-0001
+title: Bad ADR
+status: proposed
+# Missing closing ---
+This is invalid YAML frontmatter
+""")
+
+        checker = HealthChecker(adr_dir=adr_dir)
+        result = checker.check_all()
+
+        # Should have error about parse failure
+        assert not result.success
+        parse_issues = [
+            issue for issue in result.issues if issue.category == "Parse error"
+        ]
+        assert len(parse_issues) >= 1
+        assert parse_issues[0].level == "error"
+        assert "ADR-0001-bad.md" in parse_issues[0].message
+        assert parse_issues[0].severity == 3  # High severity
+        assert parse_issues[0].command is not None  # Should have fix command
+
+    def test_proposed_adrs_recommendation(self, tmp_path: Path) -> None:
+        """Test recommendation to approve proposed ADRs."""
+        adr_dir = tmp_path / "docs/adr"
+        adr_dir.mkdir(parents=True)
+
+        # Create proposed ADR
+        front_matter = ADRFrontMatter(
+            id="ADR-0001",
+            title="Test ADR",
+            status=ADRStatus.PROPOSED,
+            date=date(2025, 1, 1),
+            deciders=["test"],
+        )
+        adr = ADR(front_matter=front_matter, content="Test content")
+        file_path = adr_dir / "ADR-0001-test.md"
+        with open(file_path, "w") as f:
+            f.write(adr.to_markdown())
+
+        checker = HealthChecker(adr_dir=adr_dir)
+        result = checker.check_all()
+
+        # Should have workflow recommendation about approving
+        workflow_issues = [
+            issue for issue in result.issues if issue.category == "Workflow"
+        ]
+        assert len(workflow_issues) == 1
+        assert workflow_issues[0].level == "warning"
+        assert "proposed" in workflow_issues[0].message.lower()
+        assert "approve" in workflow_issues[0].recommendation.lower()
+        assert workflow_issues[0].command is not None
+        assert "adr_approve" in workflow_issues[0].command

@@ -1230,12 +1230,39 @@ def doctor(
             if verbose and issue.recommendation:
                 console.print(f"   💡 {issue.recommendation}", style="dim")
 
-        # Display recommendations (non-verbose mode)
-        recommendations = result.get_recommendations()
-        if recommendations and not verbose:
-            console.print("\n📋 [bold]Recommendations:[/bold]")
-            for rec in recommendations:
-                console.print(f"   • {rec}")
+        # Display actionable recommendations (non-verbose mode)
+        if not verbose:
+            actionable_items = result.get_actionable_items()
+            if actionable_items:
+                console.print("\n📋 [bold]Recommended Actions:[/bold]")
+                console.print("[dim](Sorted by priority: high → low)[/dim]\n")
+
+                for recommendation, command, severity in actionable_items:
+                    # Show severity indicator
+                    if severity >= 3:
+                        priority_icon = "🔴"
+                        priority_label = "[red]HIGH[/red]"
+                    elif severity >= 2:
+                        priority_icon = "🟡"
+                        priority_label = "[yellow]MEDIUM[/yellow]"
+                    else:
+                        priority_icon = "🟢"
+                        priority_label = "[green]LOW[/green]"
+
+                    console.print(f"{priority_icon} {priority_label}: {recommendation}")
+
+                    if command:
+                        # Display command in a code-like format
+                        if "\n" in command:
+                            # Multi-line command
+                            console.print(f"[dim]   Run:[/dim]")
+                            for line in command.split("\n"):
+                                if line.strip():
+                                    console.print(f"   [cyan]{line}[/cyan]")
+                        else:
+                            # Single-line command
+                            console.print(f"[dim]   Run:[/dim] [cyan]{command}[/cyan]")
+                    console.print()  # Blank line between items
 
         # Display summary
         summary = result.summary
