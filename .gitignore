@@ -82,6 +82,7 @@ docs/adr
 .claude/
 .cursor/
 .agent/
+.agent/**
 
 # Generated lint config examples (keep actual configs)
 .eslintrc.adrs.json
