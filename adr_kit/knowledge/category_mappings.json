@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "mappings": {
+    "database": {
+      "primary_criteria": ["feedback_loops", "reversibility", "safety", "executability"],
+      "secondary_criteria": ["documentation_accessibility", "modularity"],
+      "category_guidance": "For database choices, pay special attention to: migration reversibility, parameterized query support (security), test isolation (in-memory alternative), and structured error messages."
+    },
+    "frontend": {
+      "primary_criteria": ["feedback_loops", "documentation_accessibility", "decision_space", "modularity", "multi_agent"],
+      "secondary_criteria": ["safety", "executability", "reviewability"],
+      "category_guidance": "For frontend frameworks, pay special attention to: file-based routing (modularity), dev server hot reload (feedback), component isolation (multi-agent), and linter/formatter ecosystem (conventions)."
+    },
+    "backend": {
+      "primary_criteria": ["feedback_loops", "safety", "executability", "documentation_accessibility", "modularity"],
+      "secondary_criteria": ["reversibility", "multi_agent", "decision_space"],
+      "category_guidance": "For backend frameworks, pay special attention to: type safety and validation (feedback), secure-by-default patterns (safety), structured error logging (executability), and API contract generation (multi-agent)."
+    },
+    "architecture": {
+      "primary_criteria": ["modularity", "multi_agent", "reversibility", "executability"],
+      "secondary_criteria": ["feedback_loops", "decision_space", "reviewability"],
+      "category_guidance": "For architectural patterns, pay special attention to: module boundaries and change isolation (modularity), parallel development support (multi-agent), and whether the pattern is locally testable (executability)."
+    },
+    "authentication": {
+      "primary_criteria": ["safety", "documentation_accessibility", "decision_space", "reversibility"],
+      "secondary_criteria": ["feedback_loops", "modularity"],
+      "category_guidance": "For authentication, secure-by-default is critical. AI agents commonly produce insecure auth code unless the technology enforces security. Prefer established libraries over custom implementations."
+    },
+    "technology": {
+      "primary_criteria": ["feedback_loops", "documentation_accessibility", "executability"],
+      "secondary_criteria": ["decision_space", "safety", "reviewability", "ai_learning_curve"],
+      "category_guidance": "Evaluate this technology choice against AI implementation fitness. Focus on whether the AI can get fast, reliable feedback and whether documentation is accessible at implementation time."
+    }
+  }
+}

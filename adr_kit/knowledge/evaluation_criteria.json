@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "criteria": {
+    "feedback_loops": {
+      "id": "feedback_loops",
+      "label": "Feedback Loops & Determinism",
+      "promptlet_template": "Does this technology provide fast, reliable feedback? Consider: type safety (compile-time errors), dev mode with hot reload, descriptive error messages AI can parse, deterministic test behavior.",
+      "evaluation_questions": [
+        "Does it have a type system or static analysis?",
+        "Are error messages descriptive with file/line numbers?",
+        "Is the test environment deterministic?",
+        "Does it support dev/watch mode for fast iteration?"
+      ]
+    },
+    "documentation_accessibility": {
+      "id": "documentation_accessibility",
+      "label": "Documentation Accessibility",
+      "promptlet_template": "Is documentation machine-readable and accessible to the implementing agent? Consider: structured reference-grade docs vs tutorial-only, text-based vs video, comprehensive coverage of common patterns.",
+      "evaluation_questions": [
+        "Are official docs structured and reference-grade?",
+        "Can the agent access and query these docs at implementation time?",
+        "Do docs have complete, copy-pasteable code examples?",
+        "Are there migration guides for version changes?"
+      ]
+    },
+    "decision_space": {
+      "id": "decision_space",
+      "label": "Decision Space & Conventions",
+      "promptlet_template": "Does this technology minimize the number of valid ways to accomplish common tasks? Consider: convention over configuration, linter/formatter ecosystem, opinionated vs flexible.",
+      "evaluation_questions": [
+        "Is there 'one obvious way' for common tasks?",
+        "Does linter/formatter tooling exist to enforce consistency?",
+        "Are patterns convention-driven or fully flexible?"
+      ]
+    },
+    "executability": {
+      "id": "executability",
+      "label": "Executability & Runtime Feedback",
+      "promptlet_template": "Can the AI run this locally and get live feedback? Consider: single-command setup, Docker support, dev mode, structured error logging for runtime debugging.",
+      "evaluation_questions": [
+        "Can it run locally with minimal setup?",
+        "Does it support Docker for reproducible environments?",
+        "Are runtime errors structured and parseable?",
+        "Is there a dev/watch mode for fast iteration?"
+      ]
+    },
+    "modularity": {
+      "id": "modularity",
+      "label": "Scope Isolation & Modularity",
+      "promptlet_template": "Does this technology support bounded, isolated changes? Consider: file-based routing, module boundaries, whether small changes require touching many files.",
+      "evaluation_questions": [
+        "Can the AI work on one module without loading the entire codebase?",
+        "Does the file structure support focused context?",
+        "Are module interfaces clear and documented?"
+      ]
+    },
+    "reversibility": {
+      "id": "reversibility",
+      "label": "Reversibility & Cost of Mistakes",
+      "promptlet_template": "Are mistakes cheap to recover from? Consider: migration rollback support, feature flags, idempotent operations, whether state changes are reversible.",
+      "evaluation_questions": [
+        "Does the migration tool support rollback?",
+        "Are key operations idempotent (safe to retry)?",
+        "Can state changes be reversed without data loss?"
+      ]
+    },
+    "safety": {
+      "id": "safety",
+      "label": "Security by Default",
+      "promptlet_template": "Does this technology make the insecure path harder than the secure path? Consider: parameterized queries, built-in CSRF/XSS protection, secure authentication libraries.",
+      "evaluation_questions": [
+        "Are security-critical operations secure by default?",
+        "Does the standard API prevent common vulnerabilities?",
+        "Is authentication/authorization built-in or manual?"
+      ]
+    },
+    "multi_agent": {
+      "id": "multi_agent",
+      "label": "Multi-Agent Compatibility",
+      "promptlet_template": "Can multiple agents work on this codebase in parallel? Consider: file structure that minimizes merge conflicts, auto-generated contracts (OpenAPI, GraphQL), independent testability.",
+      "evaluation_questions": [
+        "Does the file structure minimize merge conflict probability?",
+        "Are contracts between components auto-generated and shared?",
+        "Can modules be tested independently?"
+      ]
+    },
+    "reviewability": {
+      "id": "reviewability",
+      "label": "Reviewability",
+      "promptlet_template": "Can a human reviewer who didn't write the code quickly understand it? Consider: explicit vs implicit behavior, widely understood technology, readable code patterns.",
+      "evaluation_questions": [
+        "Is the technology widely understood for effective review?",
+        "Does the code show explicit behavior (vs. metaprogramming/magic)?",
+        "Can reviewers assess correctness without deep framework knowledge?"
+      ]
+    },
+    "ai_learning_curve": {
+      "id": "ai_learning_curve",
+      "label": "AI Learning Curve",
+      "promptlet_template": "How many iterations does the AI typically need to produce correct output? Consider: common patterns AI gets wrong, subtle gotchas, training data quality for this technology.",
+      "evaluation_questions": [
+        "Are there patterns AI commonly gets wrong with this technology?",
+        "Does the AI produce correct code on the first attempt for common tasks?",
+        "Are there subtle gotchas that require deep understanding?"
+      ]
+    }
+  }
+}
