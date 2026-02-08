@@ -237,6 +237,21 @@ class ApprovalWorkflow(BaseWorkflow):
             errors = [str(error) for error in validation_result.errors]
             raise ValueError(f"ADR {adr.id} has validation errors: {', '.join(errors)}")
 
+        # Validate single decision principle
+        from ..core.single_decision_validator import SingleDecisionValidator
+
+        validator = SingleDecisionValidator()
+        single_decision_warnings = validator.validate(adr)
+
+        # Block approval if there are critical (high severity) warnings
+        if validator.has_critical_warnings(single_decision_warnings) and not input_data.force_approve:
+            formatted_warnings = validator.format_warnings_for_display(single_decision_warnings)
+            raise ValueError(
+                f"ADR {adr.id} violates single decision principle:\n\n{formatted_warnings}\n\n"
+                f"This ADR appears to document multiple independent architectural decisions. "
+                f"Please split into separate ADRs, or use force_approve=True to override."
+            )
+
     def _calculate_content_digest(self, file_path: str) -> str:
         """Calculate SHA-256 digest of ADR content for integrity checking."""
         with open(file_path, "rb") as f:
