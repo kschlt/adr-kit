@@ -497,10 +497,31 @@ class PlanningWorkflow(BaseWorkflow):
         self, constraint: Any, task_domains: set[str], task_tech: set[str]
     ) -> float:
         """Assess how relevant a constraint is to the task."""
+        from ..contract.models import MergedConstraints
+
         relevance = 0.0
 
+        # Build constraint text from MergedConstraints structure
+        constraint_parts = []
+        if isinstance(constraint, MergedConstraints):
+            if constraint.imports:
+                if constraint.imports.disallow:
+                    constraint_parts.extend(constraint.imports.disallow)
+                if constraint.imports.prefer:
+                    constraint_parts.extend(constraint.imports.prefer)
+            if constraint.python and constraint.python.disallow_imports:
+                constraint_parts.extend(constraint.python.disallow_imports)
+            if constraint.boundaries:
+                if constraint.boundaries.layers:
+                    constraint_parts.extend(
+                        layer.name for layer in constraint.boundaries.layers
+                    )
+                if constraint.boundaries.rules:
+                    constraint_parts.extend(rule.forbid for rule in constraint.boundaries.rules)
+
+        constraint_text = " ".join(constraint_parts).lower()
+
         # Check if constraint applies to task technologies
-        constraint_text = str(constraint.policy).lower()
         for tech in task_tech:
             if tech in constraint_text:
                 relevance += 0.4
