@@ -1189,6 +1189,76 @@ def delete(
 
 
 @app.command()
+def doctor(
+    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show detailed diagnostic information"
+    ),
+) -> None:
+    """Run comprehensive health check for ADR setup.
+
+    Checks schema availability, directory structure, ADR files, indexes,
+    and constraint contract status to diagnose configuration issues.
+    """
+    try:
+        from .doctor import HealthChecker
+
+        console.print("🔍 [bold]ADR Kit Health Check[/bold]\n")
+
+        # Check for updates in background
+        check_for_updates_async()
+
+        # Run health checks
+        checker = HealthChecker(adr_dir=adr_dir)
+        result = checker.check_all()
+
+        # Display issues
+        for issue in result.issues:
+            if issue.level == "ok":
+                icon = "✓"
+                style = "green"
+            elif issue.level == "warning":
+                icon = "⚠️"
+                style = "yellow"
+            else:  # error
+                icon = "✗"
+                style = "red"
+
+            message = f"{icon} {issue.category}: {issue.message}"
+            console.print(message, style=style)
+
+            if verbose and issue.recommendation:
+                console.print(f"   💡 {issue.recommendation}", style="dim")
+
+        # Display recommendations (non-verbose mode)
+        recommendations = result.get_recommendations()
+        if recommendations and not verbose:
+            console.print("\n📋 [bold]Recommendations:[/bold]")
+            for rec in recommendations:
+                console.print(f"   • {rec}")
+
+        # Display summary
+        summary = result.summary
+        console.print(f"\n📊 [bold]Summary:[/bold]")
+        console.print(
+            f"   {summary['ok']} OK, {summary['warnings']} warnings, {summary['errors']} errors"
+        )
+
+        if result.success:
+            console.print("\n✅ [green bold]ADR Kit is healthy![/green bold]")
+            sys.exit(0)
+        else:
+            console.print(
+                "\n⚠️  [yellow]Some issues detected. See recommendations above.[/yellow]"
+            )
+            sys.exit(1)
+
+    except Exception as e:
+        console.print(f"❌ Health check failed: {e}")
+        raise typer.Exit(code=1) from e
+
+
+@app.command()
 def legacy() -> None:
     """Show legacy CLI commands (use MCP server instead).
 
