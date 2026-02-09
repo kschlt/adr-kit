@@ -1,11 +1,15 @@
 """Preflight Workflow - Check if technical choice requires ADR before proceeding."""
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 from ..contract.builder import ConstraintsContractBuilder
 from ..contract.models import ConstraintsContract
+from ..knowledge.loader import KnowledgeLoader
 from .base import BaseWorkflow, WorkflowResult
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -108,6 +112,7 @@ class PreflightWorkflow(BaseWorkflow):
                 self._generate_agent_guidance,
                 decision,
                 input_data,
+                categorized_choice,
             )
 
             result_data = {
@@ -491,9 +496,16 @@ class PreflightWorkflow(BaseWorkflow):
         return policies
 
     def _generate_agent_guidance(
-        self, decision: PreflightDecision, input_data: PreflightInput
+        self,
+        decision: PreflightDecision,
+        input_data: PreflightInput,
+        categorized_choice: dict[str, Any],
     ) -> str:
-        """Generate actionable guidance for the agent."""
+        """Generate actionable guidance for the agent.
+
+        For REQUIRES_ADR status, includes category-specific evaluation promptlet
+        from the knowledge module to guide the agent in making a well-informed decision.
+        """
 
         if decision.status == "ALLOWED":
             return (
@@ -519,10 +531,50 @@ class PreflightWorkflow(BaseWorkflow):
             if decision.related_adrs:
                 related_text = f" (related: {', '.join(decision.related_adrs)})"
 
-            return (
+            base_guidance = (
                 f"📝 '{input_data.choice}' requires ADR{related_text}. "
-                f"{decision.reasoning}. "
-                f"Use adr_create() to document this decision before proceeding."
+                f"{decision.reasoning}.\n\n"
             )
 
+            # Inject evaluation promptlet from knowledge module
+            category = categorized_choice.get("category", "technology")
+            evaluation_promptlet = self._load_evaluation_promptlet(category)
+
+            if evaluation_promptlet:
+                return (
+                    base_guidance
+                    + "Before documenting this decision, evaluate the choice for AI-driven implementation:\n\n"
+                    + evaluation_promptlet
+                    + "\n\nUse adr_create() to document this decision with consequences covering these dimensions."
+                )
+            else:
+                # Graceful degradation: fall back to basic guidance
+                return (
+                    base_guidance
+                    + "Use adr_create() to document this decision before proceeding."
+                )
+
         return f"Evaluation complete: {decision.reasoning}"
+
+    def _load_evaluation_promptlet(self, category: str) -> str:
+        """Load evaluation promptlet for the given category.
+
+        Returns empty string on failure (graceful degradation).
+        """
+        try:
+            loader = KnowledgeLoader()
+            return loader.assemble_promptlet(category)
+        except KeyError:
+            # Category not found - fall back gracefully
+            logger.warning(
+                f"No evaluation criteria found for category {category!r}. "
+                "Using generic guidance."
+            )
+            return ""
+        except Exception as e:
+            # Unexpected error - log and degrade gracefully
+            logger.warning(
+                f"Failed to load evaluation promptlet for {category!r}: {e}. "
+                "Using generic guidance."
+            )
+            return ""
