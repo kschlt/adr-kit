@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -218,51 +220,86 @@ class TestCategories:
 
 
 # ---------------------------------------------------------------------------
-# Validation & error handling
+# Validation & error handling (legacy tests - now covered by graceful degradation)
 # ---------------------------------------------------------------------------
 
 
 class TestValidation:
-    """Tests for JSON validation on load."""
+    """Tests for JSON validation behavior.
 
-    def test_missing_criteria_file(self, tmp_path: Path) -> None:
-        with pytest.raises(KnowledgeLoadError, match="not found"):
-            KnowledgeLoader(
+    Note: With graceful degradation, these scenarios now warn instead of raising.
+    See TestGracefulDegradation for the new behavior tests.
+    """
+
+    def test_missing_criteria_file_warns(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Missing criteria file should warn (graceful degradation)."""
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
                 criteria_path=tmp_path / "missing.json",
                 mappings_path=tmp_path / "also_missing.json",
             )
+            criteria = loader.get_all_criteria()
+        assert criteria == {}
+        assert "Failed to load" in caplog.text
 
-    def test_invalid_json(self, tmp_path: Path, tmp_mappings: Path) -> None:
+    def test_invalid_json_warns(
+        self, tmp_path: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Invalid JSON should warn (graceful degradation)."""
         bad = tmp_path / "bad.json"
         bad.write_text("{not valid json")
-        with pytest.raises(KnowledgeLoadError, match="Invalid JSON"):
-            KnowledgeLoader(criteria_path=bad, mappings_path=tmp_mappings)
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(criteria_path=bad, mappings_path=tmp_mappings)
+            criteria = loader.get_all_criteria()
+        assert criteria == {}
+        assert "Invalid JSON" in caplog.text
 
-    def test_missing_version(self, tmp_path: Path, tmp_mappings: Path) -> None:
+    def test_missing_version_warns(
+        self, tmp_path: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Missing version should warn (graceful degradation)."""
         no_ver = tmp_path / "no_ver.json"
         no_ver.write_text(json.dumps({"criteria": {}}))
-        with pytest.raises(KnowledgeLoadError, match="Missing 'version'"):
-            KnowledgeLoader(criteria_path=no_ver, mappings_path=tmp_mappings)
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(criteria_path=no_ver, mappings_path=tmp_mappings)
+            criteria = loader.get_all_criteria()
+        assert criteria == {}
 
-    def test_wrong_version(self, tmp_path: Path, tmp_mappings: Path) -> None:
+    def test_wrong_version_warns(
+        self, tmp_path: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Wrong version should warn (graceful degradation)."""
         wrong = tmp_path / "wrong.json"
         wrong.write_text(json.dumps({"version": "99.0", "criteria": {}}))
-        with pytest.raises(KnowledgeLoadError, match="Unsupported version"):
-            KnowledgeLoader(criteria_path=wrong, mappings_path=tmp_mappings)
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(criteria_path=wrong, mappings_path=tmp_mappings)
+            criteria = loader.get_all_criteria()
+        assert criteria == {}
 
-    def test_missing_criteria_key(self, tmp_path: Path, tmp_mappings: Path) -> None:
+    def test_missing_criteria_key_warns(
+        self, tmp_path: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Missing 'criteria' key should warn (graceful degradation)."""
         no_key = tmp_path / "no_key.json"
         no_key.write_text(json.dumps({"version": "1.0"}))
-        with pytest.raises(KnowledgeLoadError, match="Missing 'criteria'"):
-            KnowledgeLoader(criteria_path=no_key, mappings_path=tmp_mappings)
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(criteria_path=no_key, mappings_path=tmp_mappings)
+            criteria = loader.get_all_criteria()
+        assert criteria == {}
+        assert "Missing 'criteria' key" in caplog.text
 
-    def test_missing_mappings_key(
-        self, tmp_criteria: Path, tmp_path: Path
+    def test_missing_mappings_key_warns(
+        self, tmp_criteria: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
+        """Missing 'mappings' key should warn (graceful degradation)."""
         no_key = tmp_path / "no_map.json"
         no_key.write_text(json.dumps({"version": "1.0"}))
-        with pytest.raises(KnowledgeLoadError, match="Missing 'mappings'"):
-            KnowledgeLoader(criteria_path=tmp_criteria, mappings_path=no_key)
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(criteria_path=tmp_criteria, mappings_path=no_key)
+            categories = loader.categories
+        assert categories == []
 
 
 # ---------------------------------------------------------------------------
@@ -314,3 +351,261 @@ class TestCriterion:
         )
         with pytest.raises(AttributeError):
             c.id = "y"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Caching behavior
+# ---------------------------------------------------------------------------
+
+
+class TestCaching:
+    """Tests for file caching behavior."""
+
+    def test_second_call_does_not_reload_files(
+        self, tmp_criteria: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Verify that data files are loaded only once."""
+        loader = KnowledgeLoader(
+            criteria_path=tmp_criteria,
+            mappings_path=tmp_mappings,
+        )
+
+        # First call triggers load
+        loader.get_all_criteria()
+
+        # Modify files after first load
+        tmp_criteria.write_text(json.dumps({"version": "1.0", "criteria": {}}))
+        tmp_mappings.write_text(json.dumps({"version": "1.0", "mappings": {}}))
+
+        # Second call should return cached data, not re-read
+        criteria = loader.get_all_criteria()
+        assert "alpha" in criteria  # Still has original data
+
+    def test_multiple_loaders_load_independently(
+        self, tmp_criteria: Path, tmp_mappings: Path
+    ) -> None:
+        """Each loader instance has its own cache."""
+        loader1 = KnowledgeLoader(
+            criteria_path=tmp_criteria,
+            mappings_path=tmp_mappings,
+        )
+        loader2 = KnowledgeLoader(
+            criteria_path=tmp_criteria,
+            mappings_path=tmp_mappings,
+        )
+
+        # Both load independently
+        assert "alpha" in loader1.get_all_criteria()
+        assert "alpha" in loader2.get_all_criteria()
+
+    def test_lazy_loading(self, tmp_criteria: Path, tmp_mappings: Path) -> None:
+        """Files are not loaded until first access."""
+        loader = KnowledgeLoader(
+            criteria_path=tmp_criteria,
+            mappings_path=tmp_mappings,
+        )
+
+        # Delete files before any access
+        tmp_criteria.unlink()
+        tmp_mappings.unlink()
+
+        # Should fail on first access, not construction
+        with pytest.raises(KeyError):
+            loader.load_criteria("test_cat")
+
+
+# ---------------------------------------------------------------------------
+# Graceful degradation
+# ---------------------------------------------------------------------------
+
+
+class TestGracefulDegradation:
+    """Tests for graceful degradation on missing/malformed data."""
+
+    def test_missing_criteria_file_warns_and_returns_empty(
+        self, tmp_path: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Missing criteria file should warn but not crash."""
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
+                criteria_path=tmp_path / "nonexistent.json",
+                mappings_path=tmp_mappings,
+            )
+            criteria = loader.get_all_criteria()
+
+        assert criteria == {}
+        assert "Failed to load criteria" in caplog.text
+
+    def test_missing_mappings_file_warns_and_returns_empty(
+        self, tmp_criteria: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Missing mappings file should warn but not crash."""
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
+                criteria_path=tmp_criteria,
+                mappings_path=tmp_path / "nonexistent.json",
+            )
+            categories = loader.categories
+
+        assert categories == []
+        assert "Failed to load mappings" in caplog.text
+
+    def test_malformed_json_warns_and_continues(
+        self, tmp_path: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Malformed JSON should warn but not crash."""
+        bad_criteria = tmp_path / "bad.json"
+        bad_criteria.write_text("{not valid json")
+
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
+                criteria_path=bad_criteria,
+                mappings_path=tmp_mappings,
+            )
+            criteria = loader.get_all_criteria()
+
+        assert criteria == {}
+        assert "Failed to load criteria" in caplog.text
+        assert "Invalid JSON" in caplog.text
+
+    def test_missing_criteria_key_warns_and_returns_empty(
+        self, tmp_path: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """File with missing 'criteria' key should warn."""
+        no_key = tmp_path / "no_key.json"
+        no_key.write_text(json.dumps({"version": "1.0"}))
+
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
+                criteria_path=no_key,
+                mappings_path=tmp_mappings,
+            )
+            criteria = loader.get_all_criteria()
+
+        assert criteria == {}
+        assert "Missing 'criteria' key" in caplog.text
+
+    def test_wrong_version_warns_and_returns_empty(
+        self, tmp_path: Path, tmp_mappings: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """File with wrong version should warn."""
+        wrong_ver = tmp_path / "wrong.json"
+        wrong_ver.write_text(json.dumps({"version": "99.0", "criteria": {}}))
+
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
+                criteria_path=wrong_ver,
+                mappings_path=tmp_mappings,
+            )
+            criteria = loader.get_all_criteria()
+
+        assert criteria == {}
+        assert "Failed to load criteria" in caplog.text
+
+    def test_partial_data_still_usable(
+        self, tmp_path: Path, tmp_criteria: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """If criteria loads but mappings fail, criteria still accessible."""
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
+                criteria_path=tmp_criteria,
+                mappings_path=tmp_path / "missing.json",
+            )
+            criteria = loader.get_all_criteria()
+
+        assert "alpha" in criteria
+        assert loader.categories == []
+
+    def test_load_criteria_with_missing_data_raises(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """load_criteria() should raise KeyError if mappings unavailable."""
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
+                criteria_path=tmp_path / "missing1.json",
+                mappings_path=tmp_path / "missing2.json",
+            )
+
+        with pytest.raises(KeyError, match="mappings data unavailable"):
+            loader.load_criteria("database")
+
+
+# ---------------------------------------------------------------------------
+# Promptlet assembly
+# ---------------------------------------------------------------------------
+
+
+class TestAssemblePromptlet:
+    """Tests for assemble_promptlet(category) method."""
+
+    def test_assembles_database_promptlet(self, loader: KnowledgeLoader) -> None:
+        """Should combine guidance + primary criteria into single string."""
+        promptlet = loader.assemble_promptlet("database")
+
+        # Should include category guidance
+        assert "migration reversibility" in promptlet
+
+        # Should include primary criteria headers
+        assert "Primary Evaluation Criteria" in promptlet
+
+        # Should include primary criterion labels and templates
+        result = loader.load_criteria("database")
+        for criterion in result.primary:
+            assert criterion.label in promptlet
+            assert criterion.promptlet_template in promptlet
+
+    def test_includes_category_header(self, loader: KnowledgeLoader) -> None:
+        """Should include formatted category name in header."""
+        promptlet = loader.assemble_promptlet("frontend")
+        assert "Category Guidance: Frontend" in promptlet
+
+    def test_numbers_criteria(self, loader: KnowledgeLoader) -> None:
+        """Should number primary criteria sequentially."""
+        promptlet = loader.assemble_promptlet("backend")
+        assert "## 1." in promptlet
+        assert "## 2." in promptlet
+
+    def test_unknown_category_raises(self, loader: KnowledgeLoader) -> None:
+        """Should raise KeyError for unknown category."""
+        with pytest.raises(KeyError, match="Unknown category"):
+            loader.assemble_promptlet("nonexistent")
+
+    def test_empty_category_returns_guidance_only(
+        self, tmp_criteria: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Category with no primary criteria should return guidance + warn."""
+        empty_mappings = tmp_path / "empty_map.json"
+        empty_mappings.write_text(
+            json.dumps(
+                {
+                    "version": "1.0",
+                    "mappings": {
+                        "empty": {
+                            "primary_criteria": [],
+                            "secondary_criteria": [],
+                            "category_guidance": "Just guidance.",
+                        }
+                    },
+                }
+            )
+        )
+
+        with caplog.at_level(logging.WARNING):
+            loader = KnowledgeLoader(
+                criteria_path=tmp_criteria,
+                mappings_path=empty_mappings,
+            )
+            promptlet = loader.assemble_promptlet("empty")
+
+        assert promptlet == "Just guidance."
+        assert "has no primary criteria" in caplog.text
+
+    def test_all_categories_have_valid_promptlets(
+        self, loader: KnowledgeLoader
+    ) -> None:
+        """All six categories should produce non-empty promptlets."""
+        for category in loader.categories:
+            promptlet = loader.assemble_promptlet(category)
+            assert len(promptlet) > 100, f"{category} promptlet too short"
+            assert "Category Guidance" in promptlet
+            assert "Primary Evaluation Criteria" in promptlet

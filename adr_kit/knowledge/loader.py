@@ -7,9 +7,12 @@ to criteria, category mappings, and guidance strings.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _DATA_DIR = Path(__file__).parent
 
@@ -54,6 +57,11 @@ class CategoryCriteria:
 class KnowledgeLoader:
     """Loads evaluation criteria and category mappings from bundled JSON files.
 
+    Features:
+    - File caching: JSON files loaded once, served from memory on subsequent calls
+    - Graceful degradation: Warns on missing/malformed files, returns partial data
+    - Promptlet assembly: Combines category guidance + criteria templates
+
     Usage::
 
         loader = KnowledgeLoader()
@@ -61,6 +69,9 @@ class KnowledgeLoader:
         print(result.guidance)
         for c in result.primary:
             print(c.promptlet_template)
+
+        # Assemble a promptlet for AI evaluation
+        promptlet = loader.assemble_promptlet("database")
     """
 
     def __init__(
@@ -71,17 +82,33 @@ class KnowledgeLoader:
         self._criteria_path = criteria_path or _DATA_DIR / "evaluation_criteria.json"
         self._mappings_path = mappings_path or _DATA_DIR / "category_mappings.json"
 
-        # Eagerly load & validate on construction so callers fail fast.
-        self._criteria: dict[str, Criterion] = self._load_criteria()
-        self._mappings: dict[str, dict[str, Any]] = self._load_mappings()
+        # Caching: load once, serve from memory
+        self._criteria: dict[str, Criterion] | None = None
+        self._mappings: dict[str, dict[str, Any]] | None = None
+        self._load_attempted = False
 
     # -- public API ----------------------------------------------------------
+
+    def _ensure_loaded(self) -> None:
+        """Ensure data files are loaded. Only loads once (caching)."""
+        if self._load_attempted:
+            return
+        self._load_attempted = True
+        self._criteria = self._load_criteria()
+        self._mappings = self._load_mappings()
 
     def load_criteria(self, category: str) -> CategoryCriteria:
         """Return resolved primary + secondary criteria for *category*.
 
         Raises ``KeyError`` if *category* is not a known mapping.
         """
+        self._ensure_loaded()
+
+        if not self._mappings:
+            raise KeyError(
+                f"Cannot load category {category!r}: mappings data unavailable"
+            )
+
         mapping = self._mappings.get(category)
         if mapping is None:
             known = sorted(self._mappings)
@@ -90,15 +117,16 @@ class KnowledgeLoader:
                 f"Known categories: {', '.join(known)}"
             )
 
+        criteria = self._criteria or {}
         primary = tuple(
-            self._criteria[cid]
+            criteria[cid]
             for cid in mapping["primary_criteria"]
-            if cid in self._criteria
+            if cid in criteria
         )
         secondary = tuple(
-            self._criteria[cid]
+            criteria[cid]
             for cid in mapping["secondary_criteria"]
-            if cid in self._criteria
+            if cid in criteria
         )
         return CategoryCriteria(
             category=category,
@@ -112,6 +140,13 @@ class KnowledgeLoader:
 
         Raises ``KeyError`` if *category* is not a known mapping.
         """
+        self._ensure_loaded()
+
+        if not self._mappings:
+            raise KeyError(
+                f"Cannot get guidance for {category!r}: mappings data unavailable"
+            )
+
         mapping = self._mappings.get(category)
         if mapping is None:
             known = sorted(self._mappings)
@@ -123,35 +158,77 @@ class KnowledgeLoader:
 
     def get_all_criteria(self) -> dict[str, Criterion]:
         """Return all loaded criteria keyed by criterion ID."""
-        return dict(self._criteria)
+        self._ensure_loaded()
+        return dict(self._criteria or {})
 
     @property
     def categories(self) -> list[str]:
         """Return sorted list of known category names."""
-        return sorted(self._mappings)
+        self._ensure_loaded()
+        return sorted(self._mappings or {})
+
+    def assemble_promptlet(self, category: str) -> str:
+        """Assemble a ready-to-use promptlet string for *category*.
+
+        Combines category guidance with primary criteria promptlet templates
+        into a single focused evaluation prompt.
+
+        Raises ``KeyError`` if *category* is not a known mapping.
+        """
+        result = self.load_criteria(category)
+
+        if not result.primary:
+            logger.warning(f"Category {category!r} has no primary criteria")
+            return result.guidance
+
+        sections = [
+            f"# Category Guidance: {category.title()}\n",
+            result.guidance,
+            "\n\n# Primary Evaluation Criteria\n",
+        ]
+
+        for i, criterion in enumerate(result.primary, 1):
+            sections.append(f"\n## {i}. {criterion.label}\n")
+            sections.append(criterion.promptlet_template)
+
+        return "".join(sections)
 
     # -- internal loading ----------------------------------------------------
 
     def _load_criteria(self) -> dict[str, Criterion]:
-        raw = self._read_json(self._criteria_path)
-        self._check_version(raw, self._criteria_path)
-        if "criteria" not in raw:
-            raise KnowledgeLoadError(
-                f"Missing 'criteria' key in {self._criteria_path}"
-            )
-        return {
-            cid: Criterion.from_dict(cdata)
-            for cid, cdata in raw["criteria"].items()
-        }
+        """Load criteria with graceful degradation on errors."""
+        try:
+            raw = self._read_json(self._criteria_path)
+            self._check_version(raw, self._criteria_path)
+            if "criteria" not in raw:
+                logger.warning(
+                    f"Missing 'criteria' key in {self._criteria_path}, "
+                    "returning empty criteria"
+                )
+                return {}
+            return {
+                cid: Criterion.from_dict(cdata)
+                for cid, cdata in raw["criteria"].items()
+            }
+        except KnowledgeLoadError as exc:
+            logger.warning(f"Failed to load criteria: {exc}. Returning empty dict.")
+            return {}
 
     def _load_mappings(self) -> dict[str, dict[str, Any]]:
-        raw = self._read_json(self._mappings_path)
-        self._check_version(raw, self._mappings_path)
-        if "mappings" not in raw:
-            raise KnowledgeLoadError(
-                f"Missing 'mappings' key in {self._mappings_path}"
-            )
-        return dict(raw["mappings"])
+        """Load mappings with graceful degradation on errors."""
+        try:
+            raw = self._read_json(self._mappings_path)
+            self._check_version(raw, self._mappings_path)
+            if "mappings" not in raw:
+                logger.warning(
+                    f"Missing 'mappings' key in {self._mappings_path}, "
+                    "returning empty mappings"
+                )
+                return {}
+            return dict(raw["mappings"])
+        except KnowledgeLoadError as exc:
+            logger.warning(f"Failed to load mappings: {exc}. Returning empty dict.")
+            return {}
 
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:
