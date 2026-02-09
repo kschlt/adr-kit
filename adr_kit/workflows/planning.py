@@ -517,7 +517,9 @@ class PlanningWorkflow(BaseWorkflow):
                         layer.name for layer in constraint.boundaries.layers
                     )
                 if constraint.boundaries.rules:
-                    constraint_parts.extend(rule.forbid for rule in constraint.boundaries.rules)
+                    constraint_parts.extend(
+                        rule.forbid for rule in constraint.boundaries.rules
+                    )
 
         constraint_text = " ".join(constraint_parts).lower()
 

@@ -438,7 +438,8 @@ def adr_delete(request: DeleteADRRequest) -> dict[str, Any]:
             return error_response(
                 error="ADR deletion blocked",
                 details=result.message,
-                suggested_action=result.guidance or "Review ADR status and use appropriate workflow",
+                suggested_action=result.guidance
+                or "Review ADR status and use appropriate workflow",
                 error_code="DELETION_BLOCKED",
             )
 

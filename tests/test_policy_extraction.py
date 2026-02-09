@@ -313,9 +313,7 @@ class TestPolicyFormatDocumentation:
         # ✅ CORRECT - python block for Python-specific imports
         correct = PolicyModel(
             python=PythonPolicy(disallow_imports=["flask", "django"]),
-            imports=ImportPolicy(
-                prefer=["fastapi"]
-            ),  # General preferences go here
+            imports=ImportPolicy(prefer=["fastapi"]),  # General preferences go here
             rationales=["FastAPI has better async support"],
         )
 

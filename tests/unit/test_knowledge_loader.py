@@ -12,7 +12,6 @@ import pytest
 from adr_kit.knowledge import CategoryCriteria, KnowledgeLoader
 from adr_kit.knowledge.loader import Criterion, KnowledgeLoadError
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -87,9 +86,9 @@ class TestGetAllCriteria:
         self, loader: KnowledgeLoader
     ) -> None:
         for criterion in loader.get_all_criteria().values():
-            assert len(criterion.evaluation_questions) >= 1, (
-                f"{criterion.id} missing questions"
-            )
+            assert (
+                len(criterion.evaluation_questions) >= 1
+            ), f"{criterion.id} missing questions"
 
     def test_expected_criterion_ids(self, loader: KnowledgeLoader) -> None:
         expected = {
@@ -165,9 +164,7 @@ class TestLoadCriteria:
             assert isinstance(result, CategoryCriteria)
             assert len(result.primary) >= 1
 
-    def test_unknown_category_raises_key_error(
-        self, loader: KnowledgeLoader
-    ) -> None:
+    def test_unknown_category_raises_key_error(self, loader: KnowledgeLoader) -> None:
         with pytest.raises(KeyError, match="Unknown category 'nonexistent'"):
             loader.load_criteria("nonexistent")
 
@@ -196,9 +193,7 @@ class TestGetCategoryGuidance:
         guidance = loader.get_category_guidance("authentication")
         assert "secure-by-default" in guidance
 
-    def test_unknown_category_raises_key_error(
-        self, loader: KnowledgeLoader
-    ) -> None:
+    def test_unknown_category_raises_key_error(self, loader: KnowledgeLoader) -> None:
         with pytest.raises(KeyError, match="Unknown category"):
             loader.get_category_guidance("unknown")
 

@@ -68,43 +68,43 @@ clean:
 
 test-unit:
 	@echo "🧪 Running unit tests (fastest - no dependencies)..."
-	pytest tests/unit/ --cov=adr_kit --cov-report=term-missing
+	uv run pytest tests/unit/ --cov=adr_kit --cov-report=term-missing
 	@echo "✅ Unit tests complete"
 
 test-integration:
 	@echo "🧪 Running unit + integration tests (requires installation)..."
-	pytest tests/unit/ tests/integration/ --cov=adr_kit --cov-report=term-missing
+	uv run pytest tests/unit/ tests/integration/ --cov=adr_kit --cov-report=term-missing
 	@echo "✅ Integration tests complete"
 
 test-all:
 	@echo "🧪 Running all tests (includes MCP server tests)..."
-	pytest tests/ -v --cov=adr_kit --cov-report=term-missing --cov-report=html
+	uv run pytest tests/ -v --cov=adr_kit --cov-report=term-missing --cov-report=html
 	@echo "✅ All tests complete. Coverage report in htmlcov/"
 
 test-server:
 	@echo "🧪 Running MCP server tests..."
-	pytest tests/mcp/ -v
+	uv run pytest tests/mcp/ -v
 	@echo "✅ MCP server tests complete"
 
 lint:
 	@echo "🔍 Running linting..."
-	ruff check adr_kit/ tests/
-	mypy adr_kit/
+	uv run ruff check adr_kit/ tests/
+	uv run mypy adr_kit/
 	@echo "✅ Linting complete"
 
 format:
 	@echo "🎨 Formatting code..."
-	black adr_kit/ tests/
-	ruff check --fix adr_kit/ tests/
+	uv run black adr_kit/ tests/
+	uv run ruff check --fix adr_kit/ tests/
 	@echo "✅ Formatting complete"
 
 server:
 	@echo "🚀 Starting MCP server..."
-	adr-kit mcp-server
+	uv run adr-kit mcp-server
 
 build:
 	@echo "📦 Building distribution packages..."
-	python -m build
+	uv run python -m build
 	@echo "✅ Packages built in dist/"
 
 # =============================================================================

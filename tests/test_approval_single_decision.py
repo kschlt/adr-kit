@@ -112,7 +112,9 @@ Good performance and scalability.
         error_message = " ".join(result.errors).lower()
         assert "single decision" in error_message or "multiple" in error_message
 
-    def test_approve_multiple_decisions_with_force_succeeds(self, tmp_path: Path) -> None:
+    def test_approve_multiple_decisions_with_force_succeeds(
+        self, tmp_path: Path
+    ) -> None:
         """Test that force_approve bypasses single decision validation."""
         # Setup: Create ADR directory with a multi-decision ADR
         adr_dir = tmp_path / "docs/adr"
@@ -154,7 +156,7 @@ Good stack.
         approval_input = ApprovalInput(
             adr_id="ADR-0001",
             digest_check=False,
-            force_approve=True  # Override validation
+            force_approve=True,  # Override validation
         )
 
         result = workflow.execute(input_data=approval_input)

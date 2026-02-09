@@ -1,13 +1,14 @@
 """Tests for safe ADR deletion workflow with immutability protection."""
 
 import json
-from pathlib import Path
 from datetime import date as Date
+from pathlib import Path
+
 import pytest
 
 from adr_kit.core.model import ADR, ADRFrontMatter, ADRStatus
-from adr_kit.workflows.deletion import DeletionInput, DeletionWorkflow
 from adr_kit.workflows.base import WorkflowStatus
+from adr_kit.workflows.deletion import DeletionInput, DeletionWorkflow
 
 
 @pytest.fixture
@@ -302,7 +303,9 @@ def test_delete_guidance_messages(temp_adr_dir, create_test_adr):
     # Assert deletion blocked with helpful guidance
     assert result.success is False
     assert result.guidance  # Should have guidance
-    assert "supersede" in result.guidance.lower() or "deprecate" in result.guidance.lower()
+    assert (
+        "supersede" in result.guidance.lower() or "deprecate" in result.guidance.lower()
+    )
     assert result.next_steps  # Should have next steps
     assert any("supersede" in step.lower() for step in result.next_steps)
 
@@ -326,7 +329,9 @@ def test_delete_immutability_lock_removed(temp_adr_dir, create_test_adr):
     assert immutability_mgr.is_adr_locked(adr_id)
 
     # Delete the ADR
-    workflow = DeletionWorkflow(adr_dir=temp_adr_dir, project_root=temp_adr_dir.parent.parent)
+    workflow = DeletionWorkflow(
+        adr_dir=temp_adr_dir, project_root=temp_adr_dir.parent.parent
+    )
     deletion_input = DeletionInput(adr_id=adr_id, force=False)
     result = workflow.execute(input_data=deletion_input)
 

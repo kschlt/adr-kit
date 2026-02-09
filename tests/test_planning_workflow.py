@@ -39,9 +39,7 @@ class TestPlanningWorkflowCrashFix:
             date=date(2025, 1, 1),
             deciders=["team"],
             policy=PolicyModel(
-                imports=ImportPolicy(
-                    disallow=["flask", "django"], prefer=["fastapi"]
-                ),
+                imports=ImportPolicy(disallow=["flask", "django"], prefer=["fastapi"]),
             ),
         )
 

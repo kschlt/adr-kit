@@ -1171,12 +1171,10 @@ def delete(
 
             # Show ADR details if available
             if result.data:
-                console.print(f"\n📋 ADR Details:")
+                console.print("\n📋 ADR Details:")
                 console.print(f"   ID: {result.data.get('adr_id', 'N/A')}")
                 console.print(f"   Status: {result.data.get('status', 'N/A')}")
-                console.print(
-                    f"   File: {result.data.get('file_path', 'N/A')}"
-                )
+                console.print(f"   File: {result.data.get('file_path', 'N/A')}")
                 console.print(
                     f"   Deletion Allowed: {result.data.get('deletion_allowed', False)}"
                 )
@@ -1255,7 +1253,7 @@ def doctor(
                         # Display command in a code-like format
                         if "\n" in command:
                             # Multi-line command
-                            console.print(f"[dim]   Run:[/dim]")
+                            console.print("[dim]   Run:[/dim]")
                             for line in command.split("\n"):
                                 if line.strip():
                                     console.print(f"   [cyan]{line}[/cyan]")
@@ -1266,7 +1264,7 @@ def doctor(
 
         # Display summary
         summary = result.summary
-        console.print(f"\n📊 [bold]Summary:[/bold]")
+        console.print("\n📊 [bold]Summary:[/bold]")
         console.print(
             f"   {summary['ok']} OK, {summary['warnings']} warnings, {summary['errors']} errors"
         )

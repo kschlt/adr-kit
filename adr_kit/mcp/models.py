@@ -183,7 +183,8 @@ class DeleteADRRequest(BaseModel):
         description="Force deletion even for accepted/superseded ADRs (requires explicit confirmation)",
     )
     reason: str | None = Field(
-        None, description="Reason for deletion (for audit trail, especially with force flag)"
+        None,
+        description="Reason for deletion (for audit trail, especially with force flag)",
     )
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
@@ -303,7 +304,8 @@ class DeleteADRData(BaseModel):
     deleted_file: str = Field(..., description="Path to the deleted file")
     was_forced: bool = Field(False, description="Whether force deletion was used")
     warnings: list[str] = Field(
-        default_factory=list, description="Warnings about broken relationships or impacts"
+        default_factory=list,
+        description="Warnings about broken relationships or impacts",
     )
 
 

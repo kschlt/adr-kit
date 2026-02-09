@@ -41,22 +41,21 @@ class DeletionWorkflow(BaseWorkflow):
         self.project_root = project_root or Path.cwd()
         self.immutability_mgr = ImmutabilityManager(self.project_root)
 
-    def execute(self, input_data: DeletionInput) -> WorkflowResult:
+    def execute(self, **kwargs: Any) -> WorkflowResult:
         """Execute safe ADR deletion workflow.
 
         Args:
-            input_data: Deletion parameters
+            **kwargs: Must include ``input_data`` (:class:`DeletionInput`).
 
         Returns:
             WorkflowResult with deletion status and guidance
         """
+        input_data: DeletionInput = kwargs["input_data"]
         self._start_workflow("ADR Deletion")
 
         try:
             # Step 1: Validate ADR directory
-            self._execute_step(
-                "Validate ADR directory", self._validate_adr_directory
-            )
+            self._execute_step("Validate ADR directory", self._validate_adr_directory)
 
             # Step 2: Find the ADR file
             adr, file_path = self._execute_step(
@@ -80,10 +79,16 @@ class DeletionWorkflow(BaseWorkflow):
                 )
                 self._add_agent_guidance(
                     guidance=self._get_blocking_guidance(adr.status),
-                    next_steps=self._get_blocking_next_steps(adr.status, input_data.adr_id),
+                    next_steps=self._get_blocking_next_steps(
+                        adr.status, input_data.adr_id
+                    ),
                 )
                 # Get status value safely
-                status_value = adr.status.value if isinstance(adr.status, ADRStatus) else str(adr.status)
+                status_value = (
+                    adr.status.value
+                    if isinstance(adr.status, ADRStatus)
+                    else str(adr.status)
+                )
                 self._set_workflow_data(
                     adr_id=input_data.adr_id,
                     status=status_value,
@@ -192,9 +197,7 @@ class DeletionWorkflow(BaseWorkflow):
 
         raise WorkflowError(f"ADR with ID '{adr_id}' not found in {self.adr_dir}")
 
-    def _check_deletion_permissions(
-        self, adr: Any, force: bool
-    ) -> tuple[bool, str]:
+    def _check_deletion_permissions(self, adr: Any, force: bool) -> tuple[bool, str]:
         """Check if ADR can be deleted.
 
         Args:
@@ -367,18 +370,24 @@ class DeletionWorkflow(BaseWorkflow):
             except ValueError:
                 pass  # Use as-is if can't convert
 
-        if status == ADRStatus.ACCEPTED or (isinstance(status, str) and status == "accepted"):
+        if status == ADRStatus.ACCEPTED or (
+            isinstance(status, str) and status == "accepted"
+        ):
             return (
                 "Accepted ADRs cannot be deleted due to the immutability principle. "
                 "Architectural decisions must be preserved for audit trail and historical context. "
                 "To retire this decision, use supersede (replace with new ADR) or deprecate (soft retirement)."
             )
-        elif status == ADRStatus.SUPERSEDED or (isinstance(status, str) and status == "superseded"):
+        elif status == ADRStatus.SUPERSEDED or (
+            isinstance(status, str) and status == "superseded"
+        ):
             return (
                 "Superseded ADRs cannot be deleted as they are part of the decision history. "
                 "They provide context for why decisions changed and must be preserved for audit trail."
             )
-        elif status == ADRStatus.DEPRECATED or (isinstance(status, str) and status == "deprecated"):
+        elif status == ADRStatus.DEPRECATED or (
+            isinstance(status, str) and status == "deprecated"
+        ):
             return (
                 "Deprecated ADRs cannot be deleted as they document historical decisions. "
                 "They explain why certain approaches are no longer recommended and must be preserved."
@@ -389,7 +398,9 @@ class DeletionWorkflow(BaseWorkflow):
                 "and you understand the implications for audit trail and decision history."
             )
 
-    def _get_blocking_next_steps(self, status: ADRStatus | str, adr_id: str) -> list[str]:
+    def _get_blocking_next_steps(
+        self, status: ADRStatus | str, adr_id: str
+    ) -> list[str]:
         """Get next steps when deletion is blocked.
 
         Args:
@@ -406,13 +417,17 @@ class DeletionWorkflow(BaseWorkflow):
             except ValueError:
                 pass  # Use as-is if can't convert
 
-        if status == ADRStatus.ACCEPTED or (isinstance(status, str) and status == "accepted"):
+        if status == ADRStatus.ACCEPTED or (
+            isinstance(status, str) and status == "accepted"
+        ):
             return [
                 f"To replace this decision: Use adr_supersede to create a new ADR that supersedes {adr_id}",
                 f"To soft-retire: Use adr_deprecate (if available) to mark {adr_id} as deprecated",
                 "Only use --force flag if you have a specific reason to delete an accepted ADR",
             ]
-        elif status in (ADRStatus.SUPERSEDED, ADRStatus.DEPRECATED) or (isinstance(status, str) and status in ("superseded", "deprecated")):
+        elif status in (ADRStatus.SUPERSEDED, ADRStatus.DEPRECATED) or (
+            isinstance(status, str) and status in ("superseded", "deprecated")
+        ):
             return [
                 "Superseded/deprecated ADRs should be kept for historical context",
                 "If you must delete for a specific reason, use the --force flag",

@@ -244,8 +244,13 @@ class ApprovalWorkflow(BaseWorkflow):
         single_decision_warnings = validator.validate(adr)
 
         # Block approval if there are critical (high severity) warnings
-        if validator.has_critical_warnings(single_decision_warnings) and not input_data.force_approve:
-            formatted_warnings = validator.format_warnings_for_display(single_decision_warnings)
+        if (
+            validator.has_critical_warnings(single_decision_warnings)
+            and not input_data.force_approve
+        ):
+            formatted_warnings = validator.format_warnings_for_display(
+                single_decision_warnings
+            )
             raise ValueError(
                 f"ADR {adr.id} violates single decision principle:\n\n{formatted_warnings}\n\n"
                 f"This ADR appears to document multiple independent architectural decisions. "

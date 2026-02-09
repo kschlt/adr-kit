@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -119,14 +119,10 @@ class KnowledgeLoader:
 
         criteria = self._criteria or {}
         primary = tuple(
-            criteria[cid]
-            for cid in mapping["primary_criteria"]
-            if cid in criteria
+            criteria[cid] for cid in mapping["primary_criteria"] if cid in criteria
         )
         secondary = tuple(
-            criteria[cid]
-            for cid in mapping["secondary_criteria"]
-            if cid in criteria
+            criteria[cid] for cid in mapping["secondary_criteria"] if cid in criteria
         )
         return CategoryCriteria(
             category=category,
@@ -154,7 +150,7 @@ class KnowledgeLoader:
                 f"Unknown category {category!r}. "
                 f"Known categories: {', '.join(known)}"
             )
-        return mapping["category_guidance"]
+        return str(mapping["category_guidance"])
 
     def get_all_criteria(self) -> dict[str, Criterion]:
         """Return all loaded criteria keyed by criterion ID."""
@@ -237,11 +233,10 @@ class KnowledgeLoader:
         except FileNotFoundError:
             raise KnowledgeLoadError(f"Knowledge file not found: {path}") from None
         try:
-            return json.loads(text)
+            data: dict[str, Any] = json.loads(text)
+            return data
         except json.JSONDecodeError as exc:
-            raise KnowledgeLoadError(
-                f"Invalid JSON in {path}: {exc}"
-            ) from None
+            raise KnowledgeLoadError(f"Invalid JSON in {path}: {exc}") from None
 
     @staticmethod
     def _check_version(data: dict[str, Any], path: Path) -> None:

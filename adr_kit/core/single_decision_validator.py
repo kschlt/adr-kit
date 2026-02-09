@@ -12,7 +12,6 @@ Design principles:
 
 import re
 from dataclasses import dataclass
-from typing import Any
 
 from .model import ADR, PolicyModel
 
@@ -146,7 +145,7 @@ class SingleDecisionValidator:
 
     def _check_title(self, title: str) -> list[ValidationWarning]:
         """Check if title suggests multiple decisions."""
-        warnings = []
+        warnings: list[ValidationWarning] = []
 
         # Pattern: "Use X and Y" or "Choose X and Y"
         title_lower = title.lower()
@@ -197,7 +196,7 @@ class SingleDecisionValidator:
 
     def _check_decision_section(self, decision_text: str) -> list[ValidationWarning]:
         """Check if decision section contains multiple independent choices."""
-        warnings = []
+        warnings: list[ValidationWarning] = []
 
         if not decision_text:
             return warnings
@@ -206,7 +205,9 @@ class SingleDecisionValidator:
         choice_pattern = r"\b(" + "|".join(self.choice_verbs) + r")\s+([A-Z]\w+)"
         matches = re.findall(choice_pattern, decision_text, re.IGNORECASE)
 
-        if len(matches) > 2:  # Allow up to 2 related choices (e.g., "Use React with TypeScript")
+        if (
+            len(matches) > 2
+        ):  # Allow up to 2 related choices (e.g., "Use React with TypeScript")
             technologies = [match[1] for match in matches]
             warnings.append(
                 ValidationWarning(
@@ -250,7 +251,9 @@ class SingleDecisionValidator:
 
         # Check import policies
         if policy.imports:
-            all_imports = (policy.imports.disallow or []) + (policy.imports.prefer or [])
+            all_imports = (policy.imports.disallow or []) + (
+                policy.imports.prefer or []
+            )
             for imp in all_imports:
                 domain = self._detect_domain(imp.lower())
                 if domain:
@@ -347,7 +350,7 @@ class SingleDecisionValidator:
             output.append(f"   💡 Suggestion: {warning.suggestion}")
 
             if warning.evidence:
-                output.append(f"   📝 Evidence:")
+                output.append("   📝 Evidence:")
                 for evidence in warning.evidence[:2]:  # Show first 2 pieces
                     output.append(f"      - {evidence}")
 

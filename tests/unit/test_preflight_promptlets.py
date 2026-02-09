@@ -89,8 +89,10 @@ class TestPreflightPromptletInjection:
             [
                 "feedback" in guidance.lower(),
                 "documentation" in guidance.lower(),
-                "decision space" in guidance.lower() or "conventions" in guidance.lower(),
-                "modularity" in guidance.lower() or "scope isolation" in guidance.lower(),
+                "decision space" in guidance.lower()
+                or "conventions" in guidance.lower(),
+                "modularity" in guidance.lower()
+                or "scope isolation" in guidance.lower(),
                 "multi-agent" in guidance.lower() or "multi agent" in guidance.lower(),
             ]
         )

@@ -43,7 +43,9 @@ class TestHealthChecker:
         assert result.success  # No errors, just warnings
 
         # Should warn about no ADRs
-        adr_issues = [issue for issue in result.issues if issue.category == "Total ADRs"]
+        adr_issues = [
+            issue for issue in result.issues if issue.category == "Total ADRs"
+        ]
         assert len(adr_issues) == 1
         assert adr_issues[0].level == "warning"
         assert "0" in adr_issues[0].message
@@ -88,7 +90,9 @@ Good things happen.
         assert result.success
 
         # Should report correct number of ADRs
-        adr_issues = [issue for issue in result.issues if issue.category == "Total ADRs"]
+        adr_issues = [
+            issue for issue in result.issues if issue.category == "Total ADRs"
+        ]
         assert len(adr_issues) == 1
         assert adr_issues[0].level == "ok"
         assert "3" in adr_issues[0].message
@@ -279,13 +283,15 @@ Good things happen.
         # Create ADR with malformed YAML
         bad_adr = adr_dir / "ADR-0001-bad.md"
         with open(bad_adr, "w") as f:
-            f.write("""---
+            f.write(
+                """---
 id: ADR-0001
 title: Bad ADR
 status: proposed
 # Missing closing ---
 This is invalid YAML frontmatter
-""")
+"""
+            )
 
         checker = HealthChecker(adr_dir=adr_dir)
         result = checker.check_all()
