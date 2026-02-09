@@ -384,6 +384,27 @@ MySQL is reliable and well-supported.
         assert Path(creation1.file_path).exists()
         assert Path(creation2.file_path).exists()
 
+    def test_ai_centric_consequence_reminder(self, temp_adr_dir, sample_creation_input):
+        """Test that AI-centric consequence dimension reminder is included in guidance."""
+        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
+        result = workflow.execute(input_data=sample_creation_input)
+
+        assert result.success is True
+
+        # Check guidance field for consequence reminder
+        guidance = result.guidance
+        assert guidance is not None
+
+        # Verify key AI-centric dimensions are mentioned
+        assert "AI-centric dimensions" in guidance or "AI-centric" in guidance.lower()
+        assert "Feedback quality" in guidance
+        assert "Documentation accessibility" in guidance
+        assert "Executability" in guidance
+        assert "Modularity" in guidance
+        assert "Safety" in guidance
+        assert "Known AI pitfalls" in guidance
+        assert "Mitigations" in guidance
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

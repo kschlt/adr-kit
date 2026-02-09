@@ -396,6 +396,30 @@ We will use React for all frontend development.
             project_context = result.data["project_context"]
             assert "technologies" in project_context
 
+    def test_ai_fitness_assessment_in_prompt(self, temp_project_dir, temp_adr_dir):
+        """Test that AI fitness assessment instructions are included in analysis prompt."""
+        workflow = AnalyzeProjectWorkflow(adr_dir=temp_adr_dir)
+
+        result = workflow.execute(project_path=temp_project_dir)
+
+        assert result.success is True
+
+        # Check analysis prompt for AI fitness assessment instructions
+        analysis_prompt = result.data["analysis_prompt"]
+        assert analysis_prompt is not None
+
+        # Verify key AI fitness assessment dimensions are mentioned
+        prompt_lower = analysis_prompt.lower()
+        assert "ai fitness assessment" in prompt_lower or "ai fitness" in prompt_lower
+        assert "feedback loop quality" in prompt_lower or "feedback" in prompt_lower
+        assert (
+            "documentation accessibility" in prompt_lower
+            or "documentation" in prompt_lower
+        )
+        assert "decision space" in prompt_lower or "convention" in prompt_lower
+        assert "modularity" in prompt_lower
+        assert "ai pitfalls" in prompt_lower or "known ai pitfalls" in prompt_lower
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

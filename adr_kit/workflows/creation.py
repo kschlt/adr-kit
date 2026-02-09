@@ -676,23 +676,40 @@ class CreationWorkflow(BaseWorkflow):
     ) -> str:
         """Generate guidance for what the agent should do next."""
 
+        # AI-centric consequence dimension reminder
+        consequence_reminder = (
+            "\n\n"
+            "📋 Before approval, verify the consequences cover these AI-centric dimensions where relevant:\n"
+            "- Feedback quality (type safety, error messages, test speed)\n"
+            "- Documentation accessibility (machine-readable? where are docs?)\n"
+            "- Executability (can AI run and test this locally?)\n"
+            "- Modularity (are changes bounded and localized?)\n"
+            "- Safety (secure by default? idempotent operations?)\n"
+            "- Known AI pitfalls (patterns AI commonly gets wrong)\n"
+            "- Mitigations for each identified weakness\n\n"
+            "Missing dimensions? Update the ADR before requesting approval."
+        )
+
         if conflicts:
             conflict_ids = [c["adr_id"] for c in conflicts]
             return (
                 f"⚠️ {adr_id} has conflicts with {', '.join(conflict_ids)}. "
                 f"Review conflicts and consider using adr_supersede() if this decision should replace existing ones. "
                 f"Otherwise, revise the proposal to avoid conflicts."
+                + consequence_reminder
             )
 
         if review_required:
             return (
                 f"📋 {adr_id} requires human review due to architectural significance. "
                 f"Have a human review the proposal, then use adr_approve() to activate it."
+                + consequence_reminder
             )
 
         return (
             f"✅ {adr_id} is ready for approval. "
             f"Use adr_approve('{adr_id}') to activate this decision and trigger policy enforcement."
+            + consequence_reminder
         )
 
     def _generate_next_steps_list(
