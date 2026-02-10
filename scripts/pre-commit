@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Pre-commit hook: fast format + lint check on staged Python files only.
+# Install with: make setup-hooks
+# Runs in ~1-2s on typical commits (only checks changed files, not the full codebase).
+
+set -e
+
+# Collect staged .py files (Added, Copied, Modified — skip deleted)
+FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+
+if [ -z "$FILES" ]; then
+    exit 0  # No Python files staged — nothing to check
+fi
+
+echo "pre-commit: checking $(echo "$FILES" | wc -l | tr -d ' ') staged Python file(s)..."
+
+# Format check (don't fix — just fail if unformatted)
+if ! uv run black --check $FILES 2>&1; then
+    echo ""
+    exit 1
+fi
+
+# Lint check
+if ! uv run ruff check $FILES 2>&1; then
+    echo ""
+    exit 1
+fi
+
+echo "pre-commit: all checks passed"
