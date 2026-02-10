@@ -1,7 +1,7 @@
 # ADR Kit Development Makefile
 # This Makefile is for DEVELOPMENT ONLY (not included in distribution package)
 
-.PHONY: help install clean test-unit test-integration test-all test-server lint format build uninstall reinstall server dev-setup dev-cycle dev-reload quality release-prep
+.PHONY: help install clean test-unit test-integration test-all test-server lint format build uninstall reinstall server dev-setup dev-cycle dev-reload quality release-prep setup-hooks
 
 # =============================================================================
 # Help & Documentation
@@ -27,6 +27,7 @@ help:
 	@echo "  build        - Build distribution packages"
 	@echo ""
 	@echo "Workflows:"
+	@echo "  setup-hooks  - Install git pre-commit hook (format + lint on staged files)"
 	@echo "  dev-setup    - Initial development setup with guidance"
 	@echo "  dev-cycle    - clean + install + test"
 	@echo "  dev-reload   - reinstall + test (for after code changes)"
@@ -111,7 +112,13 @@ build:
 # Workflows
 # =============================================================================
 
-dev-setup: install test-integration
+setup-hooks:
+	@echo "🔗 Installing git hooks..."
+	@cp scripts/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "✅ Pre-commit hook installed"
+
+dev-setup: install setup-hooks test-integration
 	@echo "✅ Development setup complete"
 	@echo "💡 Next steps:"
 	@echo "   1. Run 'make server' to start MCP server"

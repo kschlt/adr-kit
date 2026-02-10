@@ -79,7 +79,7 @@ docs/adr
 .mcp.json
 
 # IDE integration files
-.claude/
+.claude/settings.local.json
 .cursor/
 .agent/
 .agent/**
