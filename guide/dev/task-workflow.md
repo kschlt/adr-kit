@@ -20,13 +20,13 @@ This creates three problems:
 
 The task workflow solves this by owning the two boundaries of every session: a **clean start** and a **clean finish**, connected by persistent state that lives outside the agent's context window.
 
-**Clean start** (`/next`): Load the right task from a prioritized queue, provide the relevant context, and confirm direction with the human — so the agent begins every session knowing exactly what to work on and why.
+**Clean start** (conversational workflow): Load the right task from a prioritized queue, provide the relevant context, and confirm direction with the human — so the agent begins every session knowing exactly what to work on and why.
 
 **Clean finish** (`/close`): Capture the session's accumulated knowledge, update the persistent state, and hand off to any integrated workflows — so nothing is lost and the next session can pick up seamlessly.
 
 The [persistent state](#persistent-state--the-core-mechanism) (files in `.agent/`) is what makes both possible. It's the memory that bridges sessions.
 
-What happens *before* the session (creating and prioritizing backlog tasks) and what happens *during* (the actual implementation) are not the task workflow's core concern. Currently, backlog files are written manually and `/next` includes basic task decomposition. Both are areas where additional tooling may be built. But the core value — ensuring every session starts clean and ends clean — is what the task workflow guarantees.
+What happens *before* the session (creating and prioritizing backlog tasks) and what happens *during* (the actual implementation) are not the task workflow's core concern. Currently, backlog files are written manually and the conversational workflow includes basic task decomposition. Both are areas where additional tooling may be built. But the core value — ensuring every session starts clean and ends clean — is what the task workflow guarantees.
 
 The task workflow operates independently. It can also [integrate](#integrations) with other workflows that benefit from structured task context. The [Git Workflow](./git-workflow.md) is the first such integration, receiving session context at commit time.
 
@@ -43,13 +43,13 @@ The agent's context window is ephemeral — it exists only during a session. Eve
 └── vision.md             # Project goals and direction
 ```
 
-**`task-tracking.md`** is the priority queue. It contains a table of tasks ordered by priority, each with a status, a link to its backlog file, and a "Depends On" column. `/next` reads it to find the next unblocked task. `/close` updates it when work completes — marking tasks done and unblocking dependents. It also has a "Done" section serving as a chronological record of completed tasks.
+**`task-tracking.md`** is the priority queue. It contains a table of tasks ordered by priority, each with a status, a link to its backlog file, and a "Depends On" column. The conversational workflow reads it to find the next unblocked task. `/close` updates it when work completes — marking tasks done and unblocking dependents. It also has a "Done" section serving as a chronological record of completed tasks.
 
-**`backlog/*.md`** files are task specifications — one file per task. Each describes what needs to happen, why it matters, acceptance criteria, and any relevant context. These are typically written by the human, though the agent may create them when decomposing larger goals. A backlog file is the primary input to `/next` — it's what the agent reads to understand what to do and why.
+**`backlog/*.md`** files are task specifications — one file per task. Each describes what needs to happen, why it matters, acceptance criteria, and any relevant context. These are typically written by the human, though the agent may create them when decomposing larger goals. A backlog file is the primary input to the task workflow — it's what the agent reads to understand what to do and why.
 
 **`archive/*.md`** is where completed backlog files go. `/close` moves them here on task completion. This preserves the specification and any notes added during implementation, so future sessions can reference past decisions.
 
-**`architecture.md`** and **`vision.md`** are long-lived context files. They don't change per-task — they provide the broader design guidance and project direction that `/next` reads alongside the task spec. The agent uses these to make implementation decisions that align with the project's overall direction.
+**`architecture.md`** and **`vision.md`** are long-lived context files. They don't change per-task — they provide the broader design guidance and project direction that the conversational workflow reads alongside the task spec. The agent uses these to make implementation decisions that align with the project's overall direction.
 
 ### The Task Lifecycle
 
@@ -60,7 +60,7 @@ Human writes task spec
   → backlog/task-name.md (with requirements, acceptance criteria, context)
     → task-tracking.md (added to priority queue with dependencies)
 
-/next picks up highest-priority unblocked task
+Conversational workflow picks up highest-priority unblocked task
   → reads backlog file, loads context, decomposes into steps
     → agent implements step by step
 
@@ -107,7 +107,7 @@ Each step is self-contained. Together they form a coherent body of work for the 
 
 A session has a finite context window. The workflow plans for this at two points:
 
-**During decomposition** (`/next` step 4): Steps are sized so each can be completed within the remaining context budget. If a task is too large for one session, `/next` plans only the steps that fit and notes remaining work for the next session.
+**During decomposition**: Steps are sized so each can be completed within the remaining context budget. If a task is too large for one session, the conversational workflow plans only the steps that fit and notes remaining work for the next session.
 
 **During implementation**: If the session approaches its context limit mid-step, the agent must not silently let the session end with unfinished work. Instead:
 
@@ -116,21 +116,23 @@ A session has a finite context window. The workflow plans for this at two points
 
 **The principle**: Never start an atomic step that can't be finished in the remaining context. If the session must end mid-work, the handover must be rich enough for the next session to continue as if it had been there all along.
 
-## The Task Skills
+## The Task Workflow
 
-Two skills manage the session boundaries:
+The workflow manages the session boundaries through conversational orchestration and the `/close` skill:
 
-| Skill | Boundary | Responsibility |
-|-------|----------|---------------|
-| `/next` | **Start** | Load task, provide context, confirm direction, set up the session |
-| `/close` | **Finish** | Capture knowledge, update tracking, hand off to integrations |
+| Component | Boundary | Responsibility |
+|-----------|----------|---------------|
+| **Conversational workflow** | **Start** | Load task, provide context, confirm direction, set up the session |
+| **`/close` skill** | **Finish** | Capture knowledge, update tracking, hand off to integrations |
 
-### `/next` — Clean Start
+### Conversational Workflow — Clean Start
+
+The agent orchestrates the task startup conversationally, following these steps:
 
 1. **Check for uncommitted work** — If the working tree is dirty, address it first. Never start a new task with leftover changes.
 2. **Load the next task** — Read `.agent/task-tracking.md`, find the highest-priority unblocked task (first row where "Depends On" = "—"). Read the linked backlog file for the full specification. Display the task summary and wait for confirmation before proceeding — the human may reprioritize or choose a different task. (Priorities change — a quick confirmation prevents wasting a session on the wrong task.)
 3. **Delegate to integrations** — Hand off to any integrated workflows that need to act at session start. Currently: invoke `/branch` with the task title and thematic area. (See [Git Workflow integration](#git-workflow).)
-4. **Research, plan, and decompose** — Read architectural context (`.agent/architecture.md`, `.agent/vision.md`, relevant source files). Break the task into atomic steps using TodoWrite — each step designed upfront as one concern with implementation + tests + docs, so the agent knows what each step contains and when to pause before moving on. Each step should be self-contained and [completable in the remaining context](#context-window-awareness). If the task is too large for one session, plan only the steps that fit and note remaining work in the backlog file.
+4. **Research, plan, and decompose** — Read architectural context (`.agent/architecture.md`, `.agent/vision.md`, relevant source files). Break the task into atomic steps using TodoWrite — each step designed upfront as one concern with implementation + tests + docs, so the agent knows what each step contains and when to pause before moving on. Each step should be self-contained and [completable in the remaining context](#context-window-awareness). If the task is too large for one session, plan only the steps that fit and note remaining work for the backlog file.
 5. **Implement step by step** — After each step is complete (implementation + tests passing), invoke `/close` to finalize with context. If more steps remain and context allows, continue. If context is running low, prioritize finalizing cleanly and writing a [handover note](#handover-notes--bridging-sessions) over rushing into the next step.
 
 ### `/close` — Clean Finish
@@ -163,7 +165,7 @@ It may be called **multiple times per session** — once per atomic step. On the
 
 ## Integrations
 
-The task workflow operates standalone but is designed to integrate with other workflows that benefit from structured task context and session knowledge. Each integration hooks into the task lifecycle at defined points — typically at session start (`/next`) and step completion (`/close`) — receiving context that the integrated workflow cannot derive on its own.
+The task workflow operates standalone but is designed to integrate with other workflows that benefit from structured task context and session knowledge. Each integration hooks into the task lifecycle at defined points — typically at session start (conversational workflow) and step completion (`/close`) — receiving context that the integrated workflow cannot derive on its own.
 
 The pattern is always the same: the task workflow captures knowledge during the session (the "why" — motivation, decisions, trade-offs) and hands it to the integrated workflow, which can only derive the "what" (diffs, outputs, artifacts) mechanically. This handover is what makes integrated workflows produce richer output than they could in isolation.
 
@@ -171,7 +173,7 @@ The pattern is always the same: the task workflow captures knowledge during the 
 
 The [Git Workflow](./git-workflow.md) is the first integration. It handles branching, commits, and PRs as a standalone workflow with its own skills (`/branch`, `/commit`, `/pr`). The task workflow enhances it by providing the reasoning context that git operations cannot derive from diffs and logs alone.
 
-**Hook: `/next` → `/branch`** — When `/next` loads a task (step 3), it invokes `/branch` with the task title and thematic area as `$ARGUMENTS`, so `/branch` can decide autonomously whether to create a new branch, continue on the current one, or escalate.
+**Hook: Task startup → `/branch`** — When the conversational workflow loads a task (step 3), it invokes `/branch` with the task title and thematic area as `$ARGUMENTS`, so `/branch` can decide autonomously whether to create a new branch, continue on the current one, or escalate.
 
 Good: `Skill(skill="branch", args="Add LRU caching to KnowledgeLoader — performance optimization in the knowledge module")`
 Avoid: `Skill(skill="branch", args="CRA-007")` — a task ID tells `/branch` nothing about the theme.
@@ -185,5 +187,4 @@ For the full context contracts and tier system, see [Git Workflow — The Git Sk
 ## See Also
 
 - [Git Workflow](./git-workflow.md) — The standalone git workflow (branching, commits, PRs, quality gates)
-- `.claude/skills/next/SKILL.md` — Operational details for `/next`
 - `.claude/skills/close/SKILL.md` — Operational details for `/close`

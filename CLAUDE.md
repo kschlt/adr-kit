@@ -241,5 +241,6 @@ exclude = ["tests*", "scripts*", ".agent*"]
 
 ## Additional Documentation
 
+- **Development workflows**: See `guide/dev/` for task workflow and git workflow guides
 - Performance targets, security requirements: `docs/requirements.md`
 - ADR format specification: Examples in `tests/fixtures/`
