@@ -33,17 +33,24 @@ git status --porcelain
 Check for task workflow artifacts:
 
 ```bash
-# Check if task-tracking file exists and has active task
-test -f .agent/task-tracking.md && grep -A 5 "Priority Queue" .agent/task-tracking.md
-
-# Check current branch
+# Check current branch first
 git branch --show-current
 ```
 
-**If task-tracking exists AND branch is not main**:
+**If branch is main**:
+→ Not actively working on a task (either task complete or exploration) → Continue to Check 3
+
+**If branch is NOT main** (feature/task branch):
+→ Check for task tracking:
+
+```bash
+test -f .agent/task-tracking.md && grep -A 5 "Priority Queue" .agent/task-tracking.md
+```
+
+**If task-tracking exists**:
 → This is likely a **task workflow session** → Continue to Step 1 (normal flow)
 
-**If no task-tracking OR branch is main**:
+**If no task-tracking**:
 → Continue to Check 3
 
 ### Check 3: Is there uncommitted work?
@@ -128,12 +135,18 @@ The working tree is clean (no uncommitted changes). This suggests either:
 2. No work was done this session
 3. All work was committed manually
 
-**Check for task context**:
+**Check branch and task context**:
 ```bash
+git branch --show-current
 test -f .agent/task-tracking.md && echo "Task tracking exists" || echo "No task tracking"
 ```
 
-**If task tracking exists**:
+**If on main branch with clean tree**:
+- Either task was completed and merged/PR'd, or no task was active
+- Confirm: "Working tree is clean and on main branch. Session appears complete. Safe to start a new session."
+- Exit skill
+
+**If on feature branch with task tracking**:
 - This might be mid-task (just committed a step)
 - Or task is complete
 - Ask user: "Working tree is clean. Is this task complete, or do you want to continue working?"
@@ -142,8 +155,7 @@ test -f .agent/task-tracking.md && echo "Task tracking exists" || echo "No task 
 
 **If no task tracking**:
 - Confirm: "Session appears complete. Working tree is clean, no task in progress. Safe to start a new session."
-
-Exit skill.
+- Exit skill
 
 ---
 
