@@ -1,4 +1,7 @@
-"""Simple greeting functions for workflow testing."""
+"""Simple greeting functions for workflow testing.
+
+This module provides basic greeting utilities for testing purposes only.
+"""
 
 
 def greet(name: str) -> str:
