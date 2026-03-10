@@ -232,12 +232,16 @@ class TestPolicySuggestion:
             decision = "Use FastAPI"
             alternatives = "Rejected: Flask\nRejected: Django"
 
-            suggested = workflow._suggest_policy_from_alternatives(decision, alternatives)
+            suggested = workflow._suggest_policy_from_alternatives(
+                decision, alternatives
+            )
 
             assert suggested is not None
             assert "imports" in suggested
             assert "disallow" in suggested["imports"]
-            assert any("flask" in item.lower() for item in suggested["imports"]["disallow"])
+            assert any(
+                "flask" in item.lower() for item in suggested["imports"]["disallow"]
+            )
 
     def test_suggest_from_use_statement(self):
         """Should extract chosen technology from 'Use X' statement."""
@@ -247,7 +251,9 @@ class TestPolicySuggestion:
             decision = "Use FastAPI as our framework"
             alternatives = ""
 
-            suggested = workflow._suggest_policy_from_alternatives(decision, alternatives)
+            suggested = workflow._suggest_policy_from_alternatives(
+                decision, alternatives
+            )
 
             assert suggested is not None
             assert "imports" in suggested
@@ -262,7 +268,9 @@ class TestPolicySuggestion:
             decision = "We decided this approach is better"
             alternatives = "We considered other options"
 
-            suggested = workflow._suggest_policy_from_alternatives(decision, alternatives)
+            suggested = workflow._suggest_policy_from_alternatives(
+                decision, alternatives
+            )
 
             # No clear technology names or rejected patterns
             assert suggested is None or len(suggested) == 0

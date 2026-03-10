@@ -95,8 +95,8 @@ lint:
 
 format:
 	@echo "🎨 Formatting code..."
-	black adr_kit/ tests/
-	ruff check --fix adr_kit/ tests/
+	uv run black adr_kit/ tests/
+	uv run ruff check --fix adr_kit/ tests/
 	@echo "✅ Formatting complete"
 
 server:
