@@ -73,7 +73,7 @@ dmypy.json
 # ADR Kit self-testing artifacts (when running adr-kit init in this project)
 # These are created when ADR Kit is installed/tested in its own directory
 # For ADR Kit development: project docs live in guide/, ADRs from self-testing in docs/
-/docs/                 # Test ADRs and artifacts (project docs are in guide/ instead)
+docs/**                # Test ADRs and artifacts (project docs are in guide/ instead)
 
 # MCP configuration files
 .mcp.json
@@ -116,3 +116,4 @@ logs/
 # (removed duplicate .project-index - already covered on line 70)
 # Agent task tracking and development notes (local only)
 .agent/
+docs
