@@ -127,11 +127,15 @@ The workflow manages the session boundaries through conversational orchestration
 
 ### Conversational Workflow — Clean Start
 
+**When to use**: Every time you start working on a task from the priority queue. This includes when the user says "work on next task" or similar phrases.
+
+**Critical**: ALL five steps below must be executed in order. Do not skip steps (especially step 3: `/branch` invocation). Even for documentation-only or "simple" tasks, the full workflow ensures proper git discipline and tracking.
+
 The agent orchestrates the task startup conversationally, following these steps:
 
 1. **Check for uncommitted work** — If the working tree is dirty, address it first. Never start a new task with leftover changes.
 2. **Load the next task** — Read `.agent/task-tracking.md`, find the highest-priority unblocked task (first row where "Depends On" = "—"). Read the linked backlog file for the full specification. Display the task summary and wait for confirmation before proceeding — the human may reprioritize or choose a different task. (Priorities change — a quick confirmation prevents wasting a session on the wrong task.)
-3. **Delegate to integrations** — Hand off to any integrated workflows that need to act at session start. Currently: invoke `/branch` with the task title and thematic area. (See [Git Workflow integration](#git-workflow).)
+3. **Delegate to integrations** — Hand off to any integrated workflows that need to act at session start. Currently: invoke `/branch` with the task title and thematic area. **This step is mandatory - never work directly on main**. Even for documentation-only changes, proper branching ensures clean git history and enables the PR review gate. (See [Git Workflow integration](#git-workflow).)
 4. **Research, plan, and decompose** — Read architectural context (`.agent/architecture.md`, `.agent/vision.md`, relevant source files). Break the task into atomic steps using TodoWrite — each step designed upfront as one concern with implementation + tests + docs, so the agent knows what each step contains and when to pause before moving on. Each step should be self-contained and [completable in the remaining context](#context-window-awareness). If the task is too large for one session, plan only the steps that fit and note remaining work for the backlog file.
 5. **Implement step by step** — After each step is complete (implementation + tests passing), invoke `/close` to finalize with context. If more steps remain and context allows, continue. If context is running low, prioritize finalizing cleanly and writing a [handover note](#handover-notes--bridging-sessions) over rushing into the next step.
 
