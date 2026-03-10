@@ -242,5 +242,6 @@ exclude = ["tests*", "scripts*", ".agent*"]
 ## Additional Documentation
 
 - **Development workflows**: See `guide/dev/` for task workflow and git workflow guides
+  - **CRITICAL**: When starting work on a task (e.g., "work on next task"), follow the full **conversational workflow** in [`guide/dev/task-workflow.md`](guide/dev/task-workflow.md#conversational-workflow--clean-start) - all 5 steps are mandatory, especially step 3 which invokes `/branch` to create a feature branch. Never work directly on main.
 - Performance targets, security requirements: `docs/requirements.md`
 - ADR format specification: Examples in `tests/fixtures/`
