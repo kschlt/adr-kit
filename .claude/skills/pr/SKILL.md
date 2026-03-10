@@ -69,13 +69,24 @@ Reason over the diff alongside the log. If the agent can fill the gaps confident
 
 Use the human's response to fill in Why and Approach. Derive What Was Tested from test files in the diff. Assess Risks from the scope of changes.
 
-## 5. Push + Create PR
+## 5. Push + Create or Update PR
 
-Once the context contract is complete, push and create the PR:
+Once the context contract is complete, push changes:
 
 ```bash
 git push -u origin HEAD
 ```
+
+Check if a PR already exists for this branch:
+
+```bash
+gh pr list --head $(git branch --show-current) --json number,title
+```
+
+**If PR exists**: Update it with new commits (no action needed - commits are already pushed).
+Report: "PR #N updated with new commits. Review at [URL]"
+
+**If no PR exists**: Create a new one:
 
 ```bash
 gh pr create --title "<concise title describing the chapter>" --body "$(cat <<'EOF'
