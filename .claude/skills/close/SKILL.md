@@ -193,22 +193,43 @@ since data files only change between releases.
 
 Use `$ARGUMENTS` if provided — it may already contain this context. If `$ARGUMENTS` is empty or thin, derive the summary from `git diff --staged` or `git diff main..HEAD` and the session conversation.
 
-## 3. Commit
+## 3. Verify Quality (Optional but Recommended)
+
+If you modified implementation code (not just docs/tests), consider running relevant tests before committing. This catches test failures earlier than the `/pr` quality gate.
+
+**When to run tests**:
+- ✅ Modified implementation in `adr_kit/`
+- ✅ Refactored existing functionality
+- ❌ Changed only documentation or comments
+- ❌ Changed only test files (tests will run in quality suite)
+
+**How to run tests**:
+```bash
+# Run tests for specific module
+pytest tests/unit/test_foo.py -v
+
+# Or run full unit test suite (fast)
+pytest tests/unit/ -x --tb=line
+```
+
+**Why this matters**: Catching test failures here is faster than at `/pr` time. The `/pr` quality gate will catch failures eventually, but fixing them earlier means cleaner commit history.
+
+## 4. Commit
 
 Invoke: `Skill(skill="commit", args="<distilled context from step 2>")`
 
 Pass the full distilled summary as `$ARGUMENTS` so `/commit` has real reasoning for the commit message body.
 
-## 4. Intermediate, Final, or Mid-Task Pause?
+## 5. Intermediate, Final, or Mid-Task Pause?
 
 At this point, a commit has been created. Now determine if the task is complete or if there's more work.
 
 ### Check for mode hints in $ARGUMENTS
 
 If `$ARGUMENTS` contains:
-- `"final"` → Explicitly marked as final step → Proceed to Step 5
+- `"final"` → Explicitly marked as final step → Proceed to Step 6
 - `"step"` or `"intermediate"` → Explicitly intermediate → Return to workflow (see below)
-- `"pause"` → Explicitly pausing → Write handover note, skip to Step 6
+- `"pause"` → Explicitly pausing → Write handover note, skip to Step 7
 
 ### If no explicit hint, infer from state
 
@@ -220,18 +241,18 @@ grep "^Status:" .agent/backlog/<task-file>.md
 ```
 
 **If Status is `DONE`**:
-→ Task was already marked complete, treat as final → Proceed to Step 5
+→ Task was already marked complete, treat as final → Proceed to Step 6
 
 **If Status is `IN PROGRESS`** or other:
 → Ask user: "Is this the final step for this task, or are there more steps?"
-  - **Final**: Proceed to Step 5
+  - **Final**: Proceed to Step 6
   - **Intermediate**: Return to workflow (see below)
-  - **Pause**: Write handover note, skip to Step 5
+  - **Pause**: Write handover note, skip to Step 7
 
 ### Route based on determination
 
 **Final step** (all steps in the plan are complete, or this is the only step):
-→ Proceed to Step 5 (update tracking, archive)
+→ Proceed to Step 6 (update tracking, archive)
 
 **Intermediate step** (more steps remain, user wants to continue):
 → Confirm: "Step committed. Continuing work in this session."
@@ -241,9 +262,9 @@ grep "^Status:" .agent/backlog/<task-file>.md
 **Mid-task pause** (stopping now, will resume later):
 → Write a [handover note](#handover-notes) into the backlog file
 → Task remains in `backlog/` with status `IN PROGRESS`
-→ Proceed to Step 6 (suggest next step) **without archiving**
+→ Proceed to Step 7 (suggest next step) **without archiving**
 
-## 5. Update Tracking (Final Step Only)
+## 6. Update Tracking (Final Step Only)
 
 **Backlog file**: Set `Status: DONE` and `Completed: <today's date>`
 **Move** backlog file to `archive/` (e.g. `backlog/CRA-*.md` → `archive/CRA-*.md`)
@@ -253,7 +274,7 @@ grep "^Status:" .agent/backlog/<task-file>.md
   - Remove this task's ID from "Depends On" column of any tasks that depended on it
   - Update test count in header if tests were added
 
-## 6. Smart Next-Step Suggestion (Final Step or Session Ending)
+## 7. Smart Next-Step Suggestion (Final Step or Session Ending)
 
 After updating tracking (or after writing a handover note), read the priority queue to see what task comes next.
 

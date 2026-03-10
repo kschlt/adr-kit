@@ -137,6 +137,33 @@ Quality is enforced through six layers, each catching a different class of issue
 
 Each layer has a distinct job. The commit context check ensures the agent has real reasoning before writing a commit message — no context, no commit. The atomic gate ensures the staged diff is structurally sound. The pre-commit hook enforces code style automatically — git runs `scripts/pre-commit` on every commit, and if it fails, the commit is blocked until the issues are fixed. When the hook fails, its output should be **diagnostic, not prescriptive** — it reports *what* failed and *where* so the agent can reason about the fix itself, rather than blindly following a hardcoded recovery command. `make quality` validates the branch as a whole before the agent pushes. The PR context check ensures the description has real reasoning, not fabricated filler. CI verifies in a clean environment that nothing was missed locally.
 
+### Test Verification Points
+
+Tests run at three points in the workflow, each with different scope and purpose:
+
+1. **During `/close` (optional)**: Agent can run tests before commit if implementation changed
+   - **When**: Before invoking `/commit` in the `/close` skill
+   - **Scope**: Relevant tests for the changed module (fast subset)
+   - **Command**: `pytest tests/unit/test_foo.py -v` or `pytest tests/unit/ -x --tb=line`
+   - **Purpose**: Catch test failures early, before commit
+   - **Trade-off**: Faster feedback loop vs. optional (agent decides based on change type)
+
+2. **Pre-commit hooks (optional)**: Projects can enable test-running in hooks
+   - **When**: On each `git commit` (if configured in `.git/hooks/pre-commit`)
+   - **Scope**: Changed modules only (to keep it fast)
+   - **Purpose**: Block commits with failing tests automatically
+   - **Trade-off**: Guaranteed safety vs. slower commits
+   - **Note**: Not enabled by default in this project due to performance impact
+
+3. **During `/pr` (mandatory)**: `make quality` includes full test suite
+   - **When**: Before pushing and creating PR
+   - **Scope**: Full test suite (`pytest tests/`)
+   - **Command**: `make quality` (format + lint + tests)
+   - **Purpose**: Final gate before code leaves local machine
+   - **Trade-off**: Comprehensive but slower (~37s)
+
+**Recommended approach**: Run tests at `/close` time for implementation changes. This catches failures earlier than `/pr` without slowing down docs-only commits. The `/pr` quality gate ensures nothing is missed.
+
 ## How It All Fits Together
 
 ```mermaid
@@ -373,6 +400,85 @@ Session 3:
   (human merges in GitHub)
   /branch "new topic"  →  implement  →  /commit
 ```
+
+## Troubleshooting: Tests Failing at `/pr` Time
+
+If tests fail when you run `/pr`, but you don't remember breaking them, follow this recovery process:
+
+### 1. Identify Which Commit Broke Tests
+
+```bash
+# View recent commits on this branch
+git log main..HEAD --oneline
+
+# Check out each commit and run tests
+git checkout <commit-sha>
+pytest tests/unit/  # or the specific test that's failing
+```
+
+Repeat for each commit until you find the one that introduced the failure.
+
+### 2. Fix the Tests
+
+Return to your branch head:
+```bash
+git checkout <your-branch-name>
+```
+
+Fix the failing tests based on what you found.
+
+### 3. Decide How to Commit the Fix
+
+**Option A: Add fix as new commit (recommended)**
+- Safer, preserves full history
+- Shows that the issue was caught and fixed
+- Command: Standard commit via `/close` or `/commit`
+
+**Option B: Amend the breaking commit (advanced)**
+- Cleaner history, but requires rewriting commits
+- Only use if the branch hasn't been pushed yet
+- Commands:
+  ```bash
+  git rebase -i main
+  # Mark the breaking commit for 'edit'
+  # Make your fix
+  git add .
+  git commit --amend
+  git rebase --continue
+  ```
+
+**Recommendation**: Use Option A (new commit). It's safer and preserves the full development history. The PR reviewer can see that tests failed and were fixed.
+
+### 4. Re-run `/pr`
+
+Once tests are fixed:
+```bash
+# Verify tests pass locally
+pytest tests/unit/ -x --tb=line
+
+# Or run full quality suite
+make quality
+```
+
+Then invoke `/pr` again. It will:
+- Rebase on main (if needed)
+- Run `make quality` (should pass now)
+- Create/update the PR
+
+### Prevention: Run Tests During `/close`
+
+To catch test failures earlier (before `/pr` time):
+
+**For implementation changes**:
+- Run relevant tests before calling `/close`
+- The `/close` skill documentation includes guidance on when to run tests
+- Example: `pytest tests/unit/test_foo.py -v` before committing
+
+**For docs-only or test-only changes**:
+- Skip test-running at `/close` time
+- Tests will still run at `/pr` time (mandatory)
+
+See [`.claude/skills/close/SKILL.md`](../../.claude/skills/close/SKILL.md) Step 3 for the full test verification guidance.
 
 ### Integration with Other Systems
 
