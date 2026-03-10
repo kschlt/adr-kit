@@ -9,10 +9,13 @@ def greet(name: str) -> str:
     Generate a greeting for the given name.
 
     Args:
-        name: The name to greet
+        name: The name to greet (must be non-empty)
 
     Returns:
         A friendly greeting string
+
+    Raises:
+        ValueError: If name is empty
     """
     if not name:
         raise ValueError("Name cannot be empty")
