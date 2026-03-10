@@ -83,8 +83,26 @@ Check if a PR already exists for this branch:
 gh pr list --head $(git branch --show-current) --json number,title
 ```
 
-**If PR exists**: Update it with new commits (no action needed - commits are already pushed).
-Report: "PR #N updated with new commits. Review at [URL]"
+**If PR exists**: Gather updated context from all commits since the PR was created, then update the PR description:
+
+```bash
+gh pr edit <number> --body "$(cat <<'EOF'
+## Why
+<Updated reasoning covering all commits>
+
+## Approach
+<Updated approach covering all work done>
+
+## What Was Tested
+<All testing done across all commits>
+
+## Risks
+<Any new or changed risks>
+EOF
+)"
+```
+
+Report: "PR #N updated with new commits and description. Review at [URL]"
 
 **If no PR exists**: Create a new one:
 
