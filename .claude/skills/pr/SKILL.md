@@ -115,4 +115,4 @@ git checkout main && git pull origin main
 ## 7. Report
 
 Output the PR URL and:
-"PR created. Review and merge in GitHub, then open a new chat and `/next` to continue."
+"PR created. Review and merge in GitHub, then open a new chat and say 'work on next task' to continue."

@@ -7,7 +7,7 @@ allowed-tools: Read, Bash, Edit, Write, Glob, Skill
 Finalize a completed atomic step. May be called **multiple times per session** — once per step. On the final step, also updates tracking and suggests next steps.
 
 **Context**: $ARGUMENTS
-(May contain: summary of what was implemented and why, passed from `/next`)
+(May contain: summary of what was implemented and why, passed from the conversational workflow)
 
 ## 1. Identify the Task
 
@@ -51,10 +51,10 @@ Pass the full distilled summary as `$ARGUMENTS` so `/commit` has real reasoning 
 
 ## 4. Intermediate or Final?
 
-Check the TodoWrite plan from `/next`:
+Check the TodoWrite plan from the conversational workflow:
 
 **Intermediate step** (more steps remain in the plan):
-→ Return to implementation. Do NOT update tracking, do NOT archive, do NOT suggest next steps. The calling skill (`/next`) continues with the next step.
+→ Return to implementation. Do NOT update tracking, do NOT archive, do NOT suggest next steps. The conversational workflow continues with the next step.
 
 **Final step** (all steps in the plan are complete, or this is the only step):
 → Proceed to step 5.
@@ -82,12 +82,12 @@ bash scripts/branch-context.sh
 ```
 
 **If the next task relates to the current branch's theme** (similar area, branch has few commits):
-→ Suggest: "The next task ([task title]) fits this branch's theme. Open a new chat and run `/next` to continue."
+→ Suggest: "The next task ([task title]) fits this branch's theme. Open a new chat and say 'work on next task' to continue."
 
 **If the next task is a different area, or the branch already has several commits (3+)**:
-→ Suggest: "This branch has [N] commits covering [theme]. Consider running `/pr` to close this chapter, then `/next` in a fresh session."
+→ Suggest: "This branch has [N] commits covering [theme]. Consider running `/pr` to close this chapter, then say 'work on next task' in a fresh session."
 
-**Never suggest `/next` in the same session.** Each task = fresh context window. Always recommend opening a new chat.
+**Never continue task work in the same session.** Each task = fresh context window. Always recommend opening a new chat.
 
 ## Handover Notes
 
