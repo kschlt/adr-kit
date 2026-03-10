@@ -2,6 +2,8 @@
 # Pre-commit hook: fast format + lint check on staged Python files only.
 # Install with: make setup-hooks
 # Runs in ~1-2s on typical commits (only checks changed files, not the full codebase).
+#
+# IMPORTANT: After updating this file, reinstall with: make setup-hooks
 
 set -e
 
