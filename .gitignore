@@ -79,7 +79,7 @@ docs/adr/              # Test ADRs (created by adr-kit init, gitignored for this
 .mcp.json
 
 # IDE integration files
-.claude/
+.claude/settings.local.json
 .cursor/
 
 # Generated lint config examples (keep actual configs)

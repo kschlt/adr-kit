@@ -353,7 +353,9 @@ def update(
         import requests
     except ImportError as e:
         console.print("❌ requests library not available for update checking")
-        console.print("💡 Install manually: uv tool upgrade adr-kit (or pip install --upgrade adr-kit)")
+        console.print(
+            "💡 Install manually: uv tool upgrade adr-kit (or pip install --upgrade adr-kit)"
+        )
         raise typer.Exit(code=1) from e
 
     from . import __version__

@@ -45,10 +45,10 @@ async def test_tool(tool_name: str, test_cases: list[dict]) -> None:
         try:
             result = await tool.run(args)
             if should_work:
-                print(f"✅ SUCCESS: Tool executed correctly")
+                print("✅ SUCCESS: Tool executed correctly")
                 print(f"   Result type: {type(result).__name__}")
             else:
-                print(f"⚠️  UNEXPECTED: Tool succeeded but was expected to fail")
+                print("⚠️  UNEXPECTED: Tool succeeded but was expected to fail")
         except Exception as e:
             if not should_work:
                 print(f"✅ EXPECTED FAILURE: {type(e).__name__}: {e}")
@@ -183,7 +183,9 @@ async def main() -> None:
         [
             {
                 "name": "Normal (object) - Should work",
-                "args": {"request": {"focus_areas": ["backend"], "adr_dir": "docs/adr"}},
+                "args": {
+                    "request": {"focus_areas": ["backend"], "adr_dir": "docs/adr"}
+                },
                 "should_work": True,
             },
             {

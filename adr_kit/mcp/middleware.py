@@ -47,9 +47,7 @@ class StringifiedParameterFixMiddleware(Middleware):
         super().__init__()
         self.debug = debug
 
-    async def on_call_tool(
-        self, context: MiddlewareContext, call_next: Any
-    ) -> Any:
+    async def on_call_tool(self, context: MiddlewareContext, call_next: Any) -> Any:
         """Intercept tool calls and fix stringified parameters.
 
         Args:

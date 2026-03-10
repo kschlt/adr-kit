@@ -1,7 +1,7 @@
 # ADR Kit Development Makefile
 # This Makefile is for DEVELOPMENT ONLY (not included in distribution package)
 
-.PHONY: help install clean test-unit test-integration test-all test-server lint format build uninstall reinstall server dev-setup dev-cycle dev-reload quality release-prep
+.PHONY: help install clean test-unit test-integration test-all test-server lint format build uninstall reinstall server dev-setup dev-cycle dev-reload quality release-prep setup-hooks
 
 # =============================================================================
 # Help & Documentation
@@ -27,6 +27,7 @@ help:
 	@echo "  build        - Build distribution packages"
 	@echo ""
 	@echo "Workflows:"
+	@echo "  setup-hooks  - Install git pre-commit hook (format + lint on staged files)"
 	@echo "  dev-setup    - Initial development setup with guidance"
 	@echo "  dev-cycle    - clean + install + test"
 	@echo "  dev-reload   - reinstall + test (for after code changes)"
@@ -68,34 +69,34 @@ clean:
 
 test-unit:
 	@echo "🧪 Running unit tests (fastest - no dependencies)..."
-	pytest tests/unit/ --cov=adr_kit --cov-report=term-missing
+	uv run pytest tests/unit/ --cov=adr_kit --cov-report=term-missing
 	@echo "✅ Unit tests complete"
 
 test-integration:
 	@echo "🧪 Running unit + integration tests (requires installation)..."
-	pytest tests/unit/ tests/integration/ --cov=adr_kit --cov-report=term-missing
+	uv run pytest tests/unit/ tests/integration/ --cov=adr_kit --cov-report=term-missing
 	@echo "✅ Integration tests complete"
 
 test-all:
 	@echo "🧪 Running all tests (includes MCP server tests)..."
-	pytest tests/ -v --cov=adr_kit --cov-report=term-missing --cov-report=html
+	uv run pytest tests/ -v --cov=adr_kit --cov-report=term-missing --cov-report=html
 	@echo "✅ All tests complete. Coverage report in htmlcov/"
 
 test-server:
 	@echo "🧪 Running MCP server tests..."
-	pytest tests/mcp/ -v
+	uv run pytest tests/mcp/ -v
 	@echo "✅ MCP server tests complete"
 
 lint:
 	@echo "🔍 Running linting..."
-	ruff check adr_kit/ tests/
-	mypy adr_kit/
+	uv run ruff check adr_kit/ tests/
+	uv run mypy adr_kit/
 	@echo "✅ Linting complete"
 
 format:
 	@echo "🎨 Formatting code..."
-	black adr_kit/ tests/
-	ruff check --fix adr_kit/ tests/
+	uv run black adr_kit/ tests/
+	uv run ruff check --fix adr_kit/ tests/
 	@echo "✅ Formatting complete"
 
 server:
@@ -111,7 +112,13 @@ build:
 # Workflows
 # =============================================================================
 
-dev-setup: install test-integration
+setup-hooks:
+	@echo "🔗 Installing git hooks..."
+	@cp scripts/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "✅ Pre-commit hook installed"
+
+dev-setup: install setup-hooks test-integration
 	@echo "✅ Development setup complete"
 	@echo "💡 Next steps:"
 	@echo "   1. Run 'make server' to start MCP server"
