@@ -165,6 +165,7 @@ class PlanningContext:
                 relevance_reason=", ".join(score.reasons[:2]),  # Top 2 reasons
                 key_constraints=self._extract_key_constraints(adr),
                 related_technologies=self._extract_related_technologies(adr),
+                ai_warnings=self._extract_ai_warnings(adr),
             )
             contextual_adrs.append(contextual_adr)
 
@@ -336,6 +337,83 @@ class PlanningContext:
                 technologies.add("backend")
 
         return technologies
+
+    def _extract_ai_warnings(self, adr: ADR) -> list[str]:
+        """Extract AI-centric warnings from ADR consequences section.
+
+        Looks for structured patterns in consequences like:
+        - **Documentation**: Limited for Express 5.x
+        - **Known AI Pitfall**: Middleware ordering matters
+        - **Test Determinism**: Requires in-memory database mock
+        """
+        import re
+
+        warnings = []
+        adr_content = adr.content
+
+        # Pattern 1: Bold heading followed by content
+        # Matches: **Documentation**: Limited for Express 5.x
+        bold_pattern = r"\*\*([^*]+)\*\*:\s*([^\n]+)"
+
+        # Look for AI-relevant heading keywords
+        ai_relevant_keywords = [
+            "documentation",
+            "known ai pitfall",
+            "ai pitfall",
+            "test determinism",
+            "testing",
+            "mocking",
+            "mock",
+            "limitation",
+            "caveat",
+            "warning",
+            "note",
+            "important",
+        ]
+
+        matches = re.findall(bold_pattern, adr_content, re.IGNORECASE)
+        for heading, content in matches:
+            heading_lower = heading.strip().lower()
+            # Check if heading contains AI-relevant keywords
+            if any(keyword in heading_lower for keyword in ai_relevant_keywords):
+                warnings.append(f"{heading.strip()}: {content.strip()}")
+
+        # Pattern 2: Consequence section explicit warnings
+        # Look for sentences with warning indicators in Consequences section
+        consequences_section = re.search(
+            r"##\s*Consequences\s*\n(.*?)(?=\n##|\Z)",
+            adr_content,
+            re.DOTALL | re.IGNORECASE,
+        )
+
+        if consequences_section:
+            cons_text = consequences_section.group(1)
+
+            # Look for bullet points or lines with warning indicators
+            warning_indicators = [
+                r"limited\s+(?:for|in|documentation)",
+                r"requires?\s+(?:careful|special|manual)",
+                r"known\s+(?:issue|pitfall|problem)",
+                r"may\s+(?:fail|break|cause)",
+                r"difficult\s+(?:to|for)",
+                r"not\s+(?:well|fully|officially)",
+            ]
+
+            for indicator_pattern in warning_indicators:
+                matches = re.finditer(
+                    rf"[-*]\s*([^\n]*{indicator_pattern}[^\n]*)",
+                    cons_text,
+                    re.IGNORECASE,
+                )
+                for match in matches:
+                    warning_text = match.group(1).strip().lstrip("-*").strip()
+                    if warning_text and len(warning_text) > 10:  # Filter out too short
+                        warnings.append(warning_text)
+
+        # Limit to 3 most relevant warnings to avoid context bloat
+        return list(dict.fromkeys(warnings))[
+            :3
+        ]  # Remove duplicates while preserving order
 
     def _optimize_token_usage(self, context_packet: ContextPacket) -> ContextPacket:
         """Optimize context packet to fit within token budget."""
