@@ -13,6 +13,7 @@ class GuidanceType(str, Enum):
     CONSTRAINT = "constraint"  # Hard constraints that must be followed
     RECOMMENDATION = "recommendation"  # Suggested approaches or libraries
     WARNING = "warning"  # Things to be careful about
+    AI_WARNING = "ai_warning"  # AI-specific warnings extracted from ADR consequences
     PATTERN = "pattern"  # Architectural patterns to follow
     PREFLIGHT = "preflight"  # Remind about preflight checks
     APPROVAL = "approval"  # Things that need approval
@@ -193,11 +194,28 @@ class GuidanceGenerator:
         """Generate guidance based on specific relevant ADRs."""
         guidance = []
 
-        # Focus on most relevant ADRs
+        # AI warnings are valuable even for moderately relevant ADRs (>= 0.4)
+        # Other guidance requires higher relevance (>= 0.7)
+        adrs_for_warnings = [adr for adr in relevant_adrs if adr.relevance_score >= 0.4]
         high_relevance_adrs = [
             adr for adr in relevant_adrs if adr.relevance_score >= 0.7
         ]
 
+        # Extract AI warnings from moderately relevant ADRs
+        for adr in adrs_for_warnings[:3]:  # Top 3 ADRs with warnings
+            if adr.ai_warnings:
+                for warning in adr.ai_warnings[:2]:  # Limit to top 2 warnings per ADR
+                    guidance.append(
+                        PlanningGuidance(
+                            guidance_type=GuidanceType.AI_WARNING.value,
+                            priority="high",
+                            message=f"{adr.id}: {warning}",
+                            source_adrs=[adr.id],
+                            actionable=True,
+                        )
+                    )
+
+        # Other guidance only for high-relevance ADRs
         for adr in high_relevance_adrs[:3]:  # Top 3 most relevant
             # Generate specific guidance based on ADR content
             if adr.key_constraints:

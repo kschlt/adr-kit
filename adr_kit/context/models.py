@@ -43,6 +43,10 @@ class ContextualADR(BaseModel):
     related_technologies: list[str] = Field(
         default_factory=list, description="Technologies mentioned in this ADR"
     )
+    ai_warnings: list[str] = Field(
+        default_factory=list,
+        description="AI-centric warnings extracted from ADR consequences",
+    )
 
 
 class PlanningGuidance(BaseModel):
