@@ -11,11 +11,14 @@ from adr_kit.core.model import (
     ADRFrontMatter,
     ADRStatus,
     ArchitecturePolicy,
+    ConfigEnforcementPolicy,
     LayerBoundaryRule,
     PatternPolicy,
     PatternRule,
     PolicyModel,
+    PythonConfig,
     RequiredStructure,
+    TypeScriptConfig,
 )
 
 
@@ -405,3 +408,142 @@ class TestPolicyModelWithArchitecture:
         policy = PolicyModel()
         assert hasattr(policy, "architecture")
         assert hasattr(policy, "boundaries")  # Deprecated but kept temporarily
+
+
+class TestTypeScriptConfig:
+    """Test TypeScriptConfig model."""
+
+    def test_valid_typescript_config(self):
+        """Test creating valid TypeScript config."""
+        config = TypeScriptConfig(tsconfig={"strict": True, "noImplicitAny": True})
+
+        assert config.tsconfig is not None
+        assert config.tsconfig["strict"] is True
+        assert config.tsconfig["noImplicitAny"] is True
+
+    def test_empty_typescript_config(self):
+        """Test creating empty TypeScript config."""
+        config = TypeScriptConfig(tsconfig=None)
+        assert config.tsconfig is None
+
+
+class TestPythonConfig:
+    """Test PythonConfig model."""
+
+    def test_valid_python_config(self):
+        """Test creating valid Python config."""
+        config = PythonConfig(
+            ruff={"lint": {"select": ["E", "F"]}},
+            mypy={"strict": True},
+        )
+
+        assert config.ruff is not None
+        assert config.mypy is not None
+        assert config.ruff["lint"]["select"] == ["E", "F"]
+        assert config.mypy["strict"] is True
+
+    def test_partial_python_config(self):
+        """Test creating partial Python config."""
+        config = PythonConfig(ruff={"lint": {"select": ["E"]}})
+
+        assert config.ruff is not None
+        assert config.mypy is None
+
+    def test_empty_python_config(self):
+        """Test creating empty Python config."""
+        config = PythonConfig()
+        assert config.ruff is None
+        assert config.mypy is None
+
+
+class TestConfigEnforcementPolicy:
+    """Test ConfigEnforcementPolicy model."""
+
+    def test_config_with_typescript_and_python(self):
+        """Test creating config enforcement with both TypeScript and Python."""
+        policy = ConfigEnforcementPolicy(
+            typescript=TypeScriptConfig(tsconfig={"strict": True}),
+            python=PythonConfig(ruff={"lint": {"select": ["E"]}}),
+        )
+
+        assert policy.typescript is not None
+        assert policy.python is not None
+        assert policy.typescript.tsconfig is not None
+        assert policy.python.ruff is not None
+
+    def test_config_typescript_only(self):
+        """Test creating config enforcement with only TypeScript."""
+        policy = ConfigEnforcementPolicy(
+            typescript=TypeScriptConfig(tsconfig={"strict": True})
+        )
+
+        assert policy.typescript is not None
+        assert policy.python is None
+
+    def test_config_python_only(self):
+        """Test creating config enforcement with only Python."""
+        policy = ConfigEnforcementPolicy(python=PythonConfig(mypy={"strict": True}))
+
+        assert policy.typescript is None
+        assert policy.python is not None
+
+    def test_empty_config_enforcement(self):
+        """Test creating empty config enforcement."""
+        policy = ConfigEnforcementPolicy()
+        assert policy.typescript is None
+        assert policy.python is None
+
+
+class TestPolicyModelWithConfigEnforcement:
+    """Test PolicyModel with config_enforcement field."""
+
+    def test_policy_model_includes_config_enforcement(self):
+        """Test that PolicyModel can include config enforcement policies."""
+        policy = PolicyModel(
+            config_enforcement=ConfigEnforcementPolicy(
+                typescript=TypeScriptConfig(tsconfig={"strict": True}),
+                python=PythonConfig(ruff={"lint": {"select": ["E"]}}),
+            )
+        )
+
+        assert policy.config_enforcement is not None
+        assert policy.config_enforcement.typescript is not None
+        assert policy.config_enforcement.python is not None
+
+    def test_helper_methods(self):
+        """Test PolicyModel helper methods for new policy types."""
+        policy = PolicyModel(
+            patterns=PatternPolicy(
+                patterns={
+                    "test_rule": PatternRule(
+                        description="Test", rule=r"test", severity="error"
+                    )
+                }
+            ),
+            architecture=ArchitecturePolicy(
+                layer_boundaries=[LayerBoundaryRule(rule="ui -> database")],
+                required_structure=[RequiredStructure(path="src/models/")],
+            ),
+            config_enforcement=ConfigEnforcementPolicy(
+                typescript=TypeScriptConfig(tsconfig={"strict": True})
+            ),
+        )
+
+        # Test pattern rules helper
+        pattern_rules = policy.get_pattern_rules()
+        assert "test_rule" in pattern_rules
+
+        # Test architecture boundaries helper
+        boundaries = policy.get_architecture_boundaries()
+        assert len(boundaries) == 1
+        assert boundaries[0].rule == "ui -> database"
+
+        # Test required structure helper
+        structures = policy.get_required_structure()
+        assert len(structures) == 1
+        assert structures[0].path == "src/models/"
+
+        # Test config requirements helper
+        config_reqs = policy.get_config_requirements()
+        assert config_reqs.typescript is not None
+        assert config_reqs.typescript.tsconfig is not None

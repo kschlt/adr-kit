@@ -173,6 +173,49 @@ class PatternPolicy(BaseModel):
     )
 
 
+class TypeScriptConfig(BaseModel):
+    """TypeScript configuration requirements.
+
+    Defines minimum required TypeScript configuration values that must be
+    present in tsconfig.json. Subset matching: ADR specifies minimums,
+    projects can have additional config.
+    """
+
+    tsconfig: dict[str, Any] | None = Field(
+        None, description="Required tsconfig.json values (subset matching)"
+    )
+
+
+class PythonConfig(BaseModel):
+    """Python configuration requirements.
+
+    Defines minimum required Python tool configuration values (ruff, mypy, etc).
+    Subset matching: ADR specifies minimums, projects can have additional config.
+    """
+
+    ruff: dict[str, Any] | None = Field(
+        None, description="Required ruff configuration (subset matching)"
+    )
+    mypy: dict[str, Any] | None = Field(
+        None, description="Required mypy configuration (subset matching)"
+    )
+
+
+class ConfigEnforcementPolicy(BaseModel):
+    """Configuration file enforcement policies.
+
+    Defines required configuration values across different tools and languages.
+    Uses subset matching: ADR requirements are minimums, not exact config.
+    """
+
+    typescript: TypeScriptConfig | None = Field(
+        None, description="TypeScript configuration requirements"
+    )
+    python: PythonConfig | None = Field(
+        None, description="Python tool configuration requirements"
+    )
+
+
 class PolicyModel(BaseModel):
     """Structured policy model for ADR enforcement.
 
@@ -191,6 +234,9 @@ class PolicyModel(BaseModel):
     )
     architecture: ArchitecturePolicy | None = Field(
         None, description="Architecture policies (boundaries + required structure)"
+    )
+    config_enforcement: ConfigEnforcementPolicy | None = Field(
+        None, description="Configuration file enforcement policies"
     )
     rationales: list[str] | None = Field(
         None, description="Rationales for the policies"
@@ -225,6 +271,30 @@ class PolicyModel(BaseModel):
         if self.python and self.python.disallow_imports:
             return self.python.disallow_imports
         return []
+
+    def get_pattern_rules(self) -> dict[str, PatternRule]:
+        """Get pattern rules dict, safe null-checking."""
+        if self.patterns and self.patterns.patterns:
+            return self.patterns.patterns
+        return {}
+
+    def get_architecture_boundaries(self) -> list[LayerBoundaryRule]:
+        """Get architecture layer boundaries, safe null-checking."""
+        if self.architecture and self.architecture.layer_boundaries:
+            return self.architecture.layer_boundaries
+        return []
+
+    def get_required_structure(self) -> list[RequiredStructure]:
+        """Get required file/directory structure, safe null-checking."""
+        if self.architecture and self.architecture.required_structure:
+            return self.architecture.required_structure
+        return []
+
+    def get_config_requirements(self) -> ConfigEnforcementPolicy:
+        """Get config enforcement requirements, safe null-checking."""
+        if self.config_enforcement:
+            return self.config_enforcement
+        return ConfigEnforcementPolicy(typescript=None, python=None)
 
 
 class ADRFrontMatter(BaseModel):

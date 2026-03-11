@@ -85,6 +85,7 @@ class PolicyPatternExtractor:
             python=python_policies,
             patterns=None,
             architecture=None,
+            config_enforcement=None,
             rationales=rationales,
         )
 
@@ -202,6 +203,7 @@ class PolicyExtractor:
                 python=structured.python or pattern.python,
                 patterns=None,
                 architecture=None,
+                config_enforcement=None,
                 rationales=self._merge_lists(structured.rationales, pattern.rationales),
             )
         elif structured:
@@ -216,6 +218,7 @@ class PolicyExtractor:
                 python=None,
                 patterns=None,
                 architecture=None,
+                config_enforcement=None,
                 rationales=None,
             )
 
