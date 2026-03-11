@@ -400,12 +400,12 @@ class PlanningContext:
             ]
 
             for indicator_pattern in warning_indicators:
-                matches = re.finditer(
+                pattern_matches = re.finditer(
                     rf"[-*]\s*([^\n]*{indicator_pattern}[^\n]*)",
                     cons_text,
                     re.IGNORECASE,
                 )
-                for match in matches:
+                for match in pattern_matches:
                     warning_text = match.group(1).strip().lstrip("-*").strip()
                     if warning_text and len(warning_text) > 10:  # Filter out too short
                         warnings.append(warning_text)
