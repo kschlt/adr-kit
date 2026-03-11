@@ -144,60 +144,161 @@ def adr_create(request: CreateADRRequest) -> dict[str, Any]:
     Create a new architectural decision record with optional policy enforcement.
 
     WHEN TO USE: Document significant technical decisions.
-    RETURNS: Created ADR details in 'proposed' status.
+    RETURNS: Created ADR details in 'proposed' status + policy generation guidance.
 
-    POLICY STRUCTURE (for constraint extraction):
-    To enable automatic constraint extraction and preflight checks, include a 'policy'
-    parameter with structured enforcement rules:
+    ## Policy Generation Workflow (Ping-Pong Pattern)
 
-    {
+    ADR Kit uses a **ping-pong workflow** for policy generation:
+
+    1. **First call (without policy)**: Analyze decision content
+       → Returns: ADR created + `policy_guidance` with suggestions
+
+    2. **Agent constructs policy**: Use suggestions to build structured policy dict
+
+    3. **Second call (with policy)**: Create final ADR with validated policy
+       → Returns: ADR created with enforceable structured policy
+
+    ## Policy Structure Reference
+
+    Full policy structure with all supported types:
+
+    ```python
+    policy = {
+      # Import/library restrictions
       "imports": {
-        "disallow": ["library-to-ban", "another-banned-lib"],
-        "prefer": ["preferred-library"]
+        "disallow": ["flask", "django"],      # Banned libraries
+        "prefer": ["fastapi"]                 # Recommended alternatives
       },
-      "python": {
-        "disallow_imports": ["banned.module"]
+
+      # Code pattern enforcement
+      "patterns": {
+        "patterns": {
+          "async_handlers": {
+            "description": "All FastAPI handlers must be async",
+            "language": "python",
+            "rule": "def\\s+\\w+",            # Regex or structured query
+            "severity": "error",               # error | warning | info
+            "autofix": false                   # Optional
+          }
+        }
       },
-      "boundaries": {
-        "rules": [
-          {"forbid": "frontend -> database"}
+
+      # Architecture policies (boundaries + required structure)
+      "architecture": {
+        "layer_boundaries": [
+          {
+            "rule": "frontend -> database",   # Forbidden dependency
+            "action": "block",                 # block | warn
+            "message": "Frontend must not access database directly",
+            "check": "src/frontend/**/*.py"    # Optional path pattern
+          }
+        ],
+        "required_structure": [
+          {
+            "path": "src/models/*.py",        # Required file/directory
+            "description": "Model layer required"
+          }
         ]
       },
-      "rationales": [
-        "Reason for policy constraint"
-      ]
-    }
 
-    EXAMPLE (FastAPI decision):
-    {
-      "policy": {
-        "imports": {
-          "disallow": ["flask", "django", "litestar"],
-          "prefer": ["fastapi"]
+      # Config enforcement (TypeScript/Python tools)
+      "config_enforcement": {
+        "typescript": {
+          "tsconfig": {
+            "strict": true,
+            "compilerOptions": {"noImplicitAny": true}
+          }
         },
         "python": {
-          "disallow_imports": ["flask", "django"]
-        },
-        "rationales": [
-          "FastAPI provides native async support required for I/O operations",
-          "Automatic OpenAPI documentation reduces maintenance burden"
-        ]
-      }
+          "ruff": {"lint": {"select": ["I"]}},
+          "mypy": {"strict": true}
+        }
+      },
+
+      # Rationales for policies
+      "rationales": [
+        "FastAPI provides native async support",
+        "Better performance for I/O operations"
+      ]
     }
+    ```
 
-    ALTERNATIVE (pattern matching):
-    If policy is not provided, use pattern-friendly language in the decision/consequences text:
-    - "Don't use X" / "Avoid X" / "X is deprecated"
-    - "Use Y instead of X" / "Prefer Y over X"
-    - "Layer A should not access Layer B"
+    ## Quick Examples
 
-    Example:
-    "Use FastAPI as the backend framework. **Don't use Flask** or Django as they
-    lack native async support. **Prefer FastAPI over Flask** for this use case."
+    ### Example 1: Import Policy
+    ```python
+    adr_create(
+      title="Use FastAPI for backend",
+      decision="Use FastAPI instead of Flask for better async support",
+      policy={
+        "imports": {
+          "disallow": ["flask", "django"],
+          "prefer": ["fastapi"]
+        },
+        "rationales": ["Native async support", "Better performance"]
+      }
+    )
+    ```
 
-    NOTE: Structured policy is strongly preferred for reliable constraint extraction.
-    Without structured policy or pattern-matching language, adr_planning_context will
-    not be able to extract constraints from this ADR.
+    ### Example 2: Pattern + Architecture Policy
+    ```python
+    adr_create(
+      title="Async handlers and layer boundaries",
+      decision="All API handlers must be async. Frontend must not access DB directly.",
+      policy={
+        "patterns": {
+          "patterns": {
+            "async_handlers": {
+              "description": "All handlers must be async",
+              "language": "python",
+              "rule": "async\\s+def\\s+\\w+",
+              "severity": "error"
+            }
+          }
+        },
+        "architecture": {
+          "layer_boundaries": [
+            {"rule": "frontend -> database", "action": "block"}
+          ]
+        }
+      }
+    )
+    ```
+
+    ### Example 3: Config Enforcement
+    ```python
+    adr_create(
+      title="TypeScript strict mode required",
+      decision="Enable TypeScript strict mode for all projects",
+      policy={
+        "config_enforcement": {
+          "typescript": {
+            "tsconfig": {"strict": true}
+          }
+        }
+      }
+    )
+    ```
+
+    ## Pattern-Matching Fallback
+
+    If you don't provide structured policy, use pattern-friendly language:
+    - Import restrictions: "Don't use X", "Prefer Y over X", "X is deprecated"
+    - Code patterns: "All X must be Y", "X must have Y", "No X allowed"
+    - Architecture: "X must not access Y", "Required: path/to/file"
+    - Config: "TypeScript strict mode required", "Ruff must check imports"
+
+    ADR Kit will analyze your text and return `policy_guidance` with suggestions.
+
+    ## Policy Guidance Response
+
+    When you create an ADR without a policy, the response includes:
+    - `policy_guidance.suggestion`: Auto-detected policy structure
+    - `policy_guidance.suggestion_json`: Formatted JSON for easy copy-paste
+    - `policy_guidance.guidance`: Step-by-step instructions
+    - `policy_guidance.example_usage`: Full example with your ADR + policy
+
+    Use this guidance to construct the policy dict and call `adr_create()` again.
     """
     try:
         logger.info(f"Creating ADR: {request.title}")
@@ -219,16 +320,24 @@ def adr_create(request: CreateADRRequest) -> dict[str, Any]:
 
         if result.success:
             creation_result = result.data["creation_result"]
+            policy_guidance = result.data.get("policy_guidance")
+
+            response_data = {
+                "adr_id": creation_result.adr_id,
+                "file_path": str(creation_result.file_path),
+                "status": "proposed",
+                "conflicts": creation_result.conflicts_detected,
+                "related_adrs": creation_result.related_adrs,
+                "validation_warnings": creation_result.validation_warnings,
+            }
+
+            # Include policy guidance if available
+            if policy_guidance:
+                response_data["policy_guidance"] = policy_guidance
+
             return success_response(
                 message=f"ADR {creation_result.adr_id} created successfully",
-                data={
-                    "adr_id": creation_result.adr_id,
-                    "file_path": str(creation_result.file_path),
-                    "status": "proposed",
-                    "conflicts": creation_result.conflicts_detected,
-                    "related_adrs": creation_result.related_adrs,
-                    "validation_warnings": creation_result.validation_warnings,
-                },
+                data=response_data,
                 next_steps=(
                     [creation_result.next_steps]
                     if isinstance(creation_result.next_steps, str)
