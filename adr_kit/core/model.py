@@ -38,15 +38,17 @@ class ImportPolicy(BaseModel):
     )
 
 
+# Legacy boundary models (deprecated - use ArchitecturePolicy instead)
+# These will be removed in POL-3 when contract integration is updated
 class BoundaryLayer(BaseModel):
-    """Definition of an architectural layer."""
+    """Definition of an architectural layer (DEPRECATED)."""
 
     name: str = Field(..., description="Name of the layer")
     path: str | None = Field(None, description="Path pattern for the layer")
 
 
 class BoundaryRule(BaseModel):
-    """Rule for architectural boundaries."""
+    """Rule for architectural boundaries (DEPRECATED)."""
 
     forbid: str = Field(
         ..., description="Forbidden dependency pattern (e.g., 'ui -> database')"
@@ -54,10 +56,58 @@ class BoundaryRule(BaseModel):
 
 
 class BoundaryPolicy(BaseModel):
-    """Policy for architectural boundaries."""
+    """Policy for architectural boundaries (DEPRECATED - use ArchitecturePolicy)."""
 
     layers: list[BoundaryLayer] | None = Field(None, description="Architectural layers")
     rules: list[BoundaryRule] | None = Field(None, description="Boundary rules")
+
+
+# New architecture models (replaces BoundaryPolicy)
+class LayerBoundaryRule(BaseModel):
+    """Architectural layer boundary enforcement rule.
+
+    Defines rules for which layers can/cannot access other layers.
+    """
+
+    rule: str = Field(..., description="Boundary rule (e.g., 'ui -> database')")
+    check: str | None = Field(None, description="Path pattern to check (glob)")
+    action: str = Field(default="block", description="Action to take: block or warn")
+    message: str | None = Field(None, description="Custom error message")
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, v: str) -> str:
+        """Ensure action is one of: block, warn."""
+        allowed = {"block", "warn"}
+        if v not in allowed:
+            raise ValueError(f"Action must be one of {allowed}, got: {v}")
+        return v
+
+
+class RequiredStructure(BaseModel):
+    """Required file or directory structure.
+
+    Defines files/directories that must exist in the project.
+    """
+
+    path: str = Field(..., description="Required path (glob pattern supported)")
+    description: str | None = Field(
+        None, description="Human-readable description of why this is required"
+    )
+
+
+class ArchitecturePolicy(BaseModel):
+    """Comprehensive architecture policy replacing old BoundaryPolicy.
+
+    Supports both layer boundaries and required file structure enforcement.
+    """
+
+    layer_boundaries: list[LayerBoundaryRule] | None = Field(
+        None, description="Layer boundary rules"
+    )
+    required_structure: list[RequiredStructure] | None = Field(
+        None, description="Required files/directories"
+    )
 
 
 class PythonPolicy(BaseModel):
@@ -132,11 +182,15 @@ class PolicyModel(BaseModel):
 
     imports: ImportPolicy | None = Field(None, description="Import/library policies")
     boundaries: BoundaryPolicy | None = Field(
-        None, description="Architectural boundary policies"
+        None,
+        description="[DEPRECATED] Architectural boundary policies - use architecture instead",
     )
     python: PythonPolicy | None = Field(None, description="Python-specific policies")
     patterns: PatternPolicy | None = Field(
         None, description="Code pattern enforcement policies"
+    )
+    architecture: ArchitecturePolicy | None = Field(
+        None, description="Architecture policies (boundaries + required structure)"
     )
     rationales: list[str] | None = Field(
         None, description="Rationales for the policies"
@@ -164,18 +218,6 @@ class PolicyModel(BaseModel):
         """Get preferred imports list, safe null-checking."""
         if self.imports and self.imports.prefer:
             return self.imports.prefer
-        return []
-
-    def get_boundary_rules(self) -> list[BoundaryRule]:
-        """Get boundary rules list, safe null-checking."""
-        if self.boundaries and self.boundaries.rules:
-            return self.boundaries.rules
-        return []
-
-    def get_boundary_layers(self) -> list[BoundaryLayer]:
-        """Get boundary layers list, safe null-checking."""
-        if self.boundaries and self.boundaries.layers:
-            return self.boundaries.layers
         return []
 
     def get_python_disallowed_imports(self) -> list[str]:

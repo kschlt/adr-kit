@@ -16,8 +16,6 @@ import re
 
 from .model import (
     ADR,
-    BoundaryPolicy,
-    BoundaryRule,
     ImportPolicy,
     PolicyModel,
     PythonPolicy,
@@ -78,15 +76,15 @@ class PolicyPatternExtractor:
     def extract_from_content(self, content: str) -> PolicyModel:
         """Extract policy from ADR content using pattern matching."""
         imports = self._extract_import_policies(content)
-        boundaries = self._extract_boundary_policies(content)
         python_policies = self._extract_python_policies(content)
         rationales = self._extract_rationales(content)
 
         return PolicyModel(
             imports=imports,
-            boundaries=boundaries,
+            boundaries=None,
             python=python_policies,
             patterns=None,
+            architecture=None,
             rationales=rationales,
         )
 
@@ -122,24 +120,6 @@ class PolicyPatternExtractor:
                 disallow=list(disallow) if disallow else None,
                 prefer=list(prefer) if prefer else None,
             )
-
-        return None
-
-    def _extract_boundary_policies(self, content: str) -> BoundaryPolicy | None:
-        """Extract architectural boundary policies from content."""
-        rules = []
-
-        for pattern in self.boundary_patterns:
-            matches = re.findall(pattern, content)
-            for match in matches:
-                if len(match) == 2:
-                    source, target = match
-                    # Create forbid rule
-                    rule = BoundaryRule(forbid=f"{source} -> {target}")
-                    rules.append(rule)
-
-        if rules:
-            return BoundaryPolicy(layers=None, rules=rules)
 
         return None
 
@@ -221,6 +201,7 @@ class PolicyExtractor:
                 boundaries=structured.boundaries or pattern.boundaries,
                 python=structured.python or pattern.python,
                 patterns=None,
+                architecture=None,
                 rationales=self._merge_lists(structured.rationales, pattern.rationales),
             )
         elif structured:
@@ -234,6 +215,7 @@ class PolicyExtractor:
                 boundaries=None,
                 python=None,
                 patterns=None,
+                architecture=None,
                 rationales=None,
             )
 

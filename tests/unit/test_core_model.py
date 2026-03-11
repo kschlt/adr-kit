@@ -10,9 +10,12 @@ from adr_kit.core.model import (
     ADR,
     ADRFrontMatter,
     ADRStatus,
+    ArchitecturePolicy,
+    LayerBoundaryRule,
     PatternPolicy,
     PatternRule,
     PolicyModel,
+    RequiredStructure,
 )
 
 
@@ -273,3 +276,132 @@ class TestPolicyModelWithPatterns:
         assert policy.patterns is not None
         assert policy.patterns.patterns is not None
         assert "test_rule" in policy.patterns.patterns
+
+
+class TestLayerBoundaryRule:
+    """Test LayerBoundaryRule model."""
+
+    def test_valid_boundary_rule(self):
+        """Test creating a valid layer boundary rule."""
+        rule = LayerBoundaryRule(
+            rule="ui -> database",
+            check="src/ui/**/*.py",
+            action="block",
+            message="UI layer must not directly access database",
+        )
+
+        assert rule.rule == "ui -> database"
+        assert rule.check == "src/ui/**/*.py"
+        assert rule.action == "block"
+        assert rule.message == "UI layer must not directly access database"
+
+    def test_default_action(self):
+        """Test that action defaults to 'block'."""
+        rule = LayerBoundaryRule(rule="frontend -> backend")
+        assert rule.action == "block"
+
+    def test_invalid_action_rejected(self):
+        """Test that invalid action raises validation error."""
+        with pytest.raises(ValidationError, match="Action must be one of"):
+            LayerBoundaryRule(
+                rule="ui -> database",
+                action="forbid",  # Not in allowed values
+            )
+
+    def test_optional_fields(self):
+        """Test that check and message are optional."""
+        rule = LayerBoundaryRule(rule="ui -> database")
+        assert rule.check is None
+        assert rule.message is None
+
+
+class TestRequiredStructure:
+    """Test RequiredStructure model."""
+
+    def test_valid_required_structure(self):
+        """Test creating a valid required structure."""
+        struct = RequiredStructure(
+            path="src/models/*.py",
+            description="Models directory must exist",
+        )
+
+        assert struct.path == "src/models/*.py"
+        assert struct.description == "Models directory must exist"
+
+    def test_optional_description(self):
+        """Test that description is optional."""
+        struct = RequiredStructure(path="src/config/")
+        assert struct.path == "src/config/"
+        assert struct.description is None
+
+
+class TestArchitecturePolicy:
+    """Test ArchitecturePolicy model."""
+
+    def test_architecture_with_boundaries_and_structure(self):
+        """Test creating architecture policy with both boundaries and structure."""
+        policy = ArchitecturePolicy(
+            layer_boundaries=[
+                LayerBoundaryRule(rule="ui -> database", action="block"),
+                LayerBoundaryRule(rule="api -> ui", action="warn"),
+            ],
+            required_structure=[
+                RequiredStructure(path="src/models/"),
+                RequiredStructure(path="src/config/"),
+            ],
+        )
+
+        assert policy.layer_boundaries is not None
+        assert len(policy.layer_boundaries) == 2
+        assert policy.layer_boundaries[0].rule == "ui -> database"
+        assert policy.layer_boundaries[0].action == "block"
+        assert policy.layer_boundaries[1].rule == "api -> ui"
+        assert policy.layer_boundaries[1].action == "warn"
+
+        assert policy.required_structure is not None
+        assert len(policy.required_structure) == 2
+        assert policy.required_structure[0].path == "src/models/"
+
+    def test_architecture_boundaries_only(self):
+        """Test creating architecture policy with only boundaries."""
+        policy = ArchitecturePolicy(
+            layer_boundaries=[LayerBoundaryRule(rule="ui -> database")]
+        )
+
+        assert policy.layer_boundaries is not None
+        assert len(policy.layer_boundaries) == 1
+        assert policy.required_structure is None
+
+    def test_architecture_structure_only(self):
+        """Test creating architecture policy with only required structure."""
+        policy = ArchitecturePolicy(
+            required_structure=[RequiredStructure(path="src/models/")]
+        )
+
+        assert policy.layer_boundaries is None
+        assert policy.required_structure is not None
+        assert len(policy.required_structure) == 1
+
+
+class TestPolicyModelWithArchitecture:
+    """Test PolicyModel with architecture field."""
+
+    def test_policy_model_includes_architecture(self):
+        """Test that PolicyModel can include architecture policies."""
+        policy = PolicyModel(
+            architecture=ArchitecturePolicy(
+                layer_boundaries=[LayerBoundaryRule(rule="ui -> database")],
+                required_structure=[RequiredStructure(path="src/models/")],
+            )
+        )
+
+        assert policy.architecture is not None
+        assert policy.architecture.layer_boundaries is not None
+        assert policy.architecture.required_structure is not None
+
+    def test_policy_model_has_architecture_field(self):
+        """Test that PolicyModel has new architecture field."""
+        # Verify the new architecture field exists (boundaries kept for backward compat)
+        policy = PolicyModel()
+        assert hasattr(policy, "architecture")
+        assert hasattr(policy, "boundaries")  # Deprecated but kept temporarily
