@@ -6,7 +6,14 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from adr_kit.core.model import ADR, ADRFrontMatter, ADRStatus
+from adr_kit.core.model import (
+    ADR,
+    ADRFrontMatter,
+    ADRStatus,
+    PatternPolicy,
+    PatternRule,
+    PolicyModel,
+)
 
 
 class TestADRFrontMatter:
@@ -144,3 +151,125 @@ class TestADR:
         assert adr.id == "ADR-0001"
         assert adr.title == "Test Title"
         assert adr.status == ADRStatus.PROPOSED
+
+
+class TestPatternRule:
+    """Test PatternRule model."""
+
+    def test_valid_pattern_rule_with_regex(self):
+        """Test creating a pattern rule with regex string."""
+        rule = PatternRule(
+            description="All FastAPI handlers must be async",
+            language="python",
+            rule=r"def\s+\w+",
+            severity="error",
+        )
+
+        assert rule.description == "All FastAPI handlers must be async"
+        assert rule.language == "python"
+        assert rule.rule == r"def\s+\w+"
+        assert rule.severity == "error"
+
+    def test_valid_pattern_rule_with_dict(self):
+        """Test creating a pattern rule with structured query dict."""
+        rule = PatternRule(
+            description="No any types allowed",
+            language="typescript",
+            rule={"type": "ast_query", "pattern": "any"},
+            severity="warning",
+        )
+
+        assert rule.description == "No any types allowed"
+        assert isinstance(rule.rule, dict)
+        assert rule.rule["type"] == "ast_query"
+        assert rule.severity == "warning"
+
+    def test_invalid_regex_rejected(self):
+        """Test that invalid regex pattern raises validation error."""
+        with pytest.raises(ValidationError, match="Invalid regex pattern"):
+            PatternRule(
+                description="Test",
+                rule="[invalid(regex",  # Unclosed bracket
+                severity="error",
+            )
+
+    def test_invalid_severity_rejected(self):
+        """Test that invalid severity raises validation error."""
+        with pytest.raises(ValidationError, match="Severity must be one of"):
+            PatternRule(
+                description="Test",
+                rule=r"test",
+                severity="critical",  # Not in allowed values
+            )
+
+    def test_default_severity(self):
+        """Test that severity defaults to 'error'."""
+        rule = PatternRule(
+            description="Test rule",
+            rule=r"test",
+        )
+        assert rule.severity == "error"
+
+    def test_optional_fields(self):
+        """Test that language and autofix are optional."""
+        rule = PatternRule(
+            description="Test rule",
+            rule=r"test",
+        )
+        assert rule.language is None
+        assert rule.autofix is None
+
+
+class TestPatternPolicy:
+    """Test PatternPolicy model."""
+
+    def test_pattern_policy_with_multiple_rules(self):
+        """Test creating pattern policy with multiple named rules."""
+        policy = PatternPolicy(
+            patterns={
+                "async_handlers": PatternRule(
+                    description="All handlers must be async",
+                    rule=r"def\s+\w+",
+                    severity="error",
+                ),
+                "no_print": PatternRule(
+                    description="No print statements",
+                    rule=r"print\(",
+                    severity="warning",
+                ),
+            }
+        )
+
+        assert policy.patterns is not None
+        assert len(policy.patterns) == 2
+        assert "async_handlers" in policy.patterns
+        assert "no_print" in policy.patterns
+        assert policy.patterns["async_handlers"].severity == "error"
+        assert policy.patterns["no_print"].severity == "warning"
+
+    def test_pattern_policy_empty(self):
+        """Test creating empty pattern policy."""
+        policy = PatternPolicy(patterns=None)
+        assert policy.patterns is None
+
+
+class TestPolicyModelWithPatterns:
+    """Test PolicyModel with patterns field."""
+
+    def test_policy_model_includes_patterns(self):
+        """Test that PolicyModel can include pattern policies."""
+        policy = PolicyModel(
+            patterns=PatternPolicy(
+                patterns={
+                    "test_rule": PatternRule(
+                        description="Test",
+                        rule=r"test",
+                        severity="error",
+                    )
+                }
+            )
+        )
+
+        assert policy.patterns is not None
+        assert policy.patterns.patterns is not None
+        assert "test_rule" in policy.patterns.patterns

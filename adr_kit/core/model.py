@@ -68,6 +68,61 @@ class PythonPolicy(BaseModel):
     )
 
 
+class PatternRule(BaseModel):
+    """Single pattern enforcement rule for code patterns.
+
+    Pattern rules define enforceable code patterns (e.g., "all FastAPI handlers
+    must be async"). The rule field supports both regex strings (for POL scope)
+    and structured queries (dict, for future ENF scope).
+    """
+
+    description: str = Field(..., description="Human-readable rule description")
+    language: str | None = Field(
+        None, description="Programming language (python, javascript, typescript, etc.)"
+    )
+    rule: str | dict[str, Any] = Field(
+        ..., description="Pattern rule as regex string or structured query dict"
+    )
+    autofix: bool | None = Field(
+        None, description="Whether autofix is available for this rule"
+    )
+    severity: str = Field(
+        default="error", description="Severity level: error, warning, or info"
+    )
+
+    @field_validator("severity")
+    @classmethod
+    def validate_severity(cls, v: str) -> str:
+        """Ensure severity is one of: error, warning, info."""
+        allowed = {"error", "warning", "info"}
+        if v not in allowed:
+            raise ValueError(f"Severity must be one of {allowed}, got: {v}")
+        return v
+
+    @field_validator("rule")
+    @classmethod
+    def validate_rule(cls, v: str | dict[str, Any]) -> str | dict[str, Any]:
+        """Validate regex pattern if rule is a string."""
+        if isinstance(v, str):
+            try:
+                re.compile(v)
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern: {e}") from e
+        return v
+
+
+class PatternPolicy(BaseModel):
+    """Collection of named pattern enforcement rules.
+
+    Uses dict storage for better conflict resolution and clearer error messages.
+    Keys are rule names (e.g., "async_handlers", "no_any_types").
+    """
+
+    patterns: dict[str, PatternRule] | None = Field(
+        None, description="Named pattern rules as dict"
+    )
+
+
 class PolicyModel(BaseModel):
     """Structured policy model for ADR enforcement.
 
@@ -80,6 +135,9 @@ class PolicyModel(BaseModel):
         None, description="Architectural boundary policies"
     )
     python: PythonPolicy | None = Field(None, description="Python-specific policies")
+    patterns: PatternPolicy | None = Field(
+        None, description="Code pattern enforcement policies"
+    )
     rationales: list[str] | None = Field(
         None, description="Rationales for the policies"
     )
