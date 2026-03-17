@@ -1043,6 +1043,7 @@ class CreationWorkflow(BaseWorkflow):
                     "Adjust the policy dict based on your specific requirements",
                     "Call adr_create() again with the policy parameter",
                 ],
+                "policy_reference": self._build_policy_reference(),
             }
         else:
             # No enforceable policies detected
@@ -1061,3 +1062,101 @@ class CreationWorkflow(BaseWorkflow):
                 ],
                 "suggestion": None,
             }
+
+    def _build_policy_reference(self) -> dict[str, Any]:
+        """Build comprehensive policy structure reference documentation.
+
+        This reference is provided just-in-time when agents need to construct
+        structured policies, avoiding context bloat in MCP tool docstrings.
+        """
+        return {
+            "imports": {
+                "description": "Import/library restrictions",
+                "fields": {
+                    "disallow": "List of banned libraries/modules",
+                    "prefer": "List of recommended alternatives",
+                },
+                "example": {"disallow": ["flask", "django"], "prefer": ["fastapi"]},
+            },
+            "patterns": {
+                "description": "Code pattern enforcement rules",
+                "fields": {
+                    "patterns": "Dict of named pattern rules, each containing:",
+                    "  description": "Human-readable description",
+                    "  language": "Target language (python, typescript, etc.)",
+                    "  rule": "Regex pattern or structured query",
+                    "  severity": "error | warning | info",
+                    "  autofix": "Optional boolean for auto-fix support",
+                },
+                "example": {
+                    "patterns": {
+                        "async_handlers": {
+                            "description": "All FastAPI handlers must be async",
+                            "language": "python",
+                            "rule": r"def\s+\w+",
+                            "severity": "error",
+                            "autofix": False,
+                        }
+                    }
+                },
+            },
+            "architecture": {
+                "description": "Architecture policies (boundaries + required structure)",
+                "fields": {
+                    "layer_boundaries": "List of forbidden dependencies",
+                    "  rule": "Format: 'source -> target' (e.g., 'frontend -> database')",
+                    "  action": "block | warn",
+                    "  message": "Error message to display",
+                    "  check": "Optional path pattern to scope the rule",
+                    "required_structure": "List of required files/directories",
+                    "  path": "File or directory path (glob patterns supported)",
+                    "  description": "Why this structure is required",
+                },
+                "example": {
+                    "layer_boundaries": [
+                        {
+                            "rule": "frontend -> database",
+                            "action": "block",
+                            "message": "Frontend must not access database directly",
+                            "check": "src/frontend/**/*.py",
+                        }
+                    ],
+                    "required_structure": [
+                        {
+                            "path": "src/models/*.py",
+                            "description": "Model layer required",
+                        }
+                    ],
+                },
+            },
+            "config_enforcement": {
+                "description": "Configuration enforcement for TypeScript/Python tools",
+                "fields": {
+                    "typescript": "TypeScript config requirements",
+                    "  tsconfig": "Required tsconfig.json settings",
+                    "  eslintConfig": "Required ESLint config",
+                    "python": "Python config requirements",
+                    "  ruff": "Required Ruff settings",
+                    "  mypy": "Required mypy settings",
+                },
+                "example": {
+                    "typescript": {
+                        "tsconfig": {
+                            "strict": True,
+                            "compilerOptions": {"noImplicitAny": True},
+                        }
+                    },
+                    "python": {
+                        "ruff": {"lint": {"select": ["I"]}},
+                        "mypy": {"strict": True},
+                    },
+                },
+            },
+            "rationales": {
+                "description": "List of reasons for the policies",
+                "example": [
+                    "FastAPI provides native async support",
+                    "Better performance for I/O operations",
+                ],
+            },
+        }

@@ -141,164 +141,25 @@ def adr_preflight(request: PreflightCheckRequest) -> dict[str, Any]:
 @mcp.tool()
 def adr_create(request: CreateADRRequest) -> dict[str, Any]:
     """
-    Create a new architectural decision record with optional policy enforcement.
+    Create new ADR with optional policy enforcement.
 
     WHEN TO USE: Document significant technical decisions.
-    RETURNS: Created ADR details in 'proposed' status + policy generation guidance.
+    RETURNS: ADR details + policy_guidance (if policies detected in content).
 
-    ## Policy Generation Workflow (Ping-Pong Pattern)
+    Parameters:
+    - title, context, decision, consequences: Required ADR content
+    - policy (optional): Structured policy dict for enforcement
 
-    ADR Kit uses a **ping-pong workflow** for policy generation:
+    If no policy provided, response includes policy_guidance with:
+    - suggestion: Auto-detected policy structure from decision text
+    - policy_reference: Complete documentation for all policy types
+    - example_usage: Code example with your ADR + suggested policy
 
-    1. **First call (without policy)**: Analyze decision content
-       → Returns: ADR created + `policy_guidance` with suggestions
-
-    2. **Agent constructs policy**: Use suggestions to build structured policy dict
-
-    3. **Second call (with policy)**: Create final ADR with validated policy
-       → Returns: ADR created with enforceable structured policy
-
-    ## Policy Structure Reference
-
-    Full policy structure with all supported types:
-
-    ```python
-    policy = {
-      # Import/library restrictions
-      "imports": {
-        "disallow": ["flask", "django"],      # Banned libraries
-        "prefer": ["fastapi"]                 # Recommended alternatives
-      },
-
-      # Code pattern enforcement
-      "patterns": {
-        "patterns": {
-          "async_handlers": {
-            "description": "All FastAPI handlers must be async",
-            "language": "python",
-            "rule": "def\\s+\\w+",            # Regex or structured query
-            "severity": "error",               # error | warning | info
-            "autofix": false                   # Optional
-          }
-        }
-      },
-
-      # Architecture policies (boundaries + required structure)
-      "architecture": {
-        "layer_boundaries": [
-          {
-            "rule": "frontend -> database",   # Forbidden dependency
-            "action": "block",                 # block | warn
-            "message": "Frontend must not access database directly",
-            "check": "src/frontend/**/*.py"    # Optional path pattern
-          }
-        ],
-        "required_structure": [
-          {
-            "path": "src/models/*.py",        # Required file/directory
-            "description": "Model layer required"
-          }
-        ]
-      },
-
-      # Config enforcement (TypeScript/Python tools)
-      "config_enforcement": {
-        "typescript": {
-          "tsconfig": {
-            "strict": true,
-            "compilerOptions": {"noImplicitAny": true}
-          }
-        },
-        "python": {
-          "ruff": {"lint": {"select": ["I"]}},
-          "mypy": {"strict": true}
-        }
-      },
-
-      # Rationales for policies
-      "rationales": [
-        "FastAPI provides native async support",
-        "Better performance for I/O operations"
-      ]
-    }
-    ```
-
-    ## Quick Examples
-
-    ### Example 1: Import Policy
-    ```python
-    adr_create(
-      title="Use FastAPI for backend",
-      decision="Use FastAPI instead of Flask for better async support",
-      policy={
-        "imports": {
-          "disallow": ["flask", "django"],
-          "prefer": ["fastapi"]
-        },
-        "rationales": ["Native async support", "Better performance"]
-      }
-    )
-    ```
-
-    ### Example 2: Pattern + Architecture Policy
-    ```python
-    adr_create(
-      title="Async handlers and layer boundaries",
-      decision="All API handlers must be async. Frontend must not access DB directly.",
-      policy={
-        "patterns": {
-          "patterns": {
-            "async_handlers": {
-              "description": "All handlers must be async",
-              "language": "python",
-              "rule": "async\\s+def\\s+\\w+",
-              "severity": "error"
-            }
-          }
-        },
-        "architecture": {
-          "layer_boundaries": [
-            {"rule": "frontend -> database", "action": "block"}
-          ]
-        }
-      }
-    )
-    ```
-
-    ### Example 3: Config Enforcement
-    ```python
-    adr_create(
-      title="TypeScript strict mode required",
-      decision="Enable TypeScript strict mode for all projects",
-      policy={
-        "config_enforcement": {
-          "typescript": {
-            "tsconfig": {"strict": true}
-          }
-        }
-      }
-    )
-    ```
-
-    ## Pattern-Matching Fallback
-
-    If you don't provide structured policy, use pattern-friendly language:
-    - Import restrictions: "Don't use X", "Prefer Y over X", "X is deprecated"
-    - Code patterns: "All X must be Y", "X must have Y", "No X allowed"
-    - Architecture: "X must not access Y", "Required: path/to/file"
-    - Config: "TypeScript strict mode required", "Ruff must check imports"
-
-    ADR Kit will analyze your text and return `policy_guidance` with suggestions.
-
-    ## Policy Guidance Response
-
-    When you create an ADR without a policy, the response includes:
-    - `policy_guidance.suggestion`: Auto-detected policy structure
-    - `policy_guidance.suggestion_json`: Formatted JSON for easy copy-paste
-    - `policy_guidance.guidance`: Step-by-step instructions
-    - `policy_guidance.example_usage`: Full example with your ADR + policy
-
-    Use this guidance to construct the policy dict and call `adr_create()` again.
+    Use pattern-friendly language for auto-detection:
+    - "Don't use X" / "Prefer Y over X" → import policies
+    - "All X must be Y" → pattern policies
+    - "X must not access Y" → architecture boundaries
+    - "TypeScript strict mode required" → config enforcement
     """
     try:
         logger.info(f"Creating ADR: {request.title}")
