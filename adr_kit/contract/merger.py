@@ -8,7 +8,15 @@ that newer decisions override older ones appropriately.
 from dataclasses import dataclass
 from datetime import datetime
 
-from ..core.model import ADR, BoundaryPolicy, ImportPolicy, PythonPolicy
+from ..core.model import (
+    ADR,
+    ArchitecturePolicy,
+    ConfigEnforcementPolicy,
+    ImportPolicy,
+    PatternPolicy,
+    PatternRule,
+    PythonPolicy,
+)
 from .models import MergedConstraints, PolicyProvenance
 
 
@@ -61,8 +69,12 @@ class PolicyMerger:
         # Merge policies in order (later ADRs can override earlier ones)
         # Explicit None values for mypy - Pydantic fields are optional
         merged_imports = ImportPolicy(disallow=None, prefer=None)
-        merged_boundaries = BoundaryPolicy(layers=None, rules=None)
         merged_python = PythonPolicy(disallow_imports=None)
+        merged_patterns: dict[str, PatternRule] = {}
+        merged_architecture = ArchitecturePolicy(
+            layer_boundaries=None, required_structure=None
+        )
+        merged_config = ConfigEnforcementPolicy(typescript=None, python=None)
         provenance = {}
 
         for adr in sorted_adrs:
@@ -83,23 +95,41 @@ class PolicyMerger:
                 )
                 provenance.update(import_provenance)
 
-            # Merge boundary policies
-            if policy.boundaries:
-                merged_boundaries, boundary_provenance = self._merge_boundary_policy(
-                    merged_boundaries,
-                    policy.boundaries,
-                    adr_id,
-                    adr_title,
-                    effective_date,
-                )
-                provenance.update(boundary_provenance)
-
             # Merge Python policies
             if policy.python:
                 merged_python, python_provenance = self._merge_python_policy(
                     merged_python, policy.python, adr_id, adr_title, effective_date
                 )
                 provenance.update(python_provenance)
+
+            # Merge pattern policies
+            if policy.patterns:
+                merged_patterns, pattern_provenance = self._merge_pattern_policy(
+                    merged_patterns, policy.patterns, adr_id, adr_title, effective_date
+                )
+                provenance.update(pattern_provenance)
+
+            # Merge architecture policies
+            if policy.architecture:
+                merged_architecture, arch_provenance = self._merge_architecture_policy(
+                    merged_architecture,
+                    policy.architecture,
+                    adr_id,
+                    adr_title,
+                    effective_date,
+                )
+                provenance.update(arch_provenance)
+
+            # Merge config enforcement policies
+            if policy.config_enforcement:
+                merged_config, config_provenance = self._merge_config_policy(
+                    merged_config,
+                    policy.config_enforcement,
+                    adr_id,
+                    adr_title,
+                    effective_date,
+                )
+                provenance.update(config_provenance)
 
         # Create final constraints
         constraints = MergedConstraints(
@@ -108,12 +138,29 @@ class PolicyMerger:
                 if (merged_imports.disallow or merged_imports.prefer)
                 else None
             ),
-            boundaries=(
-                merged_boundaries
-                if (merged_boundaries.layers or merged_boundaries.rules)
+            python=merged_python if merged_python.disallow_imports else None,
+            patterns=(
+                PatternPolicy(patterns=merged_patterns) if merged_patterns else None
+            ),
+            architecture=(
+                merged_architecture
+                if (
+                    merged_architecture.layer_boundaries
+                    or merged_architecture.required_structure
+                )
                 else None
             ),
-            python=merged_python if merged_python.disallow_imports else None,
+            config_enforcement=(
+                merged_config
+                if (
+                    (merged_config.typescript and merged_config.typescript.tsconfig)
+                    or (
+                        merged_config.python
+                        and (merged_config.python.ruff or merged_config.python.mypy)
+                    )
+                )
+                else None
+            ),
         )
 
         return MergeResult(
@@ -211,52 +258,6 @@ class PolicyMerger:
             provenance,
         )
 
-    def _merge_boundary_policy(
-        self,
-        existing: BoundaryPolicy,
-        new: BoundaryPolicy,
-        adr_id: str,
-        adr_title: str,
-        effective_date: datetime,
-    ) -> tuple[BoundaryPolicy, dict[str, PolicyProvenance]]:
-        """Merge boundary policies (for now, just combine them)."""
-        provenance = {}
-
-        # Combine layers (later ADRs can override)
-        merged_layers = list(existing.layers or [])
-        if new.layers:
-            # Simple append for now - TODO: implement proper merging with conflict detection
-            merged_layers.extend(new.layers)
-
-            for _i, layer in enumerate(new.layers):
-                provenance[f"boundaries.layers.{layer.name}"] = PolicyProvenance(
-                    adr_id=adr_id,
-                    adr_title=adr_title,
-                    rule_path=f"boundaries.layers.{layer.name}",
-                    effective_date=effective_date,
-                )
-
-        # Combine rules
-        merged_rules = list(existing.rules or [])
-        if new.rules:
-            merged_rules.extend(new.rules)
-
-            for _i, rule in enumerate(new.rules):
-                provenance[f"boundaries.rules.{rule.forbid}"] = PolicyProvenance(
-                    adr_id=adr_id,
-                    adr_title=adr_title,
-                    rule_path=f"boundaries.rules.{rule.forbid}",
-                    effective_date=effective_date,
-                )
-
-        return (
-            BoundaryPolicy(
-                layers=merged_layers if merged_layers else None,
-                rules=merged_rules if merged_rules else None,
-            ),
-            provenance,
-        )
-
     def _merge_python_policy(
         self,
         existing: PythonPolicy,
@@ -285,5 +286,151 @@ class PolicyMerger:
             PythonPolicy(
                 disallow_imports=list(merged_disallow) if merged_disallow else None
             ),
+            provenance,
+        )
+
+    def _merge_pattern_policy(
+        self,
+        existing: dict[str, PatternRule],
+        new: PatternPolicy,
+        adr_id: str,
+        adr_title: str,
+        effective_date: datetime,
+    ) -> tuple[dict[str, PatternRule], dict[str, PolicyProvenance]]:
+        """Merge pattern policies with last-write-wins strategy."""
+        provenance = {}
+
+        # Copy existing patterns
+        merged_patterns = existing.copy()
+
+        # Add/override with new patterns (last write wins)
+        if new.patterns:
+            for rule_name, rule in new.patterns.items():
+                merged_patterns[rule_name] = rule
+                provenance[f"patterns.{rule_name}"] = PolicyProvenance(
+                    adr_id=adr_id,
+                    adr_title=adr_title,
+                    rule_path=f"patterns.{rule_name}",
+                    effective_date=effective_date,
+                )
+
+        return merged_patterns, provenance
+
+    def _merge_architecture_policy(
+        self,
+        existing: ArchitecturePolicy,
+        new: ArchitecturePolicy,
+        adr_id: str,
+        adr_title: str,
+        effective_date: datetime,
+    ) -> tuple[ArchitecturePolicy, dict[str, PolicyProvenance]]:
+        """Merge architecture policies with concatenation and conflict detection."""
+        provenance = {}
+
+        # Concatenate layer boundaries
+        merged_boundaries = list(existing.layer_boundaries or [])
+        if new.layer_boundaries:
+            for boundary in new.layer_boundaries:
+                merged_boundaries.append(boundary)
+                provenance[f"architecture.boundaries.{boundary.rule}"] = (
+                    PolicyProvenance(
+                        adr_id=adr_id,
+                        adr_title=adr_title,
+                        rule_path=f"architecture.boundaries.{boundary.rule}",
+                        effective_date=effective_date,
+                    )
+                )
+
+        # Concatenate required structures
+        merged_structures = list(existing.required_structure or [])
+        if new.required_structure:
+            for structure in new.required_structure:
+                merged_structures.append(structure)
+                provenance[f"architecture.structure.{structure.path}"] = (
+                    PolicyProvenance(
+                        adr_id=adr_id,
+                        adr_title=adr_title,
+                        rule_path=f"architecture.structure.{structure.path}",
+                        effective_date=effective_date,
+                    )
+                )
+
+        return (
+            ArchitecturePolicy(
+                layer_boundaries=merged_boundaries if merged_boundaries else None,
+                required_structure=merged_structures if merged_structures else None,
+            ),
+            provenance,
+        )
+
+    def _merge_config_policy(
+        self,
+        existing: ConfigEnforcementPolicy,
+        new: ConfigEnforcementPolicy,
+        adr_id: str,
+        adr_title: str,
+        effective_date: datetime,
+    ) -> tuple[ConfigEnforcementPolicy, dict[str, PolicyProvenance]]:
+        """Merge config enforcement policies with union and conflict detection."""
+        from typing import Any
+
+        provenance = {}
+
+        # Merge TypeScript config
+        merged_ts_config: dict[str, Any] = {}
+        if existing.typescript and existing.typescript.tsconfig:
+            merged_ts_config.update(existing.typescript.tsconfig)
+        if new.typescript and new.typescript.tsconfig:
+            merged_ts_config.update(new.typescript.tsconfig)
+            provenance["config.typescript"] = PolicyProvenance(
+                adr_id=adr_id,
+                adr_title=adr_title,
+                rule_path="config.typescript",
+                effective_date=effective_date,
+            )
+
+        # Merge Python config
+        merged_py_ruff: dict[str, Any] = {}
+        merged_py_mypy: dict[str, Any] = {}
+
+        if existing.python:
+            if existing.python.ruff:
+                merged_py_ruff.update(existing.python.ruff)
+            if existing.python.mypy:
+                merged_py_mypy.update(existing.python.mypy)
+
+        if new.python:
+            if new.python.ruff:
+                merged_py_ruff.update(new.python.ruff)
+                provenance["config.python.ruff"] = PolicyProvenance(
+                    adr_id=adr_id,
+                    adr_title=adr_title,
+                    rule_path="config.python.ruff",
+                    effective_date=effective_date,
+                )
+            if new.python.mypy:
+                merged_py_mypy.update(new.python.mypy)
+                provenance["config.python.mypy"] = PolicyProvenance(
+                    adr_id=adr_id,
+                    adr_title=adr_title,
+                    rule_path="config.python.mypy",
+                    effective_date=effective_date,
+                )
+
+        # Create merged config models
+        from ..core.model import PythonConfig, TypeScriptConfig
+
+        ts_config = (
+            TypeScriptConfig(tsconfig=merged_ts_config) if merged_ts_config else None
+        )
+        py_config = None
+        if merged_py_ruff or merged_py_mypy:
+            py_config = PythonConfig(
+                ruff=merged_py_ruff if merged_py_ruff else None,
+                mypy=merged_py_mypy if merged_py_mypy else None,
+            )
+
+        return (
+            ConfigEnforcementPolicy(typescript=ts_config, python=py_config),
             provenance,
         )

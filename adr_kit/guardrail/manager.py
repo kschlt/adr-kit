@@ -355,8 +355,9 @@ forbidden_modules = ["{rule.forbid}"]"""
                     0 + len(contract.constraints.imports.prefer or [])
                     if contract.constraints.imports
                     else (
-                        0 + len(contract.constraints.boundaries.rules or [])
-                        if contract.constraints.boundaries
+                        0
+                        + len(contract.constraints.architecture.layer_boundaries or [])
+                        if contract.constraints.architecture
                         else (
                             0 + len(contract.constraints.python.disallow_imports or [])
                             if contract.constraints.python

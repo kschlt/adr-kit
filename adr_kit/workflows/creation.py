@@ -752,7 +752,7 @@ class CreationWorkflow(BaseWorkflow):
         config_policy = {}
 
         # TypeScript config patterns
-        ts_patterns = {
+        ts_patterns: dict[str, dict[str, Any]] = {
             r"(?i)typescript.*strict\s+mode": {"tsconfig": {"strict": True}},
             r"(?i)tsconfig.*strict.*true": {"tsconfig": {"strict": True}},
             r"(?i)enable.*noImplicitAny": {
@@ -760,7 +760,7 @@ class CreationWorkflow(BaseWorkflow):
             },
         }
 
-        typescript_config = {}
+        typescript_config: dict[str, Any] = {}
         for pattern, config in ts_patterns.items():
             if re.search(pattern, full_text):
                 typescript_config.update(config)
@@ -769,12 +769,12 @@ class CreationWorkflow(BaseWorkflow):
             config_policy["typescript"] = typescript_config
 
         # Python config patterns
-        py_patterns = {
+        py_patterns: dict[str, dict[str, Any]] = {
             r"(?i)ruff.*check.*imports": {"ruff": {"lint": {"select": ["I"]}}},
             r"(?i)mypy.*strict": {"mypy": {"strict": True}},
         }
 
-        python_config = {}
+        python_config: dict[str, Any] = {}
         for pattern, config in py_patterns.items():
             if re.search(pattern, full_text):
                 python_config.update(config)

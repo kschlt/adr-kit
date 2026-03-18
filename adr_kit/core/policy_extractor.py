@@ -201,9 +201,10 @@ class PolicyExtractor:
                 imports=structured.imports or pattern.imports,
                 boundaries=structured.boundaries or pattern.boundaries,
                 python=structured.python or pattern.python,
-                patterns=None,
-                architecture=None,
-                config_enforcement=None,
+                patterns=structured.patterns or pattern.patterns,
+                architecture=structured.architecture or pattern.architecture,
+                config_enforcement=structured.config_enforcement
+                or pattern.config_enforcement,
                 rationales=self._merge_lists(structured.rationales, pattern.rationales),
             )
         elif structured:
@@ -246,6 +247,30 @@ class PolicyExtractor:
                 and bool(policy.boundaries.layers or policy.boundaries.rules)
             )
             or (policy.python and bool(policy.python.disallow_imports))
+            or (policy.patterns and bool(policy.patterns.patterns))
+            or (
+                policy.architecture
+                and bool(
+                    policy.architecture.layer_boundaries
+                    or policy.architecture.required_structure
+                )
+            )
+            or (
+                policy.config_enforcement
+                and bool(
+                    (
+                        policy.config_enforcement.typescript
+                        and policy.config_enforcement.typescript.tsconfig
+                    )
+                    or (
+                        policy.config_enforcement.python
+                        and (
+                            policy.config_enforcement.python.ruff
+                            or policy.config_enforcement.python.mypy
+                        )
+                    )
+                )
+            )
             # Note: rationales alone don't count - we need actual constraints
         )
 

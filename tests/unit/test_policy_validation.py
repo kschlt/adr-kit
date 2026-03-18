@@ -228,6 +228,186 @@ Provides good performance.
             assert result.data["creation_result"].adr_id is not None
             assert Path(result.data["creation_result"].file_path).exists()
 
+    def test_policy_extractor_with_pattern_policy(self):
+        """PolicyExtractor should extract pattern policies from front-matter."""
+        from datetime import date
+
+        front_matter = ADRFrontMatter(
+            id="ADR-0001",
+            title="Test Pattern Policy",
+            status=ADRStatus.PROPOSED,
+            date=date.today(),
+            policy={
+                "patterns": {
+                    "patterns": {
+                        "async_handlers": {
+                            "description": "All FastAPI handlers must be async",
+                            "rule": "def\\s+\\w+",
+                            "severity": "error",
+                        }
+                    }
+                }
+            },
+        )
+
+        adr = ADR(front_matter=front_matter, content="Test content")
+
+        extractor = PolicyExtractor()
+        assert extractor.has_extractable_policy(adr) is True
+
+        policy = extractor.extract_policy(adr)
+        assert policy.patterns is not None
+        assert policy.patterns.patterns is not None
+        assert "async_handlers" in policy.patterns.patterns
+        assert (
+            policy.patterns.patterns["async_handlers"].description
+            == "All FastAPI handlers must be async"
+        )
+
+    def test_policy_extractor_with_architecture_policy(self):
+        """PolicyExtractor should extract architecture policies from front-matter."""
+        from datetime import date
+
+        front_matter = ADRFrontMatter(
+            id="ADR-0001",
+            title="Test Architecture Policy",
+            status=ADRStatus.PROPOSED,
+            date=date.today(),
+            policy={
+                "architecture": {
+                    "layer_boundaries": [
+                        {
+                            "rule": "ui -> database",
+                            "action": "block",
+                        }
+                    ],
+                    "required_structure": [
+                        {
+                            "path": "src/api",
+                            "type": "directory",
+                            "reason": "All API code must be in src/api",
+                        }
+                    ],
+                }
+            },
+        )
+
+        adr = ADR(front_matter=front_matter, content="Test content")
+
+        extractor = PolicyExtractor()
+        assert extractor.has_extractable_policy(adr) is True
+
+        policy = extractor.extract_policy(adr)
+        assert policy.architecture is not None
+        assert policy.architecture.layer_boundaries is not None
+        assert len(policy.architecture.layer_boundaries) == 1
+        assert policy.architecture.layer_boundaries[0].rule == "ui -> database"
+        assert policy.architecture.required_structure is not None
+        assert len(policy.architecture.required_structure) == 1
+        assert policy.architecture.required_structure[0].path == "src/api"
+
+    def test_policy_extractor_with_config_enforcement_policy(self):
+        """PolicyExtractor should extract config enforcement policies from front-matter."""
+        from datetime import date
+
+        front_matter = ADRFrontMatter(
+            id="ADR-0001",
+            title="Test Config Enforcement Policy",
+            status=ADRStatus.PROPOSED,
+            date=date.today(),
+            policy={
+                "config_enforcement": {
+                    "typescript": {
+                        "tsconfig": {
+                            "compilerOptions": {
+                                "strict": True,
+                                "noImplicitAny": True,
+                            }
+                        }
+                    },
+                    "python": {
+                        "ruff": {
+                            "select": ["E", "F"],
+                        },
+                        "mypy": {
+                            "strict": True,
+                        },
+                    },
+                }
+            },
+        )
+
+        adr = ADR(front_matter=front_matter, content="Test content")
+
+        extractor = PolicyExtractor()
+        assert extractor.has_extractable_policy(adr) is True
+
+        policy = extractor.extract_policy(adr)
+        assert policy.config_enforcement is not None
+        assert policy.config_enforcement.typescript is not None
+        assert policy.config_enforcement.typescript.tsconfig is not None
+        assert (
+            policy.config_enforcement.typescript.tsconfig["compilerOptions"]["strict"]
+            is True
+        )
+        assert policy.config_enforcement.python is not None
+        assert policy.config_enforcement.python.ruff is not None
+        assert policy.config_enforcement.python.mypy is not None
+
+    def test_has_extractable_policy_with_new_types(self):
+        """has_extractable_policy should return True for new policy types."""
+        from datetime import date
+
+        # Test with pattern policy only
+        front_matter_patterns = ADRFrontMatter(
+            id="ADR-0001",
+            title="Test",
+            status=ADRStatus.PROPOSED,
+            date=date.today(),
+            policy={
+                "patterns": {
+                    "patterns": {
+                        "rule1": {
+                            "description": "Test",
+                            "rule": ".*",
+                            "severity": "error",
+                        }
+                    }
+                }
+            },
+        )
+        adr_patterns = ADR(front_matter=front_matter_patterns, content="Test")
+        extractor = PolicyExtractor()
+        assert extractor.has_extractable_policy(adr_patterns) is True
+
+        # Test with architecture policy only
+        front_matter_arch = ADRFrontMatter(
+            id="ADR-0002",
+            title="Test",
+            status=ADRStatus.PROPOSED,
+            date=date.today(),
+            policy={
+                "architecture": {
+                    "layer_boundaries": [{"rule": "ui -> db", "action": "block"}]
+                }
+            },
+        )
+        adr_arch = ADR(front_matter=front_matter_arch, content="Test")
+        assert extractor.has_extractable_policy(adr_arch) is True
+
+        # Test with config enforcement policy only
+        front_matter_config = ADRFrontMatter(
+            id="ADR-0003",
+            title="Test",
+            status=ADRStatus.PROPOSED,
+            date=date.today(),
+            policy={
+                "config_enforcement": {"typescript": {"tsconfig": {"strict": True}}}
+            },
+        )
+        adr_config = ADR(front_matter=front_matter_config, content="Test")
+        assert extractor.has_extractable_policy(adr_config) is True
+
 
 class TestPolicySuggestion:
     """Test policy suggestion helper method."""
