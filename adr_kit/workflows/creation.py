@@ -117,10 +117,16 @@ class CreationWorkflow(BaseWorkflow):
                 review_required=review_required,
             )
 
+            # Generate policy suggestions if no policy was provided
+            policy_guidance = self._generate_policy_guidance(adr, input_data)
+
             self._complete_workflow(
                 success=True, message=f"ADR {adr_id} created successfully"
             )
-            self.result.data = {"creation_result": result}
+            self.result.data = {
+                "creation_result": result,
+                "policy_guidance": policy_guidance,  # New: return policy guidance to agent
+            }
             self.result.guidance = next_steps
             self.result.next_steps = self._generate_next_steps_list(
                 adr_id, conflicts, review_required
@@ -493,73 +499,337 @@ class CreationWorkflow(BaseWorkflow):
 
         # Check if policy is extractable
         if not extractor.has_extractable_policy(adr):
-            warnings.append(
-                "No structured policy provided and no pattern-matching language "
-                "detected in content. Constraint extraction may not work. "
-                "Consider adding a 'policy' block or using phrases like "
-                "'Don't use X' in your decision text."
+            # Analyze decision and alternatives to suggest policy
+            alternatives_text = creation_input.alternatives or ""
+            suggested = self._suggest_policy_from_alternatives(
+                creation_input.decision, alternatives_text
             )
 
-            # Suggest policy based on alternatives mentioned
-            if creation_input.alternatives:
-                suggested = self._suggest_policy_from_alternatives(
-                    creation_input.decision, creation_input.alternatives
-                )
-                if suggested:
-                    import json
+            if suggested:
+                # Policy could be auto-generated from content
+                import json
 
-                    warnings.append(
-                        f"Suggested policy structure: {json.dumps(suggested, indent=2)}"
-                    )
+                warnings.append(
+                    "⚠️  No structured policy provided, but enforceable policies detected in content."
+                )
+                warnings.append(
+                    f"📋 Suggested policy structure:\n{json.dumps(suggested, indent=2)}"
+                )
+                warnings.append(
+                    "💡 To enable automatic enforcement, include a 'policy' block with this structure when creating the ADR."
+                )
+            else:
+                # No detectable policy at all
+                warnings.append(
+                    "⚠️  No structured policy provided and no enforceable policies detected in content."
+                )
+                warnings.append(
+                    "📖 Use pattern-friendly language to enable constraint extraction:\n"
+                    "   • Import restrictions: 'Don't use X', 'Prefer Y over X'\n"
+                    "   • Code patterns: 'All X must be Y', 'X must have Y'\n"
+                    "   • Architecture: 'X must not access Y', 'Required: path/to/file'\n"
+                    "   • Config: 'TypeScript strict mode required', 'Ruff must check imports'"
+                )
+                warnings.append(
+                    "💡 Or include a structured 'policy' block for guaranteed enforcement."
+                )
 
         return warnings
 
     def _suggest_policy_from_alternatives(
         self, decision: str, alternatives: str
     ) -> dict[str, Any] | None:
-        """Suggest policy structure based on decision and alternatives text."""
+        """Suggest policy structure based on decision and alternatives text.
+
+        This is a comprehensive policy suggestion engine that analyzes the
+        decision and alternatives to detect enforceable policies across all
+        policy types: imports, patterns, architecture, and config enforcement.
+        """
+        # Combine decision and alternatives for comprehensive analysis
+        full_text = f"{decision}\n\n{alternatives}"
+
         suggested_policy: dict[str, Any] = {}
 
-        # Extract "rejected" items from alternatives (more specific patterns)
-        # Pattern 1: ### Technology Name\n- Rejected
-        heading_matches = re.findall(
-            r"(?i)###\s+([a-zA-Z0-9\-_@/. ]+?)\n\s*-\s*Reject(?:ed)?", alternatives
-        )
+        # 1. Extract Import Policies
+        import_policy = self._suggest_import_policies(full_text, decision)
+        if import_policy:
+            suggested_policy["imports"] = import_policy
 
-        # Pattern 2: "Rejected: Technology" or bullet points
-        rejected_matches = re.findall(
-            r"(?i)Reject(?:ed)?[:\s]+([a-zA-Z0-9\-_@/]+)", alternatives
-        )
+        # 2. Extract Pattern Policies
+        pattern_policy = self._suggest_pattern_policies(full_text)
+        if pattern_policy:
+            suggested_policy["patterns"] = pattern_policy
 
-        # Combine and clean
-        rejected_items = []
-        for match in heading_matches + rejected_matches:
-            # Take only the first word (technology name) - conservative approach
-            first_word = match.strip().split()[0] if match.strip().split() else ""
-            if first_word and len(first_word) > 2:
-                # Keep only if it looks like a technology name (has letters and possibly numbers/dashes)
-                if re.match(r"^[A-Za-z][A-Za-z0-9\-_.]*$", first_word):
-                    rejected_items.append(first_word)
+        # 3. Extract Architecture Policies
+        architecture_policy = self._suggest_architecture_policies(full_text)
+        if architecture_policy:
+            suggested_policy["architecture"] = architecture_policy
 
-        # Extract chosen technology from decision
-        chosen_items = []
-        use_matches = re.findall(r"(?i)Use\s+([a-zA-Z0-9\-_@/]+)", decision)
-        chosen_items.extend(use_matches)
+        # 4. Extract Config Enforcement Policies
+        config_policy = self._suggest_config_policies(full_text)
+        if config_policy:
+            suggested_policy["config_enforcement"] = config_policy
 
-        if rejected_items or chosen_items:
-            suggested_policy["imports"] = {}
-
-            if rejected_items:
-                # Remove duplicates, keep lowercase-normalized unique items
-                unique_rejected = list(
-                    {item.lower(): item for item in rejected_items}.values()
-                )
-                suggested_policy["imports"]["disallow"] = unique_rejected
-
-            if chosen_items:
-                suggested_policy["imports"]["prefer"] = [chosen_items[0]]
+        # 5. Extract Rationales
+        rationales = self._suggest_rationales(full_text)
+        if rationales:
+            suggested_policy["rationales"] = rationales
 
         return suggested_policy if suggested_policy else None
+
+    def _suggest_import_policies(
+        self, full_text: str, decision: str
+    ) -> dict[str, Any] | None:
+        """Suggest import/library policies from text."""
+        disallow = set()
+        prefer = set()
+
+        # Pattern 1: "Don't use X", "Avoid X", "Ban X", "X is deprecated"
+        ban_patterns = [
+            r"(?i)(?:don't\s+use|avoid|ban|deprecated?)\s+([a-zA-Z0-9\-_@/.]+)",
+            r"(?i)no\s+longer\s+use\s+([a-zA-Z0-9\-_@/.]+)",
+            r"(?i)([a-zA-Z0-9\-_@/.]+)\s+is\s+deprecated",
+        ]
+
+        for pattern in ban_patterns:
+            matches = re.findall(pattern, full_text)
+            for match in matches:
+                normalized = self._normalize_library_name(match)
+                if normalized:
+                    disallow.add(normalized)
+
+        # Pattern 2: "Use Y instead of X", "Prefer Y over X", "Replace X with Y"
+        preference_patterns = [
+            r"(?i)use\s+([a-zA-Z0-9\-_@/.]+)\s+instead\s+of\s+([a-zA-Z0-9\-_@/.]+)",
+            r"(?i)prefer\s+([a-zA-Z0-9\-_@/.]+)\s+over\s+([a-zA-Z0-9\-_@/.]+)",
+            r"(?i)replace\s+([a-zA-Z0-9\-_@/.]+)\s+with\s+([a-zA-Z0-9\-_@/.]+)",
+        ]
+
+        for pattern in preference_patterns:
+            matches = re.findall(pattern, full_text)
+            for match in matches:
+                if len(match) == 2:  # (preferred, deprecated)
+                    preferred, deprecated = match
+                    preferred_norm = self._normalize_library_name(preferred)
+                    deprecated_norm = self._normalize_library_name(deprecated)
+                    if preferred_norm:
+                        prefer.add(preferred_norm)
+                    if deprecated_norm:
+                        disallow.add(deprecated_norm)
+
+        # Pattern 3: Extract from alternatives section
+        # "### Technology Name\n- Rejected"
+        heading_matches = re.findall(
+            r"(?i)###\s+([a-zA-Z0-9\-_@/. ]+?)\n\s*-\s*Reject(?:ed)?", full_text
+        )
+        for match in heading_matches:
+            first_word = match.strip().split()[0] if match.strip().split() else ""
+            if first_word and len(first_word) > 2:
+                if re.match(r"^[A-Za-z][A-Za-z0-9\-_.]*$", first_word):
+                    normalized = self._normalize_library_name(first_word)
+                    if normalized:
+                        disallow.add(normalized)
+
+        # Pattern 3b: "Rejected X and Y" format
+        rejected_and_pattern = r"(?i)Rejected?\s+([A-Za-z][A-Za-z0-9\-_.@/]*)"
+        rejected_and_matches = re.findall(rejected_and_pattern, full_text)
+        for match in rejected_and_matches:
+            normalized = self._normalize_library_name(match)
+            if normalized:
+                disallow.add(normalized)
+
+        # Pattern 4: Extract chosen technology from decision
+        use_matches = re.findall(r"(?i)Use\s+([a-zA-Z0-9\-_@/.]+)", decision)
+        for match in use_matches:
+            normalized = self._normalize_library_name(match)
+            if normalized:
+                prefer.add(normalized)
+
+        if disallow or prefer:
+            return {
+                "disallow": sorted(disallow) if disallow else None,
+                "prefer": sorted(prefer) if prefer else None,
+            }
+
+        return None
+
+    def _suggest_pattern_policies(self, full_text: str) -> dict[str, Any] | None:
+        """Suggest code pattern policies from text."""
+        patterns_dict = {}
+
+        # Pattern 1: "All X must be Y"
+        all_must_patterns = re.findall(
+            r"(?i)all\s+([a-zA-Z0-9\-_\s]+?)\s+must\s+be\s+([a-zA-Z0-9\-_\s]+)",
+            full_text,
+        )
+        for _idx, (subject, requirement) in enumerate(all_must_patterns, start=1):
+            rule_name = f"all_{subject.strip().lower().replace(' ', '_')}_must_be_{requirement.strip().lower().replace(' ', '_')}"
+            patterns_dict[rule_name] = {
+                "description": f"All {subject.strip()} must be {requirement.strip()}",
+                "severity": "error",
+                "rule": f"{subject.strip()}.*{requirement.strip()}",  # Simple regex placeholder
+            }
+
+        # Pattern 2: "X must have Y" or "X must include Y"
+        must_have_patterns = re.findall(
+            r"(?i)([a-zA-Z0-9\-_\s]+?)\s+must\s+(?:have|include)\s+([a-zA-Z0-9\-_\s]+)",
+            full_text,
+        )
+        for _idx, (subject, requirement) in enumerate(must_have_patterns, start=1):
+            rule_name = f"{subject.strip().lower().replace(' ', '_')}_must_have_{requirement.strip().lower().replace(' ', '_')}"
+            patterns_dict[rule_name] = {
+                "description": f"{subject.strip()} must have {requirement.strip()}",
+                "severity": "error",
+                "rule": f"{subject.strip()}.*{requirement.strip()}",
+            }
+
+        # Pattern 3: "No X allowed" or "X is forbidden"
+        no_allowed_patterns = re.findall(
+            r"(?i)no\s+([a-zA-Z0-9\-_\s]+?)\s+(?:allowed|permitted)", full_text
+        )
+        for match in no_allowed_patterns:
+            rule_name = f"no_{match.strip().lower().replace(' ', '_')}_allowed"
+            patterns_dict[rule_name] = {
+                "description": f"No {match.strip()} allowed",
+                "severity": "error",
+                "rule": f"(?!.*{match.strip()})",  # Negative lookahead
+            }
+
+        return {"patterns": patterns_dict} if patterns_dict else None
+
+    def _suggest_architecture_policies(self, full_text: str) -> dict[str, Any] | None:
+        """Suggest architecture policies (boundaries + structure) from text."""
+        layer_boundaries = []
+        required_structure = []
+
+        # Pattern 1: "X must not access/call/use Y"
+        boundary_patterns = [
+            r"(?i)([a-zA-Z0-9\-_]+)\s+must\s+not\s+(?:access|call|use|import)\s+([a-zA-Z0-9\-_]+)",
+            r"(?i)no\s+direct\s+access\s+from\s+([a-zA-Z0-9\-_]+)\s+to\s+([a-zA-Z0-9\-_]+)",
+            r"(?i)([a-zA-Z0-9\-_]+)\s+(?:cannot|should\s+not)\s+(?:access|import)\s+([a-zA-Z0-9\-_]+)",
+        ]
+
+        for pattern in boundary_patterns:
+            matches = re.findall(pattern, full_text)
+            for source, target in matches:
+                layer_boundaries.append(
+                    {
+                        "rule": f"{source.strip()} -> {target.strip()}",
+                        "action": "block",
+                        "message": f"{source.strip()} must not access {target.strip()}",
+                    }
+                )
+
+        # Pattern 2: "Required: path/to/file"
+        required_patterns = re.findall(
+            r"(?i)required:\s+([a-zA-Z0-9\-_/.]+)", full_text
+        )
+        for path in required_patterns:
+            required_structure.append(
+                {"path": path.strip(), "description": f"Required: {path.strip()}"}
+            )
+
+        # Pattern 3: "Must have X directory/file"
+        must_have_structure = re.findall(
+            r"(?i)must\s+have\s+([a-zA-Z0-9\-_/.]+)\s+(directory|file|folder)",
+            full_text,
+        )
+        for path, _ in must_have_structure:
+            required_structure.append(
+                {"path": path.strip(), "description": f"Required {path.strip()}"}
+            )
+
+        policy = {}
+        if layer_boundaries:
+            policy["layer_boundaries"] = layer_boundaries
+        if required_structure:
+            policy["required_structure"] = required_structure
+
+        return policy if policy else None
+
+    def _suggest_config_policies(self, full_text: str) -> dict[str, Any] | None:
+        """Suggest configuration enforcement policies from text."""
+        config_policy = {}
+
+        # TypeScript config patterns
+        ts_patterns: dict[str, dict[str, Any]] = {
+            r"(?i)typescript.*strict\s+mode": {"tsconfig": {"strict": True}},
+            r"(?i)tsconfig.*strict.*true": {"tsconfig": {"strict": True}},
+            r"(?i)enable.*noImplicitAny": {
+                "tsconfig": {"compilerOptions": {"noImplicitAny": True}}
+            },
+        }
+
+        typescript_config: dict[str, Any] = {}
+        for pattern, config in ts_patterns.items():
+            if re.search(pattern, full_text):
+                typescript_config.update(config)
+
+        if typescript_config:
+            config_policy["typescript"] = typescript_config
+
+        # Python config patterns
+        py_patterns: dict[str, dict[str, Any]] = {
+            r"(?i)ruff.*check.*imports": {"ruff": {"lint": {"select": ["I"]}}},
+            r"(?i)mypy.*strict": {"mypy": {"strict": True}},
+        }
+
+        python_config: dict[str, Any] = {}
+        for pattern, config in py_patterns.items():
+            if re.search(pattern, full_text):
+                python_config.update(config)
+
+        if python_config:
+            config_policy["python"] = python_config
+
+        return config_policy if config_policy else None
+
+    def _suggest_rationales(self, full_text: str) -> list[str] | None:
+        """Extract rationales for the policies from content."""
+        rationales = set()
+
+        # Pattern 1: "For X" or "To X"
+        rationale_patterns = [
+            r"(?i)for\s+(performance|security|maintainability|consistency|bundle\s+size|scalability)",
+            r"(?i)to\s+(?:improve|enhance|ensure|maintain)\s+(performance|security|maintainability|consistency)",
+            r"(?i)(?:better|improved)\s+(performance|security|maintainability|developer\s+experience|dx)",
+            r"(?i)because\s+(?:of\s+)?([^.]+)",
+        ]
+
+        for pattern in rationale_patterns:
+            matches = re.findall(pattern, full_text)
+            for match in matches:
+                rationale = match.strip().replace("_", " ").capitalize()
+                if len(rationale) > 5:  # Filter out too-short matches
+                    rationales.add(rationale)
+
+        return sorted(rationales) if rationales else None
+
+    def _normalize_library_name(self, name: str) -> str | None:
+        """Normalize library names using common mappings."""
+        # Common library name mappings for normalization
+        library_mappings = {
+            "react-query": "@tanstack/react-query",
+            "react query": "@tanstack/react-query",
+            "tanstack query": "@tanstack/react-query",
+            "axios": "axios",
+            "fetch": "fetch",
+            "lodash": "lodash",
+            "moment": "moment",
+            "momentjs": "moment",
+            "moment.js": "moment",
+            "date-fns": "date-fns",
+            "dayjs": "dayjs",
+            "jquery": "jquery",
+            "underscore": "underscore",
+            "flask": "flask",
+            "django": "django",
+            "fastapi": "fastapi",
+            "express": "express",
+        }
+
+        name_lower = name.lower().strip()
+        return library_mappings.get(name_lower, name if len(name) > 1 else None)
 
     def _generate_adr_file(self, adr: ADR) -> str:
         """Generate the ADR file."""
@@ -719,3 +989,174 @@ class CreationWorkflow(BaseWorkflow):
             f"Use adr_approve('{adr_id}') to activate this decision",
             "Trigger policy enforcement for the decision",
         ]
+
+    def _generate_policy_guidance(
+        self, adr: ADR, creation_input: CreationInput
+    ) -> dict[str, Any] | None:
+        """Generate policy guidance promptlet for agents.
+
+        This method creates actionable guidance for agents when policies
+        could be extracted from the ADR content but weren't provided
+        as structured policy in the front-matter.
+
+        Returns:
+            Policy guidance dict with suggestions, or None if policy already provided
+        """
+        # If policy was already provided, no guidance needed
+        if adr.front_matter.policy:
+            return {
+                "has_policy": True,
+                "message": "✅ Structured policy provided and validated",
+                "suggestion": None,
+            }
+
+        # Analyze decision and alternatives to detect enforceable policies
+        alternatives_text = creation_input.alternatives or ""
+        suggested = self._suggest_policy_from_alternatives(
+            creation_input.decision, alternatives_text
+        )
+
+        if suggested:
+            # Enforceable policies detected - provide guidance
+            import json
+
+            return {
+                "has_policy": False,
+                "detectable": True,
+                "message": (
+                    "📋 Enforceable policies detected in ADR content but no structured policy provided. "
+                    "To enable automatic enforcement, include a 'policy' parameter when creating ADRs."
+                ),
+                "suggestion": suggested,
+                "suggestion_json": json.dumps(suggested, indent=2),
+                "example_usage": (
+                    f"adr_create(\n"
+                    f"  title='{creation_input.title}',\n"
+                    f"  context='{creation_input.context[:50]}...',\n"
+                    f"  decision='{creation_input.decision[:50]}...',\n"
+                    f"  consequences='{creation_input.consequences[:50]}...',\n"
+                    f"  policy={json.dumps(suggested)}\n"
+                    f")"
+                ),
+                "guidance": [
+                    "Use the suggested policy structure to enable enforcement",
+                    "Adjust the policy dict based on your specific requirements",
+                    "Call adr_create() again with the policy parameter",
+                ],
+                "policy_reference": self._build_policy_reference(),
+            }
+        else:
+            # No enforceable policies detected
+            return {
+                "has_policy": False,
+                "detectable": False,
+                "message": (
+                    "⚠️  No structured policy provided and no enforceable policies detected in content. "
+                    "Use pattern-friendly language to enable constraint extraction."
+                ),
+                "guidance": [
+                    "Import restrictions: 'Don't use X', 'Prefer Y over X'",
+                    "Code patterns: 'All X must be Y', 'X must have Y'",
+                    "Architecture: 'X must not access Y', 'Required: path/to/file'",
+                    "Config: 'TypeScript strict mode required', 'Ruff must check imports'",
+                ],
+                "suggestion": None,
+            }
+
+    def _build_policy_reference(self) -> dict[str, Any]:
+        """Build comprehensive policy structure reference documentation.
+
+        This reference is provided just-in-time when agents need to construct
+        structured policies, avoiding context bloat in MCP tool docstrings.
+        """
+        return {
+            "imports": {
+                "description": "Import/library restrictions",
+                "fields": {
+                    "disallow": "List of banned libraries/modules",
+                    "prefer": "List of recommended alternatives",
+                },
+                "example": {"disallow": ["flask", "django"], "prefer": ["fastapi"]},
+            },
+            "patterns": {
+                "description": "Code pattern enforcement rules",
+                "fields": {
+                    "patterns": "Dict of named pattern rules, each containing:",
+                    "  description": "Human-readable description",
+                    "  language": "Target language (python, typescript, etc.)",
+                    "  rule": "Regex pattern or structured query",
+                    "  severity": "error | warning | info",
+                    "  autofix": "Optional boolean for auto-fix support",
+                },
+                "example": {
+                    "patterns": {
+                        "async_handlers": {
+                            "description": "All FastAPI handlers must be async",
+                            "language": "python",
+                            "rule": r"def\s+\w+",
+                            "severity": "error",
+                            "autofix": False,
+                        }
+                    }
+                },
+            },
+            "architecture": {
+                "description": "Architecture policies (boundaries + required structure)",
+                "fields": {
+                    "layer_boundaries": "List of forbidden dependencies",
+                    "  rule": "Format: 'source -> target' (e.g., 'frontend -> database')",
+                    "  action": "block | warn",
+                    "  message": "Error message to display",
+                    "  check": "Optional path pattern to scope the rule",
+                    "required_structure": "List of required files/directories",
+                    "  path": "File or directory path (glob patterns supported)",
+                    "  description": "Why this structure is required",
+                },
+                "example": {
+                    "layer_boundaries": [
+                        {
+                            "rule": "frontend -> database",
+                            "action": "block",
+                            "message": "Frontend must not access database directly",
+                            "check": "src/frontend/**/*.py",
+                        }
+                    ],
+                    "required_structure": [
+                        {
+                            "path": "src/models/*.py",
+                            "description": "Model layer required",
+                        }
+                    ],
+                },
+            },
+            "config_enforcement": {
+                "description": "Configuration enforcement for TypeScript/Python tools",
+                "fields": {
+                    "typescript": "TypeScript config requirements",
+                    "  tsconfig": "Required tsconfig.json settings",
+                    "  eslintConfig": "Required ESLint config",
+                    "python": "Python config requirements",
+                    "  ruff": "Required Ruff settings",
+                    "  mypy": "Required mypy settings",
+                },
+                "example": {
+                    "typescript": {
+                        "tsconfig": {
+                            "strict": True,
+                            "compilerOptions": {"noImplicitAny": True},
+                        }
+                    },
+                    "python": {
+                        "ruff": {"lint": {"select": ["I"]}},
+                        "mypy": {"strict": True},
+                    },
+                },
+            },
+            "rationales": {
+                "description": "List of reasons for the policies",
+                "example": [
+                    "FastAPI provides native async support",
+                    "Better performance for I/O operations",
+                ],
+            },
+        }

@@ -116,13 +116,113 @@
             }
           }
         },
+        "patterns": {
+          "type": "object",
+          "properties": {
+            "patterns": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "language": {
+                    "type": "string"
+                  },
+                  "rule": {
+                    "oneOf": [
+                      {"type": "string"},
+                      {"type": "object"}
+                    ]
+                  },
+                  "autofix": {
+                    "type": "boolean"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": ["error", "warning", "info"]
+                  }
+                },
+                "required": ["description", "rule"]
+              }
+            }
+          }
+        },
+        "architecture": {
+          "type": "object",
+          "properties": {
+            "layer_boundaries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rule": {
+                    "type": "string"
+                  },
+                  "check": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": ["block", "warn"]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": ["rule"]
+              }
+            },
+            "required_structure": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path"]
+              }
+            }
+          }
+        },
+        "config_enforcement": {
+          "type": "object",
+          "properties": {
+            "typescript": {
+              "type": "object",
+              "properties": {
+                "tsconfig": {
+                  "type": "object"
+                }
+              }
+            },
+            "python": {
+              "type": "object",
+              "properties": {
+                "ruff": {
+                  "type": "object"
+                },
+                "mypy": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
         "rationales": {
           "type": "array",
           "items": {
             "type": "string"
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": true

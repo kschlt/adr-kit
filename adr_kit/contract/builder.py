@@ -120,16 +120,41 @@ class ConstraintsContractBuilder:
                     and contract.constraints.imports.prefer
                     else 0
                 ),
-                "boundary_layers": (
-                    len(contract.constraints.boundaries.layers)
-                    if contract.constraints.boundaries
-                    and contract.constraints.boundaries.layers
+                "architecture_boundaries": (
+                    len(contract.constraints.architecture.layer_boundaries)
+                    if contract.constraints.architecture
+                    and contract.constraints.architecture.layer_boundaries
                     else 0
                 ),
-                "boundary_rules": (
-                    len(contract.constraints.boundaries.rules)
-                    if contract.constraints.boundaries
-                    and contract.constraints.boundaries.rules
+                "architecture_structures": (
+                    len(contract.constraints.architecture.required_structure)
+                    if contract.constraints.architecture
+                    and contract.constraints.architecture.required_structure
+                    else 0
+                ),
+                "pattern_rules": (
+                    len(contract.constraints.patterns.patterns)
+                    if contract.constraints.patterns
+                    and contract.constraints.patterns.patterns
+                    else 0
+                ),
+                "config_requirements": (
+                    (
+                        1
+                        if contract.constraints.config_enforcement.typescript
+                        and contract.constraints.config_enforcement.typescript.tsconfig
+                        else 0
+                    )
+                    + (
+                        1
+                        if contract.constraints.config_enforcement.python
+                        and (
+                            contract.constraints.config_enforcement.python.ruff
+                            or contract.constraints.config_enforcement.python.mypy
+                        )
+                        else 0
+                    )
+                    if contract.constraints.config_enforcement
                     else 0
                 ),
                 "python_disallow": (

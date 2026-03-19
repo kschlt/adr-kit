@@ -167,8 +167,8 @@ class GuidanceGenerator:
                     )
                 )
 
-        # Boundary constraint guidance
-        if constraints.boundaries and constraints.boundaries.rules:
+        # Architecture constraint guidance
+        if constraints.architecture and constraints.architecture.layer_boundaries:
             if any(
                 word in task_context.keywords
                 for word in ["architecture", "component", "service"]

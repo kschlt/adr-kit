@@ -38,15 +38,17 @@ class ImportPolicy(BaseModel):
     )
 
 
+# Legacy boundary models (deprecated - use ArchitecturePolicy instead)
+# These will be removed in POL-3 when contract integration is updated
 class BoundaryLayer(BaseModel):
-    """Definition of an architectural layer."""
+    """Definition of an architectural layer (DEPRECATED)."""
 
     name: str = Field(..., description="Name of the layer")
     path: str | None = Field(None, description="Path pattern for the layer")
 
 
 class BoundaryRule(BaseModel):
-    """Rule for architectural boundaries."""
+    """Rule for architectural boundaries (DEPRECATED)."""
 
     forbid: str = Field(
         ..., description="Forbidden dependency pattern (e.g., 'ui -> database')"
@@ -54,10 +56,58 @@ class BoundaryRule(BaseModel):
 
 
 class BoundaryPolicy(BaseModel):
-    """Policy for architectural boundaries."""
+    """Policy for architectural boundaries (DEPRECATED - use ArchitecturePolicy)."""
 
     layers: list[BoundaryLayer] | None = Field(None, description="Architectural layers")
     rules: list[BoundaryRule] | None = Field(None, description="Boundary rules")
+
+
+# New architecture models (replaces BoundaryPolicy)
+class LayerBoundaryRule(BaseModel):
+    """Architectural layer boundary enforcement rule.
+
+    Defines rules for which layers can/cannot access other layers.
+    """
+
+    rule: str = Field(..., description="Boundary rule (e.g., 'ui -> database')")
+    check: str | None = Field(None, description="Path pattern to check (glob)")
+    action: str = Field(default="block", description="Action to take: block or warn")
+    message: str | None = Field(None, description="Custom error message")
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, v: str) -> str:
+        """Ensure action is one of: block, warn."""
+        allowed = {"block", "warn"}
+        if v not in allowed:
+            raise ValueError(f"Action must be one of {allowed}, got: {v}")
+        return v
+
+
+class RequiredStructure(BaseModel):
+    """Required file or directory structure.
+
+    Defines files/directories that must exist in the project.
+    """
+
+    path: str = Field(..., description="Required path (glob pattern supported)")
+    description: str | None = Field(
+        None, description="Human-readable description of why this is required"
+    )
+
+
+class ArchitecturePolicy(BaseModel):
+    """Comprehensive architecture policy replacing old BoundaryPolicy.
+
+    Supports both layer boundaries and required file structure enforcement.
+    """
+
+    layer_boundaries: list[LayerBoundaryRule] | None = Field(
+        None, description="Layer boundary rules"
+    )
+    required_structure: list[RequiredStructure] | None = Field(
+        None, description="Required files/directories"
+    )
 
 
 class PythonPolicy(BaseModel):
@@ -65,6 +115,104 @@ class PythonPolicy(BaseModel):
 
     disallow_imports: list[str] | None = Field(
         None, description="Disallowed Python imports"
+    )
+
+
+class PatternRule(BaseModel):
+    """Single pattern enforcement rule for code patterns.
+
+    Pattern rules define enforceable code patterns (e.g., "all FastAPI handlers
+    must be async"). The rule field supports both regex strings (for POL scope)
+    and structured queries (dict, for future ENF scope).
+    """
+
+    description: str = Field(..., description="Human-readable rule description")
+    language: str | None = Field(
+        None, description="Programming language (python, javascript, typescript, etc.)"
+    )
+    rule: str | dict[str, Any] = Field(
+        ..., description="Pattern rule as regex string or structured query dict"
+    )
+    autofix: bool | None = Field(
+        None, description="Whether autofix is available for this rule"
+    )
+    severity: str = Field(
+        default="error", description="Severity level: error, warning, or info"
+    )
+
+    @field_validator("severity")
+    @classmethod
+    def validate_severity(cls, v: str) -> str:
+        """Ensure severity is one of: error, warning, info."""
+        allowed = {"error", "warning", "info"}
+        if v not in allowed:
+            raise ValueError(f"Severity must be one of {allowed}, got: {v}")
+        return v
+
+    @field_validator("rule")
+    @classmethod
+    def validate_rule(cls, v: str | dict[str, Any]) -> str | dict[str, Any]:
+        """Validate regex pattern if rule is a string."""
+        if isinstance(v, str):
+            try:
+                re.compile(v)
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern: {e}") from e
+        return v
+
+
+class PatternPolicy(BaseModel):
+    """Collection of named pattern enforcement rules.
+
+    Uses dict storage for better conflict resolution and clearer error messages.
+    Keys are rule names (e.g., "async_handlers", "no_any_types").
+    """
+
+    patterns: dict[str, PatternRule] | None = Field(
+        None, description="Named pattern rules as dict"
+    )
+
+
+class TypeScriptConfig(BaseModel):
+    """TypeScript configuration requirements.
+
+    Defines minimum required TypeScript configuration values that must be
+    present in tsconfig.json. Subset matching: ADR specifies minimums,
+    projects can have additional config.
+    """
+
+    tsconfig: dict[str, Any] | None = Field(
+        None, description="Required tsconfig.json values (subset matching)"
+    )
+
+
+class PythonConfig(BaseModel):
+    """Python configuration requirements.
+
+    Defines minimum required Python tool configuration values (ruff, mypy, etc).
+    Subset matching: ADR specifies minimums, projects can have additional config.
+    """
+
+    ruff: dict[str, Any] | None = Field(
+        None, description="Required ruff configuration (subset matching)"
+    )
+    mypy: dict[str, Any] | None = Field(
+        None, description="Required mypy configuration (subset matching)"
+    )
+
+
+class ConfigEnforcementPolicy(BaseModel):
+    """Configuration file enforcement policies.
+
+    Defines required configuration values across different tools and languages.
+    Uses subset matching: ADR requirements are minimums, not exact config.
+    """
+
+    typescript: TypeScriptConfig | None = Field(
+        None, description="TypeScript configuration requirements"
+    )
+    python: PythonConfig | None = Field(
+        None, description="Python tool configuration requirements"
     )
 
 
@@ -77,9 +225,19 @@ class PolicyModel(BaseModel):
 
     imports: ImportPolicy | None = Field(None, description="Import/library policies")
     boundaries: BoundaryPolicy | None = Field(
-        None, description="Architectural boundary policies"
+        None,
+        description="[DEPRECATED] Architectural boundary policies - use architecture instead",
     )
     python: PythonPolicy | None = Field(None, description="Python-specific policies")
+    patterns: PatternPolicy | None = Field(
+        None, description="Code pattern enforcement policies"
+    )
+    architecture: ArchitecturePolicy | None = Field(
+        None, description="Architecture policies (boundaries + required structure)"
+    )
+    config_enforcement: ConfigEnforcementPolicy | None = Field(
+        None, description="Configuration file enforcement policies"
+    )
     rationales: list[str] | None = Field(
         None, description="Rationales for the policies"
     )
@@ -108,23 +266,35 @@ class PolicyModel(BaseModel):
             return self.imports.prefer
         return []
 
-    def get_boundary_rules(self) -> list[BoundaryRule]:
-        """Get boundary rules list, safe null-checking."""
-        if self.boundaries and self.boundaries.rules:
-            return self.boundaries.rules
-        return []
-
-    def get_boundary_layers(self) -> list[BoundaryLayer]:
-        """Get boundary layers list, safe null-checking."""
-        if self.boundaries and self.boundaries.layers:
-            return self.boundaries.layers
-        return []
-
     def get_python_disallowed_imports(self) -> list[str]:
         """Get Python disallowed imports list, safe null-checking."""
         if self.python and self.python.disallow_imports:
             return self.python.disallow_imports
         return []
+
+    def get_pattern_rules(self) -> dict[str, PatternRule]:
+        """Get pattern rules dict, safe null-checking."""
+        if self.patterns and self.patterns.patterns:
+            return self.patterns.patterns
+        return {}
+
+    def get_architecture_boundaries(self) -> list[LayerBoundaryRule]:
+        """Get architecture layer boundaries, safe null-checking."""
+        if self.architecture and self.architecture.layer_boundaries:
+            return self.architecture.layer_boundaries
+        return []
+
+    def get_required_structure(self) -> list[RequiredStructure]:
+        """Get required file/directory structure, safe null-checking."""
+        if self.architecture and self.architecture.required_structure:
+            return self.architecture.required_structure
+        return []
+
+    def get_config_requirements(self) -> ConfigEnforcementPolicy:
+        """Get config enforcement requirements, safe null-checking."""
+        if self.config_enforcement:
+            return self.config_enforcement
+        return ConfigEnforcementPolicy(typescript=None, python=None)
 
 
 class ADRFrontMatter(BaseModel):

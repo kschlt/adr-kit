@@ -12,7 +12,15 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from ..core.model import ADR, BoundaryPolicy, ImportPolicy, PolicyModel, PythonPolicy
+from ..core.model import (
+    ADR,
+    ArchitecturePolicy,
+    ConfigEnforcementPolicy,
+    ImportPolicy,
+    PatternPolicy,
+    PolicyModel,
+    PythonPolicy,
+)
 
 
 class PolicyProvenance(BaseModel):
@@ -45,11 +53,17 @@ class MergedConstraints(BaseModel):
     """The unified policy constraints from all accepted ADRs."""
 
     imports: ImportPolicy | None = Field(None, description="Merged import policies")
-    boundaries: BoundaryPolicy | None = Field(
-        None, description="Merged boundary policies"
-    )
     python: PythonPolicy | None = Field(
         None, description="Merged Python-specific policies"
+    )
+    patterns: PatternPolicy | None = Field(
+        None, description="Merged pattern enforcement policies"
+    )
+    architecture: ArchitecturePolicy | None = Field(
+        None, description="Merged architecture policies (boundaries + structure)"
+    )
+    config_enforcement: ConfigEnforcementPolicy | None = Field(
+        None, description="Merged configuration enforcement policies"
     )
 
     def is_empty(self) -> bool:
@@ -59,11 +73,31 @@ class MergedConstraints(BaseModel):
                 not self.imports
                 or (not self.imports.disallow and not self.imports.prefer)
             )
-            and (
-                not self.boundaries
-                or (not self.boundaries.layers and not self.boundaries.rules)
-            )
             and (not self.python or not self.python.disallow_imports)
+            and (not self.patterns or not self.patterns.patterns)
+            and (
+                not self.architecture
+                or (
+                    not self.architecture.layer_boundaries
+                    and not self.architecture.required_structure
+                )
+            )
+            and (
+                not self.config_enforcement
+                or (
+                    not (
+                        self.config_enforcement.typescript
+                        and self.config_enforcement.typescript.tsconfig
+                    )
+                    and not (
+                        self.config_enforcement.python
+                        and (
+                            self.config_enforcement.python.ruff
+                            or self.config_enforcement.python.mypy
+                        )
+                    )
+                )
+            )
         )
 
 
@@ -101,8 +135,10 @@ class ConstraintsContract(BaseModel):
         # Explicit None values for mypy - Pydantic understands these as optional
         constraints = MergedConstraints(
             imports=None,
-            boundaries=None,
             python=None,
+            patterns=None,
+            architecture=None,
+            config_enforcement=None,
         )
 
         return cls(

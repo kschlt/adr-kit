@@ -141,63 +141,25 @@ def adr_preflight(request: PreflightCheckRequest) -> dict[str, Any]:
 @mcp.tool()
 def adr_create(request: CreateADRRequest) -> dict[str, Any]:
     """
-    Create a new architectural decision record with optional policy enforcement.
+    Create new ADR with optional policy enforcement.
 
     WHEN TO USE: Document significant technical decisions.
-    RETURNS: Created ADR details in 'proposed' status.
+    RETURNS: ADR details + policy_guidance (if policies detected in content).
 
-    POLICY STRUCTURE (for constraint extraction):
-    To enable automatic constraint extraction and preflight checks, include a 'policy'
-    parameter with structured enforcement rules:
+    Parameters:
+    - title, context, decision, consequences: Required ADR content
+    - policy (optional): Structured policy dict for enforcement
 
-    {
-      "imports": {
-        "disallow": ["library-to-ban", "another-banned-lib"],
-        "prefer": ["preferred-library"]
-      },
-      "python": {
-        "disallow_imports": ["banned.module"]
-      },
-      "boundaries": {
-        "rules": [
-          {"forbid": "frontend -> database"}
-        ]
-      },
-      "rationales": [
-        "Reason for policy constraint"
-      ]
-    }
+    If no policy provided, response includes policy_guidance with:
+    - suggestion: Auto-detected policy structure from decision text
+    - policy_reference: Complete documentation for all policy types
+    - example_usage: Code example with your ADR + suggested policy
 
-    EXAMPLE (FastAPI decision):
-    {
-      "policy": {
-        "imports": {
-          "disallow": ["flask", "django", "litestar"],
-          "prefer": ["fastapi"]
-        },
-        "python": {
-          "disallow_imports": ["flask", "django"]
-        },
-        "rationales": [
-          "FastAPI provides native async support required for I/O operations",
-          "Automatic OpenAPI documentation reduces maintenance burden"
-        ]
-      }
-    }
-
-    ALTERNATIVE (pattern matching):
-    If policy is not provided, use pattern-friendly language in the decision/consequences text:
-    - "Don't use X" / "Avoid X" / "X is deprecated"
-    - "Use Y instead of X" / "Prefer Y over X"
-    - "Layer A should not access Layer B"
-
-    Example:
-    "Use FastAPI as the backend framework. **Don't use Flask** or Django as they
-    lack native async support. **Prefer FastAPI over Flask** for this use case."
-
-    NOTE: Structured policy is strongly preferred for reliable constraint extraction.
-    Without structured policy or pattern-matching language, adr_planning_context will
-    not be able to extract constraints from this ADR.
+    Use pattern-friendly language for auto-detection:
+    - "Don't use X" / "Prefer Y over X" → import policies
+    - "All X must be Y" → pattern policies
+    - "X must not access Y" → architecture boundaries
+    - "TypeScript strict mode required" → config enforcement
     """
     try:
         logger.info(f"Creating ADR: {request.title}")
@@ -219,16 +181,24 @@ def adr_create(request: CreateADRRequest) -> dict[str, Any]:
 
         if result.success:
             creation_result = result.data["creation_result"]
+            policy_guidance = result.data.get("policy_guidance")
+
+            response_data = {
+                "adr_id": creation_result.adr_id,
+                "file_path": str(creation_result.file_path),
+                "status": "proposed",
+                "conflicts": creation_result.conflicts_detected,
+                "related_adrs": creation_result.related_adrs,
+                "validation_warnings": creation_result.validation_warnings,
+            }
+
+            # Include policy guidance if available
+            if policy_guidance:
+                response_data["policy_guidance"] = policy_guidance
+
             return success_response(
                 message=f"ADR {creation_result.adr_id} created successfully",
-                data={
-                    "adr_id": creation_result.adr_id,
-                    "file_path": str(creation_result.file_path),
-                    "status": "proposed",
-                    "conflicts": creation_result.conflicts_detected,
-                    "related_adrs": creation_result.related_adrs,
-                    "validation_warnings": creation_result.validation_warnings,
-                },
+                data=response_data,
                 next_steps=(
                     [creation_result.next_steps]
                     if isinstance(creation_result.next_steps, str)

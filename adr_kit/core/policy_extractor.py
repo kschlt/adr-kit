@@ -16,8 +16,6 @@ import re
 
 from .model import (
     ADR,
-    BoundaryPolicy,
-    BoundaryRule,
     ImportPolicy,
     PolicyModel,
     PythonPolicy,
@@ -78,14 +76,16 @@ class PolicyPatternExtractor:
     def extract_from_content(self, content: str) -> PolicyModel:
         """Extract policy from ADR content using pattern matching."""
         imports = self._extract_import_policies(content)
-        boundaries = self._extract_boundary_policies(content)
         python_policies = self._extract_python_policies(content)
         rationales = self._extract_rationales(content)
 
         return PolicyModel(
             imports=imports,
-            boundaries=boundaries,
+            boundaries=None,
             python=python_policies,
+            patterns=None,
+            architecture=None,
+            config_enforcement=None,
             rationales=rationales,
         )
 
@@ -121,24 +121,6 @@ class PolicyPatternExtractor:
                 disallow=list(disallow) if disallow else None,
                 prefer=list(prefer) if prefer else None,
             )
-
-        return None
-
-    def _extract_boundary_policies(self, content: str) -> BoundaryPolicy | None:
-        """Extract architectural boundary policies from content."""
-        rules = []
-
-        for pattern in self.boundary_patterns:
-            matches = re.findall(pattern, content)
-            for match in matches:
-                if len(match) == 2:
-                    source, target = match
-                    # Create forbid rule
-                    rule = BoundaryRule(forbid=f"{source} -> {target}")
-                    rules.append(rule)
-
-        if rules:
-            return BoundaryPolicy(layers=None, rules=rules)
 
         return None
 
@@ -219,6 +201,10 @@ class PolicyExtractor:
                 imports=structured.imports or pattern.imports,
                 boundaries=structured.boundaries or pattern.boundaries,
                 python=structured.python or pattern.python,
+                patterns=structured.patterns or pattern.patterns,
+                architecture=structured.architecture or pattern.architecture,
+                config_enforcement=structured.config_enforcement
+                or pattern.config_enforcement,
                 rationales=self._merge_lists(structured.rationales, pattern.rationales),
             )
         elif structured:
@@ -231,6 +217,9 @@ class PolicyExtractor:
                 imports=None,
                 boundaries=None,
                 python=None,
+                patterns=None,
+                architecture=None,
+                config_enforcement=None,
                 rationales=None,
             )
 
@@ -258,6 +247,30 @@ class PolicyExtractor:
                 and bool(policy.boundaries.layers or policy.boundaries.rules)
             )
             or (policy.python and bool(policy.python.disallow_imports))
+            or (policy.patterns and bool(policy.patterns.patterns))
+            or (
+                policy.architecture
+                and bool(
+                    policy.architecture.layer_boundaries
+                    or policy.architecture.required_structure
+                )
+            )
+            or (
+                policy.config_enforcement
+                and bool(
+                    (
+                        policy.config_enforcement.typescript
+                        and policy.config_enforcement.typescript.tsconfig
+                    )
+                    or (
+                        policy.config_enforcement.python
+                        and (
+                            policy.config_enforcement.python.ruff
+                            or policy.config_enforcement.python.mypy
+                        )
+                    )
+                )
+            )
             # Note: rationales alone don't count - we need actual constraints
         )
 
