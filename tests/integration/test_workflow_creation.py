@@ -386,301 +386,64 @@ MySQL is reliable and well-supported.
         assert Path(creation2.file_path).exists()
 
 
-class TestPolicySuggestionLogic:
-    """Test comprehensive policy suggestion and guidance functionality."""
+class TestPolicyGuidancePromplet:
+    """Test policy guidance promptlet for reasoning agents.
+
+    These tests verify that ADR Kit provides proper schema and reasoning
+    prompts to guide agents in constructing policies, rather than using
+    regex extraction (which is fragile and redundant for reasoning agents).
+    """
 
     @pytest.fixture
     def temp_adr_dir(self):
         """Create temporary ADR directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            adr_dir = Path(tmpdir) / "docs" / "adr"
-            adr_dir.mkdir(parents=True)
-            yield str(adr_dir)
 
-    def test_import_policy_suggestion_from_alternatives(self, temp_adr_dir):
-        """Test import policy suggestion from alternatives section."""
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
+
+    def test_policy_guidance_structure_without_policy(self, temp_adr_dir):
+        """Test that policy guidance promptlet is provided when no policy given."""
         input_data = CreationInput(
             title="Use FastAPI for backend",
             context="Need async web framework for better performance",
             decision="Use FastAPI as our backend framework",
             consequences="Better async support and auto-generated docs",
-            alternatives=(
-                "### Flask\n- Rejected: Lacks native async support\n\n"
-                "### Django\n- Rejected: Too heavyweight for our use case"
-            ),
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
         result = workflow.execute(input_data=input_data)
 
         assert result.success is True
-
-        # Check policy guidance was generated
         assert "policy_guidance" in result.data
-        policy_guidance = result.data["policy_guidance"]
 
-        assert policy_guidance["detectable"] is True
-        assert policy_guidance["suggestion"] is not None
+        guidance = result.data["policy_guidance"]
 
-        # Should detect Flask and Django as disallowed
-        imports = policy_guidance["suggestion"].get("imports", {})
-        disallow = imports.get("disallow", [])
-        assert "Flask" in disallow or "flask" in disallow
-        assert "Django" in disallow or "django" in disallow
+        # Should indicate no policy provided
+        assert guidance["has_policy"] is False
 
-    def test_import_policy_suggestion_from_decision_text(self, temp_adr_dir):
-        """Test import policy detection from decision text patterns."""
-        input_data = CreationInput(
-            title="Deprecate jQuery",
-            context="Modern frontend needs modern tools",
-            decision=(
-                "Don't use jQuery anymore. Use vanilla JavaScript or React instead. "
-                "Prefer React over jQuery for new components."
-            ),
-            consequences="More maintainable code but migration effort required",
-        )
+        # Should provide agent task with reasoning steps
+        assert "agent_task" in guidance
+        assert "reasoning_steps" in guidance["agent_task"]
+        assert "objective" in guidance["agent_task"]
 
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
+        # Should provide policy capabilities (schema)
+        assert "policy_capabilities" in guidance
+        capabilities = guidance["policy_capabilities"]
+        assert "imports" in capabilities
+        assert "patterns" in capabilities
+        assert "architecture" in capabilities
+        assert "config_enforcement" in capabilities
 
-        assert result.success is True
+        # Should provide example workflow
+        assert "example_workflow" in guidance
+        example = guidance["example_workflow"]
+        assert "scenario" in example
+        assert "reasoning" in example
+        assert "constructed_policy" in example
 
-        policy_guidance = result.data["policy_guidance"]
-        assert policy_guidance["detectable"] is True
-
-        suggestion = policy_guidance["suggestion"]
-        imports = suggestion.get("imports", {})
-
-        # Should detect jQuery as disallowed
-        disallow = imports.get("disallow", [])
-        assert any("jquery" in lib.lower() for lib in disallow)
-
-        # Should detect React as preferred
-        prefer = imports.get("prefer", [])
-        assert any("react" in lib.lower() for lib in prefer)
-
-    def test_pattern_policy_suggestion(self, temp_adr_dir):
-        """Test code pattern policy detection."""
-        input_data = CreationInput(
-            title="Async handlers required",
-            context="Need better I/O performance",
-            decision=(
-                "All FastAPI handlers must be async. "
-                "Route handlers must have async def syntax for better concurrency."
-            ),
-            consequences="Better I/O performance with async/await",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-        assert policy_guidance["detectable"] is True
-
-        suggestion = policy_guidance["suggestion"]
-
-        # Should detect pattern policies
-        assert "patterns" in suggestion
-        patterns = suggestion["patterns"]
-        assert "patterns" in patterns
-        assert len(patterns["patterns"]) > 0
-
-        # Check pattern structure
-        first_pattern = list(patterns["patterns"].values())[0]
-        assert "description" in first_pattern
-        assert "severity" in first_pattern
-        assert "rule" in first_pattern
-
-    def test_architecture_boundary_suggestion(self, temp_adr_dir):
-        """Test architecture boundary policy detection."""
-        input_data = CreationInput(
-            title="Layer boundaries",
-            context="Need clear architectural separation",
-            decision=(
-                "Frontend must not access database directly. "
-                "No direct access from frontend to database layer. "
-                "UI components cannot import backend modules."
-            ),
-            consequences="Better separation of concerns but requires API layer",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-        suggestion = policy_guidance["suggestion"]
-
-        # Should detect architecture policies
-        assert "architecture" in suggestion
-        arch = suggestion["architecture"]
-        assert "layer_boundaries" in arch
-        assert len(arch["layer_boundaries"]) > 0
-
-        # Check boundary structure
-        first_boundary = arch["layer_boundaries"][0]
-        assert "rule" in first_boundary
-        assert "action" in first_boundary
-        assert first_boundary["action"] in ["block", "warn"]
-
-    def test_required_structure_suggestion(self, temp_adr_dir):
-        """Test required file structure detection."""
-        input_data = CreationInput(
-            title="Required directory structure",
-            context="Need consistent project structure",
-            decision=(
-                "Required: src/models/*.py for all data models. "
-                "Must have tests/ directory for test files. "
-                "Projects must have docs/adr folder."
-            ),
-            consequences="Consistent structure across projects",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-        suggestion = policy_guidance["suggestion"]
-
-        # Should detect required structure
-        assert "architecture" in suggestion
-        arch = suggestion["architecture"]
-        assert "required_structure" in arch
-        assert len(arch["required_structure"]) > 0
-
-    def test_config_enforcement_typescript(self, temp_adr_dir):
-        """Test TypeScript config enforcement detection."""
-        input_data = CreationInput(
-            title="TypeScript strict mode",
-            context="Need type safety across codebase",
-            decision="TypeScript strict mode required for all projects",
-            consequences="Better type safety but may require code updates",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-        suggestion = policy_guidance["suggestion"]
-
-        # Should detect config enforcement
-        assert "config_enforcement" in suggestion
-        config = suggestion["config_enforcement"]
-        assert "typescript" in config
-        assert "tsconfig" in config["typescript"]
-
-    def test_config_enforcement_python(self, temp_adr_dir):
-        """Test Python config enforcement detection."""
-        input_data = CreationInput(
-            title="Python tooling config",
-            context="Need consistent Python linting",
-            decision=(
-                "Ruff must check imports for all Python projects. "
-                "Mypy strict mode required."
-            ),
-            consequences="Better code quality but stricter checks",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-        suggestion = policy_guidance["suggestion"]
-
-        # Should detect Python config
-        assert "config_enforcement" in suggestion
-        config = suggestion["config_enforcement"]
-        assert "python" in config
-
-    def test_rationale_extraction(self, temp_adr_dir):
-        """Test extraction of rationales from decision text."""
-        input_data = CreationInput(
-            title="Use CDN for assets",
-            context="Need better asset delivery",
-            decision=(
-                "Use CDN for all static assets. This is for performance and better "
-                "user experience. We need this to improve load times."
-            ),
-            consequences="Better performance but additional CDN costs",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-        suggestion = policy_guidance["suggestion"]
-
-        # Should extract rationales
-        assert "rationales" in suggestion
-        rationales = suggestion["rationales"]
-        assert len(rationales) > 0
-        # Should capture performance-related rationale
-        assert any("performance" in r.lower() for r in rationales)
-
-    def test_multiple_policy_types_combined(self, temp_adr_dir):
-        """Test detection of multiple policy types in single ADR."""
-        input_data = CreationInput(
-            title="FastAPI with architecture boundaries",
-            context="Need modern backend with clear architecture",
-            decision=(
-                "Use FastAPI not Flask. All handlers must be async. "
-                "Frontend must not access database directly. "
-                "TypeScript strict mode required for frontend."
-            ),
-            consequences="Better architecture but more setup complexity",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-        suggestion = policy_guidance["suggestion"]
-
-        # Should detect multiple policy types
-        assert "imports" in suggestion
-        assert "patterns" in suggestion
-        assert "architecture" in suggestion
-        assert "config_enforcement" in suggestion
-
-    def test_no_policy_detected(self, temp_adr_dir):
-        """Test guidance when no enforceable policies detected."""
-        input_data = CreationInput(
-            title="General architecture discussion",
-            context="We discussed various options",
-            decision="We decided to think about this more",
-            consequences="More time for consideration",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-
-        # Should indicate no policy detected
-        assert policy_guidance["detectable"] is False
-        assert policy_guidance["suggestion"] is None
-
-        # Should provide guidance on how to write enforceable policies
-        assert "guidance" in policy_guidance
-        assert len(policy_guidance["guidance"]) > 0
-
-    def test_policy_provided_no_suggestion_needed(self, temp_adr_dir):
-        """Test that no suggestion is made when policy already provided."""
+    def test_policy_guidance_when_policy_provided(self, temp_adr_dir):
+        """Test that no guidance needed when policy already provided."""
         input_data = CreationInput(
             title="Use FastAPI",
             context="Need async framework",
@@ -697,62 +460,38 @@ class TestPolicySuggestionLogic:
 
         assert result.success is True
 
-        policy_guidance = result.data["policy_guidance"]
+        guidance = result.data["policy_guidance"]
 
         # Should indicate policy already provided
-        assert policy_guidance["has_policy"] is True
-        assert policy_guidance["suggestion"] is None
+        assert guidance["has_policy"] is True
+        assert guidance["message"] == "✅ Structured policy provided and validated"
 
-    def test_policy_guidance_includes_example_usage(self, temp_adr_dir):
-        """Test that policy guidance includes example usage."""
+    def test_policy_capabilities_schema_completeness(self, temp_adr_dir):
+        """Test that policy capabilities include all policy types."""
         input_data = CreationInput(
-            title="Use React",
-            context="Need modern frontend",
-            decision="Don't use jQuery, prefer React instead",
-            consequences="Modern development practices",
+            title="Test decision",
+            context="Test context",
+            decision="Test decision text",
+            consequences="Test consequences",
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
         result = workflow.execute(input_data=input_data)
 
-        assert result.success is True
+        capabilities = result.data["policy_guidance"]["policy_capabilities"]
 
-        policy_guidance = result.data["policy_guidance"]
+        # Verify all 4 policy types are documented
+        assert "imports" in capabilities
+        assert "patterns" in capabilities
+        assert "architecture" in capabilities
+        assert "config_enforcement" in capabilities
 
-        # Should include example usage
-        assert "example_usage" in policy_guidance
-        example = policy_guidance["example_usage"]
-
-        # Example should show how to call adr_create with policy
-        assert "adr_create" in example
-        assert "policy=" in example
-
-    def test_policy_suggestion_json_format(self, temp_adr_dir):
-        """Test that policy suggestion includes formatted JSON."""
-        input_data = CreationInput(
-            title="Use TypeScript",
-            context="Need type safety",
-            decision="Use TypeScript, don't use JavaScript",
-            consequences="Better type safety",
-        )
-
-        workflow = CreationWorkflow(adr_dir=temp_adr_dir)
-        result = workflow.execute(input_data=input_data)
-
-        assert result.success is True
-
-        policy_guidance = result.data["policy_guidance"]
-
-        # Should include formatted JSON
-        assert "suggestion_json" in policy_guidance
-        json_str = policy_guidance["suggestion_json"]
-
-        # Should be valid, formatted JSON
-        import json
-
-        parsed = json.loads(json_str)
-        assert isinstance(parsed, dict)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        # Each should have description and example
+        for policy_type in [
+            "imports",
+            "patterns",
+            "architecture",
+            "config_enforcement",
+        ]:
+            assert "description" in capabilities[policy_type]
+            assert "example" in capabilities[policy_type]
