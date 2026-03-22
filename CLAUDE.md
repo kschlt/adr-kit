@@ -1,3 +1,19 @@
+## Releasing
+
+1. Bump version in `pyproject.toml`
+2. Update `CHANGELOG.md` — move items from `[Unreleased]` to new `[X.Y.Z]` section with today's date
+3. Commit: `git commit -m "chore: bump version to X.Y.Z"`
+4. Tag: `git tag vX.Y.Z`
+5. Push tag: `git push origin vX.Y.Z`
+6. CI runs automatically: tests → build → PyPI publish → GitHub Release
+
+**PyPI Trusted Publishing** is configured (kschlt/adr-kit, workflow: `release.yml`).
+No tokens needed. If CI publish fails, fallback: `scripts/publish.sh` (requires `~/.pypirc`).
+
+> **One-time setup** (already done): pypi.org → adr-kit project → Manage → Publishing → add trusted publisher: owner `kschlt`, repo `adr-kit`, workflow `release.yml`.
+
+---
+
 # Project Context: What You're Building
 
 **You are developing ADR Kit** - a Python library and CLI tool that other projects install to manage their Architectural Decision Records.

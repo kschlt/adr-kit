@@ -14,9 +14,10 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10", 
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "pydantic>=2.0.0",
@@ -55,8 +56,8 @@ dev = [
 adr-kit = "adr_kit.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/your-org/adr-kit"
-Repository = "https://github.com/your-org/adr-kit"
+Homepage = "https://github.com/kschlt/adr-kit"
+Repository = "https://github.com/kschlt/adr-kit"
 
 [tool.setuptools.packages.find]
 where = ["."]
