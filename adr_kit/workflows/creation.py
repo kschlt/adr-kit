@@ -618,27 +618,8 @@ class CreationWorkflow(BaseWorkflow):
         lines.append("---")
         lines.append("")
 
-        # MADR content
-        lines.append("## Context")
-        lines.append("")
-        lines.append(adr.context)
-        lines.append("")
-
-        lines.append("## Decision")
-        lines.append("")
-        lines.append(adr.decision)
-        lines.append("")
-
-        lines.append("## Consequences")
-        lines.append("")
-        lines.append(adr.consequences)
-        lines.append("")
-
-        if adr.alternatives:
-            lines.append("## Alternatives")
-            lines.append("")
-            lines.append(adr.alternatives)
-            lines.append("")
+        # MADR content sections (already formatted in adr.content)
+        lines.append(adr.content)
 
         return "\n".join(lines)
 
