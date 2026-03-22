@@ -191,6 +191,7 @@ class TestCreateADR:
             context="We need a reliable database for user data",
             decision="Use PostgreSQL as our primary database",
             consequences="Better data integrity, more complex setup",
+            skip_quality_gate=True,
             adr_dir=temp_adr_dir,
         )
 
@@ -223,6 +224,7 @@ class TestCreateADR:
             decision="Use React for all frontend development",
             consequences="Modern UI, learning curve",
             policy={"imports": {"prefer": ["react"], "disallow": ["vue", "angular"]}},
+            skip_quality_gate=True,
             adr_dir=temp_adr_dir,
         )
 
@@ -258,6 +260,7 @@ class TestApproveADR:
             context="Need fast caching solution",
             decision="Use Redis for application caching",
             consequences="Better performance, additional infrastructure",
+            skip_quality_gate=True,
             adr_dir=temp_adr_dir,
         )
 
@@ -320,6 +323,7 @@ class TestSupersede:
             context="Need relational database",
             decision="Use MySQL for data storage",
             consequences="Good performance, licensing concerns",
+            skip_quality_gate=True,
             adr_dir=temp_adr_dir,
         )
 
@@ -343,6 +347,7 @@ class TestSupersede:
                 new_decision="Migrate to PostgreSQL",
                 new_consequences="Better licensing, migration effort",
                 supersede_reason="MySQL licensing concerns",
+                skip_quality_gate=True,
                 adr_dir=temp_adr_dir,
             )
 
@@ -438,6 +443,7 @@ class TestEndToEndWorkflow:
                 decision="Use React for all frontend components",
                 consequences="Better user experience, steeper learning curve",
                 tags=["frontend", "javascript"],
+                skip_quality_gate=True,
                 adr_dir=temp_adr_dir,
             )
             create_result = await client.call_tool(

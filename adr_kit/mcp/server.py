@@ -206,6 +206,7 @@ def adr_create(request: CreateADRRequest) -> dict[str, Any]:
             tags=request.tags,
             policy=request.policy,
             alternatives=request.alternatives,
+            skip_quality_gate=request.skip_quality_gate,
         )
 
         result = workflow.execute(input_data=creation_input)
@@ -336,6 +337,7 @@ def adr_supersede(request: SupersedeADRRequest) -> dict[str, Any]:
             tags=request.new_tags,
             policy=request.new_policy,
             alternatives=request.new_alternatives,
+            skip_quality_gate=request.skip_quality_gate,
         )
 
         supersede_input = SupersedeInput(

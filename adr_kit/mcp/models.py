@@ -114,6 +114,9 @@ class CreateADRRequest(BaseModel):
         """,
     )
     alternatives: str | None = Field(None, description="Alternative options considered")
+    skip_quality_gate: bool = Field(
+        False, description="Skip quality assessment (for testing or override)"
+    )
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
 
@@ -149,6 +152,9 @@ class SupersedeADRRequest(BaseModel):
     new_alternatives: str | None = Field(None, description="Other options considered")
     auto_approve: bool = Field(
         False, description="Automatically approve new ADR without human review"
+    )
+    skip_quality_gate: bool = Field(
+        False, description="Skip quality assessment (for testing or override)"
     )
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
