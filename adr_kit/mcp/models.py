@@ -114,6 +114,9 @@ class CreateADRRequest(BaseModel):
         """,
     )
     alternatives: str | None = Field(None, description="Alternative options considered")
+    skip_quality_gate: bool = Field(
+        False, description="Skip quality assessment (for testing or override)"
+    )
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
 
@@ -150,6 +153,9 @@ class SupersedeADRRequest(BaseModel):
     auto_approve: bool = Field(
         False, description="Automatically approve new ADR without human review"
     )
+    skip_quality_gate: bool = Field(
+        False, description="Skip quality assessment (for testing or override)"
+    )
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
 
@@ -172,6 +178,16 @@ class PlanningContextRequest(BaseModel):
         description="Priority level (low, normal, high) - affects detail level",
     )
     adr_dir: str = Field("docs/adr", description="ADR directory path")
+
+
+class DecisionGuidanceRequest(BaseModel):
+    """Parameters for getting decision quality guidance."""
+
+    include_examples: bool = Field(True, description="Include good vs bad ADR examples")
+    focus_area: str | None = Field(
+        None,
+        description="Optional focus area (e.g., 'database', 'frontend') for tailored examples",
+    )
 
 
 # Response Data Models for Tool-Specific Data

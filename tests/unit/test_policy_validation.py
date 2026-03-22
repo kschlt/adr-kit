@@ -24,6 +24,7 @@ class TestPolicyValidation:
                 decision="Use FastAPI for backend API development.",
                 consequences="Better performance and automatic documentation.",
                 alternatives="Rejected Flask due to lack of native async support.",
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
@@ -55,6 +56,7 @@ class TestPolicyValidation:
                 policy={
                     "imports": {"disallow": ["flask"], "prefer": ["fastapi"]},
                 },
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
@@ -80,6 +82,7 @@ class TestPolicyValidation:
                 context="Need async support",
                 decision="Use FastAPI. **Don't use Flask** as it lacks native async support.",
                 consequences="**Avoid** synchronous frameworks like Flask.",
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
@@ -176,8 +179,8 @@ Provides good performance.
         extractor = PolicyExtractor()
         assert extractor.has_extractable_policy(adr) is False
 
-    def test_policy_suggestion_from_alternatives(self):
-        """Should suggest policy based on alternatives text."""
+    def test_policy_guidance_provided_when_no_policy(self):
+        """Should provide policy guidance when no policy provided."""
         with tempfile.TemporaryDirectory() as tmpdir:
             workflow = CreationWorkflow(adr_dir=tmpdir)
 
@@ -187,25 +190,23 @@ Provides good performance.
                 decision="Use FastAPI as the framework",
                 consequences="Better performance",
                 alternatives="Rejected Flask and Django",
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
 
             assert result.success
-            creation_result = result.data["creation_result"]
 
-            # Should have suggestions
-            warnings = creation_result.validation_warnings
-            assert len(warnings) > 0
+            # Should provide policy guidance
+            assert "policy_guidance" in result.data
+            guidance = result.data["policy_guidance"]
 
-            # Check if suggestion includes Flask
-            suggestion_text = " ".join(warnings)
-            assert (
-                "suggested" in suggestion_text.lower()
-                and "policy" in suggestion_text.lower()
-            )
-            # Flask should be in the suggested JSON structure
-            assert "flask" in suggestion_text.lower()
+            # Should indicate no policy provided
+            assert guidance["has_policy"] is False
+
+            # Should provide reasoning prompts for agents
+            assert "agent_task" in guidance
+            assert "policy_capabilities" in guidance
 
     def test_validation_backward_compatible(self):
         """Validation should not break existing workflows."""
@@ -218,6 +219,7 @@ Provides good performance.
                 context="Some context here",
                 decision="Make this decision",
                 consequences="Some consequences",
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
@@ -407,62 +409,6 @@ Provides good performance.
         )
         adr_config = ADR(front_matter=front_matter_config, content="Test")
         assert extractor.has_extractable_policy(adr_config) is True
-
-
-class TestPolicySuggestion:
-    """Test policy suggestion helper method."""
-
-    def test_suggest_from_rejected_alternatives(self):
-        """Should extract rejected technologies from alternatives."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            workflow = CreationWorkflow(adr_dir=tmpdir)
-
-            decision = "Use FastAPI"
-            alternatives = "Rejected: Flask\nRejected: Django"
-
-            suggested = workflow._suggest_policy_from_alternatives(
-                decision, alternatives
-            )
-
-            assert suggested is not None
-            assert "imports" in suggested
-            disallow = suggested["imports"].get("disallow")
-            # Disallow should be None or contain Flask
-            assert disallow is None or any("flask" in item.lower() for item in disallow)
-
-    def test_suggest_from_use_statement(self):
-        """Should extract chosen technology from 'Use X' statement."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            workflow = CreationWorkflow(adr_dir=tmpdir)
-
-            decision = "Use FastAPI as our framework"
-            alternatives = ""
-
-            suggested = workflow._suggest_policy_from_alternatives(
-                decision, alternatives
-            )
-
-            assert suggested is not None
-            assert "imports" in suggested
-            prefer = suggested["imports"].get("prefer")
-            assert prefer is not None
-            # Check if FastAPI is in prefer list (case-insensitive)
-            assert any("fastapi" in item.lower() for item in prefer)
-
-    def test_suggest_no_policy_when_no_patterns(self):
-        """Should return None when no recognizable patterns."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            workflow = CreationWorkflow(adr_dir=tmpdir)
-
-            decision = "We decided this approach is better"
-            alternatives = "We considered other options"
-
-            suggested = workflow._suggest_policy_from_alternatives(
-                decision, alternatives
-            )
-
-            # No clear technology names or rejected patterns
-            assert suggested is None or len(suggested) == 0
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ class CreationInput:
     tags: list[str] | None = None
     policy: dict[str, Any] | None = None  # Structured policy block
     alternatives: str | None = None  # Alternative options considered
+    skip_quality_gate: bool = False  # Skip quality gate (for testing or override)
 
 
 @dataclass
@@ -60,7 +61,7 @@ class CreationWorkflow(BaseWorkflow):
     def execute(
         self, input_data: CreationInput | None = None, **kwargs: Any
     ) -> WorkflowResult:
-        """Execute ADR creation workflow."""
+        """Execute ADR creation workflow with quality gate."""
         # Use positional input_data if provided, otherwise extract from kwargs
         if input_data is None:
             input_data = kwargs.get("input_data")
@@ -70,15 +71,53 @@ class CreationWorkflow(BaseWorkflow):
         self._start_workflow("Create ADR")
 
         try:
-            # Step 1: Generate ADR ID
-            adr_id = self._execute_step("generate_adr_id", self._generate_adr_id)
-
-            # Step 2: Validate input
+            # Step 1: Basic validation (minimum requirements)
             self._execute_step(
                 "validate_input", self._validate_creation_input, input_data
             )
 
-            # Step 3: Check conflicts
+            # Step 2: Quality gate - run BEFORE any file operations (unless skipped)
+            quality_feedback = None
+            if not input_data.skip_quality_gate:
+                quality_feedback = self._execute_step(
+                    "quality_gate", self._quick_quality_gate, input_data
+                )
+
+                # Step 3: Check quality threshold
+                if not quality_feedback.get("passes_threshold", True):
+                    # Quality below threshold - BLOCK creation and return feedback
+                    self._complete_workflow(
+                        success=False,
+                        message=f"Quality threshold not met (score: {quality_feedback['quality_score']}/{quality_feedback['threshold']})",
+                        status=WorkflowStatus.REQUIRES_ACTION,
+                    )
+                    self.result.data = {
+                        "quality_feedback": quality_feedback,
+                        "correction_prompt": (
+                            "Please address the quality issues identified above and resubmit. "
+                            "Focus on high-priority issues first for maximum impact."
+                        ),
+                    }
+                    self.result.next_steps = quality_feedback.get("next_steps", [])
+                    return self.result
+            else:
+                # Quality gate skipped - generate basic feedback for backward compatibility
+                quality_feedback = {
+                    "quality_score": None,
+                    "grade": None,
+                    "passes_threshold": True,
+                    "summary": "Quality gate skipped (skip_quality_gate=True)",
+                    "issues": [],
+                    "strengths": [],
+                    "recommendations": [],
+                    "next_steps": [],
+                }
+
+            # Quality passed threshold - proceed with ADR creation
+            # Step 4: Generate ADR ID
+            adr_id = self._execute_step("generate_adr_id", self._generate_adr_id)
+
+            # Step 5: Check conflicts
             related_adrs = self._execute_step(
                 "find_related_adrs", self._find_related_adrs, input_data
             )
@@ -86,12 +125,12 @@ class CreationWorkflow(BaseWorkflow):
                 "check_conflicts", self._detect_conflicts, input_data, related_adrs
             )
 
-            # Step 4: Create ADR content
+            # Step 6: Create ADR content
             adr = self._execute_step(
                 "create_adr_content", self._build_adr_structure, adr_id, input_data
             )
 
-            # Step 5: Write ADR file
+            # Step 7: Write ADR file (only happens if quality passed)
             file_path = self._execute_step(
                 "write_adr_file", self._generate_adr_file, adr
             )
@@ -117,7 +156,7 @@ class CreationWorkflow(BaseWorkflow):
                 review_required=review_required,
             )
 
-            # Generate policy suggestions if no policy was provided
+            # Generate policy suggestions if no policy was provided (Task 2)
             policy_guidance = self._generate_policy_guidance(adr, input_data)
 
             self._complete_workflow(
@@ -125,7 +164,8 @@ class CreationWorkflow(BaseWorkflow):
             )
             self.result.data = {
                 "creation_result": result,
-                "policy_guidance": policy_guidance,  # New: return policy guidance to agent
+                "quality_feedback": quality_feedback,  # Task 1: Quality gate results
+                "policy_guidance": policy_guidance,  # Task 2: Policy construction guidance
             }
             self.result.guidance = next_steps
             self.result.next_steps = self._generate_next_steps_list(
@@ -176,18 +216,35 @@ class CreationWorkflow(BaseWorkflow):
         return f"ADR-{next_num:04d}"
 
     def _validate_creation_input(self, input_data: CreationInput) -> None:
-        """Validate the input data for ADR creation."""
+        """Validate the input data for ADR creation with helpful error messages."""
         if not input_data.title or len(input_data.title.strip()) < 3:
-            raise ValueError("Title must be at least 3 characters")
+            raise ValueError(
+                "Title must be at least 3 characters. "
+                "Example: 'Use PostgreSQL for Primary Database' or 'Use React 18 with TypeScript'"
+            )
 
         if not input_data.context or len(input_data.context.strip()) < 10:
-            raise ValueError("Context must be at least 10 characters")
+            raise ValueError(
+                "Context must be at least 10 characters. "
+                "Context should explain WHY this decision is needed - the problem or opportunity. "
+                "Example: 'We need ACID transactions for financial data integrity. Current SQLite "
+                "setup doesn't support concurrent writes from multiple services.'"
+            )
 
         if not input_data.decision or len(input_data.decision.strip()) < 5:
-            raise ValueError("Decision must be at least 5 characters")
+            raise ValueError(
+                "Decision must be at least 5 characters. "
+                "Decision should state WHAT specific technology/pattern/approach is chosen. "
+                "Example: 'Use PostgreSQL 15 as the primary database. Don't use MySQL or MongoDB.' "
+                "Be specific and include explicit constraints."
+            )
 
         if not input_data.consequences or len(input_data.consequences.strip()) < 5:
-            raise ValueError("Consequences must be at least 5 characters")
+            raise ValueError(
+                "Consequences must be at least 5 characters. "
+                "Consequences should document BOTH positive and negative outcomes (trade-offs). "
+                "Example: '+ ACID compliance, + Rich features, - Higher resource usage, - Ops expertise required'"
+            )
 
         if input_data.status and input_data.status not in [
             "proposed",
@@ -491,6 +548,9 @@ class CreationWorkflow(BaseWorkflow):
         """Validate that ADR has extractable policy information.
 
         Returns list of warnings if policy is missing or insufficient.
+
+        Note: This is a lightweight check. Policy construction guidance is provided
+        via the policy_guidance promptlet, which agents can use to construct policies.
         """
         from ..core.policy_extractor import PolicyExtractor
 
@@ -499,337 +559,13 @@ class CreationWorkflow(BaseWorkflow):
 
         # Check if policy is extractable
         if not extractor.has_extractable_policy(adr):
-            # Analyze decision and alternatives to suggest policy
-            alternatives_text = creation_input.alternatives or ""
-            suggested = self._suggest_policy_from_alternatives(
-                creation_input.decision, alternatives_text
+            # Provide brief warning - detailed guidance is in policy_guidance promptlet
+            warnings.append(
+                "⚠️  No structured policy provided. Review the policy_guidance in the response "
+                "for instructions on constructing enforcement policies."
             )
-
-            if suggested:
-                # Policy could be auto-generated from content
-                import json
-
-                warnings.append(
-                    "⚠️  No structured policy provided, but enforceable policies detected in content."
-                )
-                warnings.append(
-                    f"📋 Suggested policy structure:\n{json.dumps(suggested, indent=2)}"
-                )
-                warnings.append(
-                    "💡 To enable automatic enforcement, include a 'policy' block with this structure when creating the ADR."
-                )
-            else:
-                # No detectable policy at all
-                warnings.append(
-                    "⚠️  No structured policy provided and no enforceable policies detected in content."
-                )
-                warnings.append(
-                    "📖 Use pattern-friendly language to enable constraint extraction:\n"
-                    "   • Import restrictions: 'Don't use X', 'Prefer Y over X'\n"
-                    "   • Code patterns: 'All X must be Y', 'X must have Y'\n"
-                    "   • Architecture: 'X must not access Y', 'Required: path/to/file'\n"
-                    "   • Config: 'TypeScript strict mode required', 'Ruff must check imports'"
-                )
-                warnings.append(
-                    "💡 Or include a structured 'policy' block for guaranteed enforcement."
-                )
 
         return warnings
-
-    def _suggest_policy_from_alternatives(
-        self, decision: str, alternatives: str
-    ) -> dict[str, Any] | None:
-        """Suggest policy structure based on decision and alternatives text.
-
-        This is a comprehensive policy suggestion engine that analyzes the
-        decision and alternatives to detect enforceable policies across all
-        policy types: imports, patterns, architecture, and config enforcement.
-        """
-        # Combine decision and alternatives for comprehensive analysis
-        full_text = f"{decision}\n\n{alternatives}"
-
-        suggested_policy: dict[str, Any] = {}
-
-        # 1. Extract Import Policies
-        import_policy = self._suggest_import_policies(full_text, decision)
-        if import_policy:
-            suggested_policy["imports"] = import_policy
-
-        # 2. Extract Pattern Policies
-        pattern_policy = self._suggest_pattern_policies(full_text)
-        if pattern_policy:
-            suggested_policy["patterns"] = pattern_policy
-
-        # 3. Extract Architecture Policies
-        architecture_policy = self._suggest_architecture_policies(full_text)
-        if architecture_policy:
-            suggested_policy["architecture"] = architecture_policy
-
-        # 4. Extract Config Enforcement Policies
-        config_policy = self._suggest_config_policies(full_text)
-        if config_policy:
-            suggested_policy["config_enforcement"] = config_policy
-
-        # 5. Extract Rationales
-        rationales = self._suggest_rationales(full_text)
-        if rationales:
-            suggested_policy["rationales"] = rationales
-
-        return suggested_policy if suggested_policy else None
-
-    def _suggest_import_policies(
-        self, full_text: str, decision: str
-    ) -> dict[str, Any] | None:
-        """Suggest import/library policies from text."""
-        disallow = set()
-        prefer = set()
-
-        # Pattern 1: "Don't use X", "Avoid X", "Ban X", "X is deprecated"
-        ban_patterns = [
-            r"(?i)(?:don't\s+use|avoid|ban|deprecated?)\s+([a-zA-Z0-9\-_@/.]+)",
-            r"(?i)no\s+longer\s+use\s+([a-zA-Z0-9\-_@/.]+)",
-            r"(?i)([a-zA-Z0-9\-_@/.]+)\s+is\s+deprecated",
-        ]
-
-        for pattern in ban_patterns:
-            matches = re.findall(pattern, full_text)
-            for match in matches:
-                normalized = self._normalize_library_name(match)
-                if normalized:
-                    disallow.add(normalized)
-
-        # Pattern 2: "Use Y instead of X", "Prefer Y over X", "Replace X with Y"
-        preference_patterns = [
-            r"(?i)use\s+([a-zA-Z0-9\-_@/.]+)\s+instead\s+of\s+([a-zA-Z0-9\-_@/.]+)",
-            r"(?i)prefer\s+([a-zA-Z0-9\-_@/.]+)\s+over\s+([a-zA-Z0-9\-_@/.]+)",
-            r"(?i)replace\s+([a-zA-Z0-9\-_@/.]+)\s+with\s+([a-zA-Z0-9\-_@/.]+)",
-        ]
-
-        for pattern in preference_patterns:
-            matches = re.findall(pattern, full_text)
-            for match in matches:
-                if len(match) == 2:  # (preferred, deprecated)
-                    preferred, deprecated = match
-                    preferred_norm = self._normalize_library_name(preferred)
-                    deprecated_norm = self._normalize_library_name(deprecated)
-                    if preferred_norm:
-                        prefer.add(preferred_norm)
-                    if deprecated_norm:
-                        disallow.add(deprecated_norm)
-
-        # Pattern 3: Extract from alternatives section
-        # "### Technology Name\n- Rejected"
-        heading_matches = re.findall(
-            r"(?i)###\s+([a-zA-Z0-9\-_@/. ]+?)\n\s*-\s*Reject(?:ed)?", full_text
-        )
-        for match in heading_matches:
-            first_word = match.strip().split()[0] if match.strip().split() else ""
-            if first_word and len(first_word) > 2:
-                if re.match(r"^[A-Za-z][A-Za-z0-9\-_.]*$", first_word):
-                    normalized = self._normalize_library_name(first_word)
-                    if normalized:
-                        disallow.add(normalized)
-
-        # Pattern 3b: "Rejected X and Y" format
-        rejected_and_pattern = r"(?i)Rejected?\s+([A-Za-z][A-Za-z0-9\-_.@/]*)"
-        rejected_and_matches = re.findall(rejected_and_pattern, full_text)
-        for match in rejected_and_matches:
-            normalized = self._normalize_library_name(match)
-            if normalized:
-                disallow.add(normalized)
-
-        # Pattern 4: Extract chosen technology from decision
-        use_matches = re.findall(r"(?i)Use\s+([a-zA-Z0-9\-_@/.]+)", decision)
-        for match in use_matches:
-            normalized = self._normalize_library_name(match)
-            if normalized:
-                prefer.add(normalized)
-
-        if disallow or prefer:
-            return {
-                "disallow": sorted(disallow) if disallow else None,
-                "prefer": sorted(prefer) if prefer else None,
-            }
-
-        return None
-
-    def _suggest_pattern_policies(self, full_text: str) -> dict[str, Any] | None:
-        """Suggest code pattern policies from text."""
-        patterns_dict = {}
-
-        # Pattern 1: "All X must be Y"
-        all_must_patterns = re.findall(
-            r"(?i)all\s+([a-zA-Z0-9\-_\s]+?)\s+must\s+be\s+([a-zA-Z0-9\-_\s]+)",
-            full_text,
-        )
-        for _idx, (subject, requirement) in enumerate(all_must_patterns, start=1):
-            rule_name = f"all_{subject.strip().lower().replace(' ', '_')}_must_be_{requirement.strip().lower().replace(' ', '_')}"
-            patterns_dict[rule_name] = {
-                "description": f"All {subject.strip()} must be {requirement.strip()}",
-                "severity": "error",
-                "rule": f"{subject.strip()}.*{requirement.strip()}",  # Simple regex placeholder
-            }
-
-        # Pattern 2: "X must have Y" or "X must include Y"
-        must_have_patterns = re.findall(
-            r"(?i)([a-zA-Z0-9\-_\s]+?)\s+must\s+(?:have|include)\s+([a-zA-Z0-9\-_\s]+)",
-            full_text,
-        )
-        for _idx, (subject, requirement) in enumerate(must_have_patterns, start=1):
-            rule_name = f"{subject.strip().lower().replace(' ', '_')}_must_have_{requirement.strip().lower().replace(' ', '_')}"
-            patterns_dict[rule_name] = {
-                "description": f"{subject.strip()} must have {requirement.strip()}",
-                "severity": "error",
-                "rule": f"{subject.strip()}.*{requirement.strip()}",
-            }
-
-        # Pattern 3: "No X allowed" or "X is forbidden"
-        no_allowed_patterns = re.findall(
-            r"(?i)no\s+([a-zA-Z0-9\-_\s]+?)\s+(?:allowed|permitted)", full_text
-        )
-        for match in no_allowed_patterns:
-            rule_name = f"no_{match.strip().lower().replace(' ', '_')}_allowed"
-            patterns_dict[rule_name] = {
-                "description": f"No {match.strip()} allowed",
-                "severity": "error",
-                "rule": f"(?!.*{match.strip()})",  # Negative lookahead
-            }
-
-        return {"patterns": patterns_dict} if patterns_dict else None
-
-    def _suggest_architecture_policies(self, full_text: str) -> dict[str, Any] | None:
-        """Suggest architecture policies (boundaries + structure) from text."""
-        layer_boundaries = []
-        required_structure = []
-
-        # Pattern 1: "X must not access/call/use Y"
-        boundary_patterns = [
-            r"(?i)([a-zA-Z0-9\-_]+)\s+must\s+not\s+(?:access|call|use|import)\s+([a-zA-Z0-9\-_]+)",
-            r"(?i)no\s+direct\s+access\s+from\s+([a-zA-Z0-9\-_]+)\s+to\s+([a-zA-Z0-9\-_]+)",
-            r"(?i)([a-zA-Z0-9\-_]+)\s+(?:cannot|should\s+not)\s+(?:access|import)\s+([a-zA-Z0-9\-_]+)",
-        ]
-
-        for pattern in boundary_patterns:
-            matches = re.findall(pattern, full_text)
-            for source, target in matches:
-                layer_boundaries.append(
-                    {
-                        "rule": f"{source.strip()} -> {target.strip()}",
-                        "action": "block",
-                        "message": f"{source.strip()} must not access {target.strip()}",
-                    }
-                )
-
-        # Pattern 2: "Required: path/to/file"
-        required_patterns = re.findall(
-            r"(?i)required:\s+([a-zA-Z0-9\-_/.]+)", full_text
-        )
-        for path in required_patterns:
-            required_structure.append(
-                {"path": path.strip(), "description": f"Required: {path.strip()}"}
-            )
-
-        # Pattern 3: "Must have X directory/file"
-        must_have_structure = re.findall(
-            r"(?i)must\s+have\s+([a-zA-Z0-9\-_/.]+)\s+(directory|file|folder)",
-            full_text,
-        )
-        for path, _ in must_have_structure:
-            required_structure.append(
-                {"path": path.strip(), "description": f"Required {path.strip()}"}
-            )
-
-        policy = {}
-        if layer_boundaries:
-            policy["layer_boundaries"] = layer_boundaries
-        if required_structure:
-            policy["required_structure"] = required_structure
-
-        return policy if policy else None
-
-    def _suggest_config_policies(self, full_text: str) -> dict[str, Any] | None:
-        """Suggest configuration enforcement policies from text."""
-        config_policy = {}
-
-        # TypeScript config patterns
-        ts_patterns: dict[str, dict[str, Any]] = {
-            r"(?i)typescript.*strict\s+mode": {"tsconfig": {"strict": True}},
-            r"(?i)tsconfig.*strict.*true": {"tsconfig": {"strict": True}},
-            r"(?i)enable.*noImplicitAny": {
-                "tsconfig": {"compilerOptions": {"noImplicitAny": True}}
-            },
-        }
-
-        typescript_config: dict[str, Any] = {}
-        for pattern, config in ts_patterns.items():
-            if re.search(pattern, full_text):
-                typescript_config.update(config)
-
-        if typescript_config:
-            config_policy["typescript"] = typescript_config
-
-        # Python config patterns
-        py_patterns: dict[str, dict[str, Any]] = {
-            r"(?i)ruff.*check.*imports": {"ruff": {"lint": {"select": ["I"]}}},
-            r"(?i)mypy.*strict": {"mypy": {"strict": True}},
-        }
-
-        python_config: dict[str, Any] = {}
-        for pattern, config in py_patterns.items():
-            if re.search(pattern, full_text):
-                python_config.update(config)
-
-        if python_config:
-            config_policy["python"] = python_config
-
-        return config_policy if config_policy else None
-
-    def _suggest_rationales(self, full_text: str) -> list[str] | None:
-        """Extract rationales for the policies from content."""
-        rationales = set()
-
-        # Pattern 1: "For X" or "To X"
-        rationale_patterns = [
-            r"(?i)for\s+(performance|security|maintainability|consistency|bundle\s+size|scalability)",
-            r"(?i)to\s+(?:improve|enhance|ensure|maintain)\s+(performance|security|maintainability|consistency)",
-            r"(?i)(?:better|improved)\s+(performance|security|maintainability|developer\s+experience|dx)",
-            r"(?i)because\s+(?:of\s+)?([^.]+)",
-        ]
-
-        for pattern in rationale_patterns:
-            matches = re.findall(pattern, full_text)
-            for match in matches:
-                rationale = match.strip().replace("_", " ").capitalize()
-                if len(rationale) > 5:  # Filter out too-short matches
-                    rationales.add(rationale)
-
-        return sorted(rationales) if rationales else None
-
-    def _normalize_library_name(self, name: str) -> str | None:
-        """Normalize library names using common mappings."""
-        # Common library name mappings for normalization
-        library_mappings = {
-            "react-query": "@tanstack/react-query",
-            "react query": "@tanstack/react-query",
-            "tanstack query": "@tanstack/react-query",
-            "axios": "axios",
-            "fetch": "fetch",
-            "lodash": "lodash",
-            "moment": "moment",
-            "momentjs": "moment",
-            "moment.js": "moment",
-            "date-fns": "date-fns",
-            "dayjs": "dayjs",
-            "jquery": "jquery",
-            "underscore": "underscore",
-            "flask": "flask",
-            "django": "django",
-            "fastapi": "fastapi",
-            "express": "express",
-        }
-
-        name_lower = name.lower().strip()
-        return library_mappings.get(name_lower, name if len(name) > 1 else None)
 
     def _generate_adr_file(self, adr: ADR) -> str:
         """Generate the ADR file."""
@@ -882,27 +618,8 @@ class CreationWorkflow(BaseWorkflow):
         lines.append("---")
         lines.append("")
 
-        # MADR content
-        lines.append("## Context")
-        lines.append("")
-        lines.append(adr.context)
-        lines.append("")
-
-        lines.append("## Decision")
-        lines.append("")
-        lines.append(adr.decision)
-        lines.append("")
-
-        lines.append("## Consequences")
-        lines.append("")
-        lines.append(adr.consequences)
-        lines.append("")
-
-        if adr.alternatives:
-            lines.append("## Alternatives")
-            lines.append("")
-            lines.append(adr.alternatives)
-            lines.append("")
+        # MADR content sections (already formatted in adr.content)
+        lines.append(adr.content)
 
         return "\n".join(lines)
 
@@ -995,73 +712,69 @@ class CreationWorkflow(BaseWorkflow):
     ) -> dict[str, Any] | None:
         """Generate policy guidance promptlet for agents.
 
-        This method creates actionable guidance for agents when policies
-        could be extracted from the ADR content but weren't provided
-        as structured policy in the front-matter.
+        This method provides a structured promptlet that guides reasoning agents
+        through the process of constructing enforcement policies. Rather than
+        using regex to extract policies from text (which is fragile and redundant),
+        we provide the schema and let the agent reason about how to map their
+        architectural decision to the available policy capabilities.
+
+        This follows the principle: "ADR Kit provides structure, agents provide intelligence."
 
         Returns:
-            Policy guidance dict with suggestions, or None if policy already provided
+            Policy guidance dict with schema and reasoning prompts, or None if policy already provided
         """
         # If policy was already provided, no guidance needed
         if adr.front_matter.policy:
             return {
                 "has_policy": True,
                 "message": "✅ Structured policy provided and validated",
-                "suggestion": None,
             }
 
-        # Analyze decision and alternatives to detect enforceable policies
-        alternatives_text = creation_input.alternatives or ""
-        suggested = self._suggest_policy_from_alternatives(
-            creation_input.decision, alternatives_text
-        )
-
-        if suggested:
-            # Enforceable policies detected - provide guidance
-            import json
-
-            return {
-                "has_policy": False,
-                "detectable": True,
-                "message": (
-                    "📋 Enforceable policies detected in ADR content but no structured policy provided. "
-                    "To enable automatic enforcement, include a 'policy' parameter when creating ADRs."
+        # No policy provided - guide the agent through policy construction
+        return {
+            "has_policy": False,
+            "message": (
+                "📋 No policy provided. To enable automated enforcement, review your "
+                "architectural decision and construct a policy dict using the schema below."
+            ),
+            "agent_task": {
+                "role": "Policy Constructor",
+                "objective": (
+                    "Analyze your architectural decision and identify enforceable constraints "
+                    "that can be automated. Map these constraints to the policy schema capabilities."
                 ),
-                "suggestion": suggested,
-                "suggestion_json": json.dumps(suggested, indent=2),
-                "example_usage": (
-                    f"adr_create(\n"
-                    f"  title='{creation_input.title}',\n"
-                    f"  context='{creation_input.context[:50]}...',\n"
-                    f"  decision='{creation_input.decision[:50]}...',\n"
-                    f"  consequences='{creation_input.consequences[:50]}...',\n"
-                    f"  policy={json.dumps(suggested)}\n"
-                    f")"
-                ),
-                "guidance": [
-                    "Use the suggested policy structure to enable enforcement",
-                    "Adjust the policy dict based on your specific requirements",
-                    "Call adr_create() again with the policy parameter",
+                "reasoning_steps": [
+                    "1. Review your decision text for enforceable rules (what you said 'yes' or 'no' to)",
+                    "2. Identify which policy types apply (imports, patterns, architecture, config)",
+                    "3. Map your constraints to the schema structures below",
+                    "4. Construct a policy dict with only the relevant policy types",
+                    "5. Call adr_create() again with the policy parameter",
                 ],
-                "policy_reference": self._build_policy_reference(),
-            }
-        else:
-            # No enforceable policies detected
-            return {
-                "has_policy": False,
-                "detectable": False,
-                "message": (
-                    "⚠️  No structured policy provided and no enforceable policies detected in content. "
-                    "Use pattern-friendly language to enable constraint extraction."
+                "focus": (
+                    "Look for explicit constraints in your decision: library choices, "
+                    "code patterns, architectural boundaries, or configuration requirements."
                 ),
-                "guidance": [
-                    "Import restrictions: 'Don't use X', 'Prefer Y over X'",
-                    "Code patterns: 'All X must be Y', 'X must have Y'",
-                    "Architecture: 'X must not access Y', 'Required: path/to/file'",
-                    "Config: 'TypeScript strict mode required', 'Ruff must check imports'",
-                ],
-                "suggestion": None,
-            }
+            },
+            "policy_capabilities": self._build_policy_reference(),
+            "example_workflow": {
+                "scenario": "Decision says: 'Use FastAPI. Don't use Flask or Django due to lack of async support.'",
+                "reasoning": "This is an import restriction - FastAPI is preferred, Flask/Django are disallowed.",
+                "constructed_policy": {
+                    "imports": {
+                        "disallow": ["flask", "django"],
+                        "prefer": ["fastapi"],
+                    },
+                    "rationales": ["Native async support required for I/O operations"],
+                },
+                "next_call": "adr_create(..., policy={...})",
+            },
+            "guidance": [
+                "Only create policies for explicit constraints in your decision",
+                "Don't invent constraints that weren't in your decision",
+                "Multiple policy types can be combined in one policy dict",
+                "Rationales help explain why constraints exist",
+            ],
+        }
 
     def _build_policy_reference(self) -> dict[str, Any]:
         """Build comprehensive policy structure reference documentation.
@@ -1160,3 +873,600 @@ class CreationWorkflow(BaseWorkflow):
                 ],
             },
         }
+
+    def _quick_quality_gate(self, creation_input: CreationInput) -> dict[str, Any]:
+        """Quick quality gate that runs BEFORE ADR file creation.
+
+        This pre-validation check runs deterministic quality checks on the input
+        to ensure decision quality meets the minimum threshold BEFORE creating
+        any files. This enables a correction loop without file pollution.
+
+        Args:
+            creation_input: The input data for ADR creation
+
+        Returns:
+            Quality assessment with passes_threshold boolean and feedback
+        """
+        issues = []
+        strengths = []
+        score = 100  # Start perfect, deduct points for issues
+        QUALITY_THRESHOLD = 75  # B grade minimum (anything lower blocks creation)
+
+        context_text = creation_input.context.lower()
+        decision_text = creation_input.decision.lower()
+        consequences_text = creation_input.consequences.lower()
+
+        # Check 1: Specificity - detect generic/vague language
+        generic_terms = [
+            "modern",
+            "good",
+            "best",
+            "framework",
+            "library",
+            "tool",
+            "better",
+            "nice",
+        ]
+        vague_count = sum(
+            1 for term in generic_terms if term in decision_text or term in context_text
+        )
+
+        if vague_count >= 2:
+            score -= 15
+            issues.append(
+                {
+                    "category": "specificity",
+                    "severity": "medium",
+                    "issue": f"Decision uses {vague_count} generic terms ('{', '.join([t for t in generic_terms if t in decision_text or t in context_text][:3])}...')",
+                    "suggestion": "Replace generic terms with specific technology names and versions",
+                    "example_fix": "Instead of 'use a modern framework', write 'Use React 18 with TypeScript'",
+                }
+            )
+        else:
+            strengths.append("Decision uses specific, concrete terminology")
+
+        # Check 2: Balanced consequences - must have BOTH pros AND cons
+        positive_keywords = [
+            "benefit",
+            "advantage",
+            "positive",
+            "improve",
+            "better",
+            "gain",
+        ]
+        negative_keywords = [
+            "drawback",
+            "limitation",
+            "negative",
+            "cost",
+            "risk",
+            "challenge",
+        ]
+
+        has_positives = any(kw in consequences_text for kw in positive_keywords)
+        has_negatives = any(kw in consequences_text for kw in negative_keywords)
+
+        if not (has_positives and has_negatives):
+            score -= 25
+            issues.append(
+                {
+                    "category": "balance",
+                    "severity": "high",
+                    "issue": "Consequences are one-sided (only pros or only cons)",
+                    "suggestion": "Document BOTH positive and negative consequences - every technical decision has trade-offs",
+                    "example_fix": "Add '### Negative' section listing drawbacks, limitations, or risks",
+                    "why_it_matters": "Balanced trade-off analysis enables informed decision-making",
+                }
+            )
+        else:
+            strengths.append("Consequences show balanced trade-off analysis")
+
+        # Check 3: Context quality - sufficient detail
+        context_length = len(creation_input.context)
+
+        if context_length < 50:
+            score -= 20
+            issues.append(
+                {
+                    "category": "context",
+                    "severity": "high",
+                    "issue": f"Context is too brief ({context_length} characters)",
+                    "suggestion": "Expand context to explain WHY this decision is needed: current state, requirements, drivers",
+                    "example_fix": "Add: business requirements, technical constraints, user needs",
+                }
+            )
+        elif context_length >= 150:
+            strengths.append("Context provides detailed problem background")
+
+        # Check 4: Explicit constraints - policy-ready language
+        import re
+
+        constraint_patterns = [
+            r"\bdon[''']t\s+use\b",
+            r"\bmust\s+not\s+use\b",
+            r"\bavoid\b",
+            r"\bmust\s+(?:use|have|be)\b",
+            r"\ball\s+\w+\s+must\b",
+        ]
+
+        has_explicit_constraints = any(
+            re.search(pattern, decision_text, re.IGNORECASE)
+            for pattern in constraint_patterns
+        )
+
+        if not has_explicit_constraints:
+            score -= 15
+            issues.append(
+                {
+                    "category": "policy_readiness",
+                    "severity": "medium",
+                    "issue": "Decision lacks explicit constraints (enables policy extraction)",
+                    "suggestion": "Add explicit constraints using 'Don't use X', 'Must use Y', 'All Z must...'",
+                    "example_fix": "Use FastAPI for APIs. **Don't use Flask** or Django.",
+                    "why_it_matters": "Explicit constraints enable automated policy enforcement (Task 2)",
+                }
+            )
+        else:
+            strengths.append(
+                "Decision includes explicit constraints ready for policy extraction"
+            )
+
+        # Check 5: Alternatives - critical for 'disallow' policies
+        if not creation_input.alternatives or len(creation_input.alternatives) < 20:
+            score -= 15
+            issues.append(
+                {
+                    "category": "alternatives",
+                    "severity": "medium",
+                    "issue": "Missing or minimal alternatives section",
+                    "suggestion": "Document rejected alternatives with specific reasons",
+                    "example_fix": "### MySQL\\n**Rejected**: Weaker JSON support\\n\\n### MongoDB\\n**Rejected**: Conflicts with ACID requirements",
+                    "why_it_matters": "Alternatives section enables extraction of 'disallow' policies",
+                }
+            )
+        else:
+            strengths.append("Alternatives documented (enables disallow policies)")
+
+        # Check 6: Decision completeness
+        decision_length = len(creation_input.decision)
+
+        if decision_length < 30:
+            score -= 10
+            issues.append(
+                {
+                    "category": "completeness",
+                    "severity": "low",
+                    "issue": f"Decision is very brief ({decision_length} characters)",
+                    "suggestion": "Expand decision with: specific technology, scope, and constraints",
+                    "example_fix": "Use PostgreSQL 15 for all application data. Deploy on AWS RDS with Multi-AZ.",
+                }
+            )
+
+        # Clamp score to valid range
+        score = max(0, min(100, score))
+
+        # Determine grade (A=90+, B=75+, C=60+, D=40+, F=<40)
+        if score >= 90:
+            grade = "A"
+        elif score >= 75:
+            grade = "B"
+        elif score >= 60:
+            grade = "C"
+        elif score >= 40:
+            grade = "D"
+        else:
+            grade = "F"
+
+        passes_threshold = score >= QUALITY_THRESHOLD
+
+        # Generate summary
+        if passes_threshold:
+            summary = f"Decision quality is acceptable (Grade {grade}, {score}/100). {len(issues)} minor improvements suggested."
+        else:
+            summary = f"Decision quality is below threshold (Grade {grade}, {score}/100). {len(issues)} issues must be addressed before ADR creation."
+
+        # Generate prioritized recommendations
+        high_priority = [i for i in issues if i["severity"] == "high"]
+        medium_priority = [i for i in issues if i["severity"] == "medium"]
+
+        recommendations = []
+        if high_priority:
+            recommendations.append(
+                f"🔴 **High Priority**: Fix {len(high_priority)} critical issues first"
+            )
+            for issue in high_priority[:2]:  # Top 2 high priority
+                recommendations.append(
+                    f"  - {issue['category'].title()}: {issue['suggestion']}"
+                )
+
+        if medium_priority and score < QUALITY_THRESHOLD:
+            recommendations.append(
+                f"🟡 **Medium Priority**: Address {len(medium_priority)} quality issues"
+            )
+            for issue in medium_priority[:2]:  # Top 2 medium priority
+                recommendations.append(
+                    f"  - {issue['category'].title()}: {issue['suggestion']}"
+                )
+
+        # Next steps vary by quality score
+        next_steps = []
+        if not passes_threshold:
+            next_steps.append(
+                "⛔ **ADR Creation Blocked**: Quality score below threshold"
+            )
+            next_steps.append(
+                "📝 **Action Required**: Address the issues above and resubmit"
+            )
+            next_steps.append(
+                "💡 **Tip**: Focus on high-priority issues first for maximum impact"
+            )
+        else:
+            next_steps.append(
+                "✅ **Quality Gate Passed**: ADR will be created with this input"
+            )
+            if issues:
+                next_steps.append(
+                    f"💡 **Optional**: Consider addressing {len(issues)} suggestions for even higher quality"
+                )
+
+        return {
+            "quality_score": score,
+            "grade": grade,
+            "passes_threshold": passes_threshold,
+            "threshold": QUALITY_THRESHOLD,
+            "summary": summary,
+            "issues": issues,
+            "strengths": strengths,
+            "recommendations": recommendations,
+            "next_steps": next_steps,
+        }
+
+    def _assess_decision_quality(
+        self, adr: ADR, creation_input: CreationInput
+    ) -> dict[str, Any]:
+        """Assess decision quality and provide targeted feedback.
+
+        This implements Task 1 of the two-step ADR creation flow:
+        - Task 1 (this method): Assess decision quality and provide guidance
+        - Task 2 (_generate_policy_guidance): Extract enforceable policies
+
+        The assessment identifies common quality issues and provides actionable
+        feedback to help agents improve their ADRs. It follows the principle:
+        "ADR Kit provides structure, agents provide intelligence."
+
+        Args:
+            adr: The created ADR
+            creation_input: The input data used to create the ADR
+
+        Returns:
+            Quality assessment with issues found and improvement suggestions
+        """
+        issues = []
+        strengths = []
+        score = 100  # Start with perfect score, deduct for issues
+
+        # Check 1: Specificity (are technology names specific?)
+        generic_terms = [
+            "modern",
+            "good",
+            "best",
+            "framework",
+            "library",
+            "tool",
+            "system",
+            "platform",
+        ]
+        decision_lower = adr.decision.lower()
+        title_lower = adr.title.lower()
+
+        vague_terms_found = [
+            term
+            for term in generic_terms
+            if term in decision_lower or term in title_lower
+        ]
+        if vague_terms_found:
+            issues.append(
+                {
+                    "category": "specificity",
+                    "severity": "medium",
+                    "issue": f"Decision uses generic terms: {', '.join(vague_terms_found)}",
+                    "suggestion": (
+                        "Replace generic terms with specific technology names and versions. "
+                        "Example: Instead of 'modern framework', use 'React 18' or 'FastAPI 0.104'."
+                    ),
+                    "example_fix": {
+                        "bad": "Use a modern web framework",
+                        "good": "Use React 18 with TypeScript for frontend development",
+                    },
+                }
+            )
+            score -= 15
+        else:
+            strengths.append("Decision is specific with clear technology choices")
+
+        # Check 2: Balanced consequences (are there both pros AND cons?)
+        consequences_lower = adr.consequences.lower()
+        has_positives = any(
+            word in consequences_lower
+            for word in [
+                "benefit",
+                "advantage",
+                "positive",
+                "+",
+                "pro:",
+                "pros:",
+                "good",
+                "better",
+                "improve",
+            ]
+        )
+        has_negatives = any(
+            word in consequences_lower
+            for word in [
+                "drawback",
+                "disadvantage",
+                "negative",
+                "-",
+                "con:",
+                "cons:",
+                "risk",
+                "limitation",
+                "downside",
+                "trade-off",
+                "tradeoff",
+            ]
+        )
+
+        if not (has_positives and has_negatives):
+            issues.append(
+                {
+                    "category": "balance",
+                    "severity": "high",
+                    "issue": "Consequences appear one-sided (missing pros or cons)",
+                    "suggestion": (
+                        "Every technical decision has trade-offs. Document BOTH positive outcomes "
+                        "AND negative consequences honestly. Use structure like:\n"
+                        "### Positive\n- Benefit 1\n- Benefit 2\n\n"
+                        "### Negative\n- Drawback 1\n- Drawback 2"
+                    ),
+                    "why_it_matters": (
+                        "Balanced consequences help future decision-makers understand when to "
+                        "reconsider this choice. Hiding drawbacks leads to technical debt."
+                    ),
+                }
+            )
+            score -= 25
+        else:
+            strengths.append("Consequences document both benefits and drawbacks")
+
+        # Check 3: Context quality (does it explain WHY?)
+        context_length = len(adr.context.strip())
+        if context_length < 50:
+            issues.append(
+                {
+                    "category": "context",
+                    "severity": "high",
+                    "issue": "Context is too brief (less than 50 characters)",
+                    "suggestion": (
+                        "Context should explain WHY this decision is needed. Include:\n"
+                        "- The problem or opportunity\n"
+                        "- Current state and why it's insufficient\n"
+                        "- Requirements that must be met\n"
+                        "- Constraints or limitations"
+                    ),
+                    "example": (
+                        "Good Context: 'We need ACID transactions for financial data integrity. "
+                        "Current SQLite setup doesn't support concurrent writes from multiple services. "
+                        "Requires complex queries with joins and JSON document storage.'"
+                    ),
+                }
+            )
+            score -= 20
+        else:
+            strengths.append("Context provides sufficient detail about the problem")
+
+        # Check 4: Explicit constraints (for policy extraction)
+        constraint_patterns = [
+            r"\bdon[''']t\s+use\b",
+            r"\bavoid\b.*\b(?:using|use)\b",
+            r"\bmust\s+(?:not\s+)?(?:use|have|be)\b",
+            r"\ball\s+\w+\s+must\b",
+            r"\brequired?\b",
+            r"\bprohibited?\b",
+        ]
+
+        has_explicit_constraints = any(
+            re.search(pattern, decision_lower, re.IGNORECASE)
+            for pattern in constraint_patterns
+        )
+
+        if not has_explicit_constraints:
+            issues.append(
+                {
+                    "category": "policy_readiness",
+                    "severity": "medium",
+                    "issue": "Decision lacks explicit constraints for policy extraction",
+                    "suggestion": (
+                        "Use explicit constraint language to enable automated policy extraction:\n"
+                        "- 'Don't use X' / 'Avoid X'\n"
+                        "- 'Use Y instead of X'\n"
+                        "- 'All X must have Y'\n"
+                        "- 'Must not access'\n"
+                        "Example: 'Use FastAPI. Don't use Flask or Django due to lack of async support.'"
+                    ),
+                    "why_it_matters": (
+                        "Explicit constraints enable Task 2 (policy extraction) to generate "
+                        "enforceable rules automatically. Vague language can't be automated."
+                    ),
+                }
+            )
+            score -= 15
+        else:
+            strengths.append(
+                "Decision includes explicit constraints ready for policy extraction"
+            )
+
+        # Check 5: Alternatives (critical for policy extraction)
+        if (
+            not creation_input.alternatives
+            or len(creation_input.alternatives.strip()) < 20
+        ):
+            issues.append(
+                {
+                    "category": "alternatives",
+                    "severity": "medium",
+                    "issue": "Missing or insufficient alternatives documentation",
+                    "suggestion": (
+                        "Document what alternatives you considered and WHY you rejected each one. "
+                        "This is CRITICAL for policy extraction - rejected alternatives often become "
+                        "'disallow' policies.\n\n"
+                        "Structure:\n"
+                        "### Alternative Name\n"
+                        "**Rejected**: Specific reason for rejection\n"
+                        "- Pros: ...\n"
+                        "- Cons: ...\n"
+                        "- Why not: ..."
+                    ),
+                    "example": (
+                        "### Flask\n"
+                        "**Rejected**: Lacks native async support.\n"
+                        "- Pros: Lightweight, huge ecosystem\n"
+                        "- Cons: No native async, requires Quart\n"
+                        "- Why not: Async support is critical for our use case"
+                    ),
+                    "why_it_matters": (
+                        "Alternatives with clear rejection reasons enable extraction of 'disallow' policies. "
+                        "Example: 'Rejected Flask' becomes {'imports': {'disallow': ['flask']}}"
+                    ),
+                }
+            )
+            score -= 15
+        else:
+            strengths.append(
+                "Alternatives documented with clear rejection reasons (enables 'disallow' policies)"
+            )
+
+        # Check 6: Decision length (too short is usually vague)
+        decision_length = len(adr.decision.strip())
+        if decision_length < 30:
+            issues.append(
+                {
+                    "category": "completeness",
+                    "severity": "medium",
+                    "issue": "Decision section is very brief (less than 30 characters)",
+                    "suggestion": (
+                        "Decision should clearly state:\n"
+                        "1. What technology/pattern/approach is chosen\n"
+                        "2. Scope of applicability ('All new services', 'Frontend only')\n"
+                        "3. Explicit constraints ('Don't use X', 'Must have Y')\n"
+                        "4. Migration path if replacing existing technology"
+                    ),
+                }
+            )
+            score -= 10
+
+        # Determine overall quality grade
+        if score >= 90:
+            grade = "A"
+            summary = "Excellent ADR - ready for policy extraction"
+        elif score >= 75:
+            grade = "B"
+            summary = "Good ADR - minor improvements would help"
+        elif score >= 60:
+            grade = "C"
+            summary = "Acceptable ADR - several areas need improvement"
+        elif score >= 40:
+            grade = "D"
+            summary = (
+                "Weak ADR - significant improvements needed before policy extraction"
+            )
+        else:
+            grade = "F"
+            summary = "Poor ADR - needs major revision"
+
+        return {
+            "quality_score": score,
+            "grade": grade,
+            "summary": summary,
+            "issues": issues,
+            "strengths": strengths,
+            "recommendations": self._generate_quality_recommendations(issues),
+            "next_steps": self._generate_quality_next_steps(issues, score),
+        }
+
+    def _generate_quality_recommendations(
+        self, issues: list[dict[str, Any]]
+    ) -> list[str]:
+        """Generate prioritized recommendations based on quality issues.
+
+        Args:
+            issues: List of quality issues found
+
+        Returns:
+            Prioritized list of actionable recommendations
+        """
+        if not issues:
+            return [
+                "✅ Your ADR meets quality standards",
+                "Consider reviewing the policy_guidance to add automated enforcement",
+            ]
+
+        recommendations = []
+
+        # Prioritize by severity
+        high_severity = [issue for issue in issues if issue["severity"] == "high"]
+        medium_severity = [issue for issue in issues if issue["severity"] == "medium"]
+
+        if high_severity:
+            recommendations.append(
+                f"🔴 High Priority: Address {len(high_severity)} critical quality issue(s):"
+            )
+            for issue in high_severity:
+                recommendations.append(f"   - {issue['issue']}")
+                recommendations.append(f"     → {issue['suggestion']}")
+
+        if medium_severity:
+            recommendations.append(
+                f"🟡 Medium Priority: Improve {len(medium_severity)} quality aspect(s):"
+            )
+            for issue in medium_severity:
+                recommendations.append(f"   - {issue['issue']}")
+
+        return recommendations
+
+    def _generate_quality_next_steps(
+        self, issues: list[dict[str, Any]], score: int
+    ) -> list[str]:
+        """Generate next steps based on quality assessment.
+
+        Args:
+            issues: List of quality issues found
+            score: Overall quality score
+
+        Returns:
+            List of recommended next steps
+        """
+        if score >= 80:
+            # High quality - ready to proceed
+            return [
+                "Your ADR is high quality and ready for review",
+                "Review the policy_guidance to add automated enforcement policies",
+                "Use adr_approve() after human review to activate the decision",
+            ]
+        elif score >= 60:
+            # Acceptable but could improve
+            return [
+                "ADR is acceptable but could be strengthened",
+                "Consider addressing the quality issues listed above",
+                "You can proceed with approval or revise for better policy extraction",
+            ]
+        else:
+            # Needs significant improvement
+            return [
+                "⚠️  ADR quality is below recommended threshold",
+                "Strongly recommend revising before approval:",
+                "  1. Address high-priority issues (context, balance, specificity)",
+                "  2. Add alternatives with rejection reasons (enables policy extraction)",
+                "  3. Use explicit constraint language ('Don't use', 'Must have')",
+                "After revision, create a new ADR with improved content",
+            ]

@@ -141,25 +141,56 @@ def adr_preflight(request: PreflightCheckRequest) -> dict[str, Any]:
 @mcp.tool()
 def adr_create(request: CreateADRRequest) -> dict[str, Any]:
     """
-    Create new ADR with optional policy enforcement.
+    Create new ADR with quality assessment and policy guidance.
 
     WHEN TO USE: Document significant technical decisions.
-    RETURNS: ADR details + policy_guidance (if policies detected in content).
+    RETURNS: ADR details + quality_feedback + policy_guidance.
 
-    Parameters:
-    - title, context, decision, consequences: Required ADR content
-    - policy (optional): Structured policy dict for enforcement
+    ## ADR Structure (MADR Format)
 
-    If no policy provided, response includes policy_guidance with:
-    - suggestion: Auto-detected policy structure from decision text
-    - policy_reference: Complete documentation for all policy types
-    - example_usage: Code example with your ADR + suggested policy
+    Your ADR should have four sections:
 
-    Use pattern-friendly language for auto-detection:
-    - "Don't use X" / "Prefer Y over X" → import policies
-    - "All X must be Y" → pattern policies
-    - "X must not access Y" → architecture boundaries
-    - "TypeScript strict mode required" → config enforcement
+    1. **Context** (WHY): The problem or opportunity that prompted this decision
+       - Current state and why it's insufficient
+       - Requirements and constraints
+       - Business/technical drivers
+
+    2. **Decision** (WHAT): The specific technology/pattern/approach chosen
+       - Explicit statement with technology names/versions
+       - Scope ('All new services', 'Frontend only')
+       - Constraints ('Don't use X', 'Must have Y')
+
+    3. **Consequences** (TRADE-OFFS): Both positive AND negative outcomes
+       - Benefits and improvements (### Positive)
+       - Drawbacks and limitations (### Negative)
+       - Risks and mitigation strategies
+
+    4. **Alternatives** (OPTIONAL but CRITICAL): What else was considered
+       - Each rejected option with specific reason
+       - Enables extraction of 'disallow' policies
+
+    ## Quality Guidelines
+
+    - **Be specific**: "Use React 18" not "use a modern framework"
+    - **Document trade-offs**: List BOTH pros and cons (every decision has negatives)
+    - **Explain WHY**: Context should justify the decision
+    - **State constraints explicitly**: "Don't use Flask" → enables policy extraction
+    - **Include alternatives**: Rejected options become 'disallow' policies
+
+    ## Response Contents
+
+    The response includes:
+    - **quality_feedback**: Assessment of decision quality with improvement suggestions
+    - **policy_guidance**: How to add automated enforcement (Task 2)
+
+    ## Example
+
+    Good decision language:
+    - "Use **FastAPI** for all new backend services. **Don't use Flask** or Django."
+    - "All FastAPI handlers must be async functions."
+    - "Frontend must not access database directly - use API layer."
+
+    This enables automatic extraction of enforceable policies.
     """
     try:
         logger.info(f"Creating ADR: {request.title}")
@@ -175,6 +206,7 @@ def adr_create(request: CreateADRRequest) -> dict[str, Any]:
             tags=request.tags,
             policy=request.policy,
             alternatives=request.alternatives,
+            skip_quality_gate=request.skip_quality_gate,
         )
 
         result = workflow.execute(input_data=creation_input)
@@ -305,6 +337,7 @@ def adr_supersede(request: SupersedeADRRequest) -> dict[str, Any]:
             tags=request.new_tags,
             policy=request.new_policy,
             alternatives=request.new_alternatives,
+            skip_quality_gate=request.skip_quality_gate,
         )
 
         supersede_input = SupersedeInput(
