@@ -166,6 +166,7 @@ See [ROADMAP.md](ROADMAP.md) for what's planned and why.
 
 - [TECHNICAL.md](TECHNICAL.md) — How each layer works in detail, with examples
 - [ROADMAP.md](ROADMAP.md) — What's coming and in what order
+- [CHANGELOG.md](CHANGELOG.md) — Release history
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Set up the dev environment
 - [MADR Format](https://adr.github.io/madr/) — The ADR specification ADR Kit builds on
 - [MCP Protocol](https://modelcontextprotocol.io) — How AI agents connect to external tools
