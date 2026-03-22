@@ -168,6 +168,7 @@ MySQL is reliable and well-supported.
             decision="Use MongoDB as our primary database.",
             consequences="Flexible schema but less ACID compliance.",
             tags=["database", "nosql"],
+            skip_quality_gate=True,  # Skip quality gate to test conflict detection
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
@@ -204,6 +205,7 @@ MySQL is reliable and well-supported.
                     "rules": [{"forbid": "utils -> components"}],
                 },
             },
+            skip_quality_gate=True,  # Skip quality gate to test policy integration
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
@@ -297,6 +299,7 @@ MySQL is reliable and well-supported.
             context="Testing long title handling",
             decision="Use the long-named technology",
             consequences="Might cause file naming issues",
+            skip_quality_gate=True,  # Skip quality gate to test long title handling
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
@@ -324,6 +327,7 @@ MySQL is reliable and well-supported.
             context="Testing special character handling",
             decision="Use technologies with special characters in names",
             consequences="Must handle file naming properly",
+            skip_quality_gate=True,  # Skip quality gate to test special characters
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
@@ -351,6 +355,7 @@ MySQL is reliable and well-supported.
             context="We need a relational database for our data.",
             decision="Use MariaDB as our database solution.",
             consequences="Similar to MySQL with some improvements.",
+            skip_quality_gate=True,  # Skip quality gate to test semantic similarity
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
@@ -396,6 +401,7 @@ MySQL is reliable and well-supported.
             context="Need caching solution",
             decision="Use Redis for cache",
             consequences="Fast caching but additional infrastructure",
+            skip_quality_gate=True,  # Skip quality gate to test ID generation
         )
 
         result2 = workflow.execute(input_data=second_input)

@@ -76,6 +76,7 @@ class TestErrorScenarios:
             context="Testing disk full scenario",
             decision="Test decision",
             consequences="Test consequences",
+            skip_quality_gate=True,  # Skip quality gate to test disk full error
         )
 
         # Mock write operation to raise disk full error
@@ -114,6 +115,7 @@ class TestErrorScenarios:
             decision="Test decision",
             consequences="Test consequences",
             policy="invalid_policy_format",  # Should be dict, not string
+            skip_quality_gate=True,  # Skip quality gate to test malformed policy handling
         )
 
         result = workflow.execute(input_data=malformed_input)
@@ -226,6 +228,7 @@ class TestErrorScenarios:
             context="Unicode context: العربية русский 日本語 emoji: 🎉🔥💯",
             decision="Decision with symbols: ±∞≠≤≥∑∫∆",
             consequences="Consequences: →←↑↓⟵⟶⟷",
+            skip_quality_gate=True,  # Skip quality gate to test Unicode handling
         )
 
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)

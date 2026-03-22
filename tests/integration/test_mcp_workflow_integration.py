@@ -153,6 +153,7 @@ class TestMCPWorkflowIntegration:
             tags=request.tags,
             policy=request.policy,
             alternatives=request.alternatives,
+            skip_quality_gate=True,  # Skip quality gate to test MCP integration
         )
 
         result = workflow.execute(input_data=creation_input)
@@ -177,6 +178,7 @@ class TestMCPWorkflowIntegration:
             context="Testing approval workflow",
             decision="Use test technology",
             consequences="Test consequences",
+            skip_quality_gate=True,  # Skip quality gate to test approval workflow
         )
 
         creation_result = creation_workflow.execute(input_data=creation_input)
@@ -225,6 +227,7 @@ class TestMCPWorkflowIntegration:
             context="Need database solution",
             decision="Use MySQL",
             consequences="Good performance",
+            skip_quality_gate=True,  # Skip quality gate to test supersede workflow
         )
 
         creation_result = creation_workflow.execute(input_data=original_input)
@@ -434,6 +437,7 @@ class TestMCPWorkflowIntegration:
             context="Analysis revealed React usage in project",
             decision="Standardize on React for all frontend development",
             consequences="Consistent frontend architecture, team training needed",
+            skip_quality_gate=True,  # Skip quality gate to test workflow chain
         )
 
         create_result = create_workflow.execute(input_data=create_input)
