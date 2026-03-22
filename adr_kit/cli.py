@@ -307,7 +307,10 @@ def mcp_health() -> None:
             console.print(f"   • {tool}() - Clean interface → Full workflow automation")
 
         console.print("📚 Available Resources:")
-        console.print("   • adr://index - Structured ADR index")
+        console.print("   • adr://index       - Structured ADR index (all ADRs)")
+        console.print(
+            "   • adr://{ADR-ID}    - Full content of a single ADR (e.g. adr://ADR-0001)"
+        )
 
         console.print("\n✅ MCP Features:")
         console.print("   • Agent-friendly interfaces with proper FastMCP patterns")

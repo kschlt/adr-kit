@@ -47,6 +47,10 @@ class ContextualADR(BaseModel):
         default_factory=list,
         description="AI-centric warnings extracted from ADR consequences",
     )
+    resource_uri: str | None = Field(
+        None,
+        description="MCP resource URI for fetching full ADR content on demand (e.g. adr://ADR-0001)",
+    )
 
 
 class PlanningGuidance(BaseModel):
