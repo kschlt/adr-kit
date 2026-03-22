@@ -174,6 +174,16 @@ class PlanningContextRequest(BaseModel):
     adr_dir: str = Field("docs/adr", description="ADR directory path")
 
 
+class DecisionGuidanceRequest(BaseModel):
+    """Parameters for getting decision quality guidance."""
+
+    include_examples: bool = Field(True, description="Include good vs bad ADR examples")
+    focus_area: str | None = Field(
+        None,
+        description="Optional focus area (e.g., 'database', 'frontend') for tailored examples",
+    )
+
+
 # Response Data Models for Tool-Specific Data
 
 
