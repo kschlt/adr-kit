@@ -15,7 +15,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..core.model import ADRStatus
+from ..core.model import ADR, ADRStatus
 from ..core.parse import ParseError, find_adr_files, parse_adr_file
 from .stages import EnforcementLevel, StagedCheck, checks_for_level, classify_adr_checks
 
@@ -120,8 +120,8 @@ class StagedValidator:
 
     # --- ADR loading ---
 
-    def _load_accepted_adrs(self) -> list:
-        adrs = []
+    def _load_accepted_adrs(self) -> list[ADR]:
+        adrs: list[ADR] = []
         if not self.adr_dir.exists():
             return adrs
         for file_path in find_adr_files(self.adr_dir):

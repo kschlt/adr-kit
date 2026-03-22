@@ -8,6 +8,7 @@ Design decisions:
 """
 
 import sys
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -28,12 +29,11 @@ console = Console()
 stderr_console = Console(stderr=True)
 
 
-def check_for_updates_async() -> object:
+def check_for_updates_async() -> threading.Thread:
     """Check for updates in the background and show notification if available.
 
     Returns the background thread so callers can join it if needed.
     """
-    import threading
 
     def _check() -> None:
         try:
