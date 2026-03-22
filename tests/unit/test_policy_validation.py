@@ -72,8 +72,8 @@ class TestPolicyValidation:
             ]
             assert len(policy_warnings) == 0
 
-    def test_creation_with_pattern_language_no_warning(self):
-        """ADR with pattern-matching language should not trigger warning."""
+    def test_creation_with_pattern_language_has_warning(self):
+        """ADR with pattern-matching language but no structured policy should trigger warning."""
         with tempfile.TemporaryDirectory() as tmpdir:
             workflow = CreationWorkflow(adr_dir=tmpdir)
 
@@ -90,13 +90,11 @@ class TestPolicyValidation:
             assert result.success
             creation_result = result.data["creation_result"]
 
-            # Should NOT have policy warnings (patterns detected)
-            policy_warnings = [
-                w
-                for w in creation_result.validation_warnings
-                if "policy" in w.lower() or "constraint extraction" in w.lower()
-            ]
-            assert len(policy_warnings) == 0
+            # Should have policy warnings — natural language patterns are not extracted,
+            # only structured front-matter policy is recognized
+            assert len(creation_result.validation_warnings) > 0
+            warning_text = " ".join(creation_result.validation_warnings)
+            assert "policy" in warning_text.lower()
 
     def test_policy_extractor_with_structured_policy(self):
         """PolicyExtractor should extract from structured policy."""
@@ -120,38 +118,6 @@ class TestPolicyValidation:
         policy = extractor.extract_policy(adr)
         assert policy.get_disallowed_imports() == ["flask"]
         assert policy.get_preferred_imports() == ["fastapi"]
-
-    def test_policy_extractor_with_pattern_language(self):
-        """PolicyExtractor should extract from pattern-matching language."""
-        from datetime import date
-
-        front_matter = ADRFrontMatter(
-            id="ADR-0001",
-            title="Test",
-            status=ADRStatus.PROPOSED,
-            date=date.today(),
-        )
-
-        content = """
-## Decision
-
-Use FastAPI. **Don't use Flask** or Django.
-**Prefer FastAPI over Flask** for this use case.
-
-## Consequences
-
-**Avoid** synchronous frameworks.
-"""
-
-        adr = ADR(front_matter=front_matter, content=content)
-
-        extractor = PolicyExtractor()
-        assert extractor.has_extractable_policy(adr) is True
-
-        policy = extractor.extract_policy(adr)
-        # Should extract Flask from "Don't use Flask"
-        disallowed = policy.get_disallowed_imports()
-        assert any("flask" in item.lower() for item in disallowed)
 
     def test_policy_extractor_without_policy(self):
         """PolicyExtractor should return False for ADR without policy."""
