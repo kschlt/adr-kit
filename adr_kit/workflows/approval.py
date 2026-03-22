@@ -341,7 +341,7 @@ class ApprovalWorkflow(BaseWorkflow):
             }
 
     def _generate_enforcement_rules(self, adr: ADR) -> dict[str, Any]:
-        """Generate enforcement rules (ESLint, Ruff, etc.) from ADR policies."""
+        """Generate enforcement rules (ESLint, Ruff, git hooks) from ADR policies."""
         results = {}
 
         try:
@@ -355,6 +355,10 @@ class ApprovalWorkflow(BaseWorkflow):
                 ruff_result = self._generate_ruff_rules(adr)
                 results["ruff"] = ruff_result
 
+            # Always update git hooks so staged enforcement reflects new rules
+            hooks_result = self._update_git_hooks()
+            results["hooks"] = hooks_result
+
             return {
                 "success": True,
                 "rule_generators": list(results.keys()),
@@ -367,6 +371,37 @@ class ApprovalWorkflow(BaseWorkflow):
                 "success": False,
                 "error": str(e),
                 "message": "Failed to generate enforcement rules",
+            }
+
+    def _update_git_hooks(self) -> dict[str, Any]:
+        """Update git hooks to run staged enforcement checks."""
+        try:
+            from ..enforce.hooks import HookGenerator
+
+            generator = HookGenerator()
+            hook_results = generator.generate(project_root=Path.cwd())
+
+            updated = [
+                name
+                for name, action in hook_results.items()
+                if action not in ("unchanged", "skipped")
+            ]
+            skipped = [
+                name for name, action in hook_results.items() if "skipped" in action
+            ]
+
+            return {
+                "success": True,
+                "hooks_updated": updated,
+                "hooks_skipped": skipped,
+                "details": hook_results,
+                "message": f"Git hooks updated: {', '.join(updated) if updated else 'all unchanged'}",
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "message": "Failed to update git hooks (non-blocking)",
             }
 
     def _has_javascript_policies(self, adr: ADR) -> bool:
