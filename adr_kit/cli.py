@@ -8,6 +8,7 @@ Design decisions:
 """
 
 import sys
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -28,12 +29,11 @@ console = Console()
 stderr_console = Console(stderr=True)
 
 
-def check_for_updates_async() -> object:
+def check_for_updates_async() -> threading.Thread:
     """Check for updates in the background and show notification if available.
 
     Returns the background thread so callers can join it if needed.
     """
-    import threading
 
     def _check() -> None:
         try:
@@ -124,6 +124,9 @@ def init(
     skip_setup: bool = typer.Option(
         False, "--skip-setup", help="Skip interactive AI agent setup"
     ),
+    with_enforcement: bool = typer.Option(
+        False, "--with-enforcement", help="Set up git hooks for staged enforcement"
+    ),
 ) -> None:
     """Initialize ADR structure in repository."""
     try:
@@ -144,6 +147,10 @@ def init(
             console.print(f"   📄 {adr_dir / 'adr-index.json'} (JSON index)")
         except Exception as e:
             console.print(f"⚠️  Could not generate initial JSON index: {e}")
+
+        # Optional: set up git hooks for enforcement
+        if with_enforcement:
+            _setup_enforcement_hooks()
 
         # Interactive setup prompt (skip if --skip-setup flag is provided)
         if not skip_setup:
@@ -641,6 +648,33 @@ def info() -> None:
 
 
 # Keep only essential manual commands
+
+
+def _setup_enforcement_hooks() -> None:
+    """Set up git hooks for staged ADR enforcement (called from init --with-enforcement)."""
+    from .enforce.hooks import HookGenerator
+
+    gen = HookGenerator()
+    results = gen.generate()
+
+    actions = {
+        "pre-commit": results.get("pre-commit", "skipped"),
+        "pre-push": results.get("pre-push", "skipped"),
+    }
+
+    for hook_name, action in actions.items():
+        if "skipped" in action:
+            console.print(f"   ⚠️  {hook_name}: skipped ({action})")
+        elif action == "unchanged":
+            console.print(f"   ✅ {hook_name}: already configured")
+        else:
+            console.print(f"   ✅ {hook_name}: {action}")
+
+    console.print(
+        "   💡 Run 'adr-kit enforce commit' to test pre-commit checks manually"
+    )
+
+
 def _setup_cursor_impl() -> None:
     """Implementation for Cursor setup that can be called from commands or init."""
     import json
@@ -696,6 +730,71 @@ def _setup_cursor_impl() -> None:
     console.print(
         "3. [bold]Use:[/bold] Try 'Analyze my project for architectural decisions'"
     )
+
+
+@app.command()
+def setup_enforcement(
+    project_root: Path = typer.Option(
+        Path("."), "--root", help="Project root (git repository)"
+    ),
+) -> None:
+    """Set up git hooks for staged ADR enforcement.
+
+    Writes ADR-Kit managed sections into .git/hooks/pre-commit and
+    .git/hooks/pre-push. Safe on existing hooks — appends only.
+    Re-running is idempotent.
+    """
+    from .enforce.hooks import HookGenerator
+
+    try:
+        gen = HookGenerator()
+        results = gen.generate(project_root=project_root)
+
+        console.print("🔧 Setting up enforcement hooks...")
+        for hook_name, action in results.items():
+            if "skipped" in action:
+                console.print(f"   ⚠️  {hook_name}: {action}")
+            elif action == "unchanged":
+                console.print(f"   ✅ {hook_name}: already configured")
+            else:
+                console.print(f"   ✅ {hook_name}: {action}")
+
+        console.print(
+            "\n💡 Use 'adr-kit enforce commit' to run pre-commit checks manually"
+        )
+        console.print("💡 Use 'adr-kit enforce push' to run pre-push checks manually")
+    except Exception as e:
+        console.print(f"❌ Failed to set up enforcement hooks: {e}")
+        raise typer.Exit(code=1) from e
+
+
+@app.command()
+def enforce_status(
+    project_root: Path = typer.Option(
+        Path("."), "--root", help="Project root (git repository)"
+    ),
+) -> None:
+    """Show status of ADR enforcement hooks."""
+    from .enforce.hooks import HookGenerator
+
+    try:
+        gen = HookGenerator()
+        status = gen.status(project_root=project_root)
+
+        console.print("🔍 ADR Enforcement Hook Status")
+        for hook_name, active in status.items():
+            icon = "✅" if active else "❌"
+            console.print(
+                f"   {icon} {hook_name}: {'active' if active else 'not configured'}"
+            )
+
+        if not any(status.values()):
+            console.print(
+                "\n💡 Run 'adr-kit setup-enforcement' to enable automatic enforcement"
+            )
+    except Exception as e:
+        console.print(f"❌ Failed to get enforcement status: {e}")
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -1142,6 +1241,84 @@ def legacy() -> None:
 
     console.print("\n💡 Use MCP tools for rich, contextual ADR management!")
     console.print()
+
+
+@app.command()
+def enforce(
+    level: str = typer.Argument(
+        ...,
+        help="Enforcement level: commit (staged files), push (changed files), ci (all files)",
+    ),
+    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
+    project_root: Path = typer.Option(
+        Path("."), "--root", help="Project root directory"
+    ),
+) -> None:
+    """Run ADR policy enforcement checks at the given workflow stage.
+
+    Reads accepted ADRs, classifies their policies by stage, and checks the
+    appropriate files for violations.
+
+    \\b
+    Levels:
+      commit  Check staged files only (<5s). Run as pre-commit hook.
+      push    Check changed files (<15s). Run as pre-push hook.
+      ci      Check entire codebase (<2min). Run in CI pipelines.
+
+    Exit codes: 0 = pass, 1 = violations found, 2 = warnings only, 3 = error
+    """
+    from .enforce.stages import EnforcementLevel
+    from .enforce.validator import StagedValidator
+
+    try:
+        try:
+            enforcement_level = EnforcementLevel(level.lower())
+        except ValueError:
+            stderr_console.print(
+                f"❌ Unknown level '{level}'. Valid levels: commit, push, ci"
+            )
+            raise typer.Exit(code=3) from None
+
+        validator = StagedValidator(adr_dir=adr_dir)
+        result = validator.validate(enforcement_level, project_root=project_root)
+
+        level_labels = {
+            EnforcementLevel.COMMIT: "pre-commit (staged files)",
+            EnforcementLevel.PUSH: "pre-push (changed files)",
+            EnforcementLevel.CI: "ci (full codebase)",
+        }
+        console.print(f"🔍 ADR enforcement — {level_labels[enforcement_level]}")
+        console.print(f"   {result.checks_run} checks · {result.files_checked} files")
+
+        if not result.violations:
+            console.print("✅ All checks passed")
+            raise typer.Exit(code=0)
+
+        # Print violations grouped by ADR
+        for violation in result.violations:
+            icon = "❌" if violation.severity == "error" else "⚠️ "
+            location = (
+                f"{violation.file}:{violation.line}"
+                if violation.line
+                else violation.file
+            )
+            console.print(f"{icon} {location}")
+            console.print(f"   {violation.message}")
+
+        console.print(
+            f"\n{'❌' if result.error_count else '⚠️ '} "
+            f"{result.error_count} error(s), {result.warning_count} warning(s)"
+        )
+
+        if result.passed:
+            raise typer.Exit(code=2)  # warnings only
+        raise typer.Exit(code=1)  # errors found
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        stderr_console.print(f"❌ Enforcement check failed: {e}")
+        raise typer.Exit(code=3) from e
 
 
 if __name__ == "__main__":
