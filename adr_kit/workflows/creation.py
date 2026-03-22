@@ -26,6 +26,7 @@ class CreationInput:
     tags: list[str] | None = None
     policy: dict[str, Any] | None = None  # Structured policy block
     alternatives: str | None = None  # Alternative options considered
+    skip_quality_gate: bool = False  # Skip quality gate (for testing or override)
 
 
 @dataclass
@@ -60,7 +61,7 @@ class CreationWorkflow(BaseWorkflow):
     def execute(
         self, input_data: CreationInput | None = None, **kwargs: Any
     ) -> WorkflowResult:
-        """Execute ADR creation workflow."""
+        """Execute ADR creation workflow with quality gate."""
         # Use positional input_data if provided, otherwise extract from kwargs
         if input_data is None:
             input_data = kwargs.get("input_data")
@@ -70,15 +71,53 @@ class CreationWorkflow(BaseWorkflow):
         self._start_workflow("Create ADR")
 
         try:
-            # Step 1: Generate ADR ID
-            adr_id = self._execute_step("generate_adr_id", self._generate_adr_id)
-
-            # Step 2: Validate input
+            # Step 1: Basic validation (minimum requirements)
             self._execute_step(
                 "validate_input", self._validate_creation_input, input_data
             )
 
-            # Step 3: Check conflicts
+            # Step 2: Quality gate - run BEFORE any file operations (unless skipped)
+            quality_feedback = None
+            if not input_data.skip_quality_gate:
+                quality_feedback = self._execute_step(
+                    "quality_gate", self._quick_quality_gate, input_data
+                )
+
+                # Step 3: Check quality threshold
+                if not quality_feedback.get("passes_threshold", True):
+                    # Quality below threshold - BLOCK creation and return feedback
+                    self._complete_workflow(
+                        success=False,
+                        message=f"Quality threshold not met (score: {quality_feedback['quality_score']}/{quality_feedback['threshold']})",
+                        status=WorkflowStatus.REQUIRES_ACTION,
+                    )
+                    self.result.data = {
+                        "quality_feedback": quality_feedback,
+                        "correction_prompt": (
+                            "Please address the quality issues identified above and resubmit. "
+                            "Focus on high-priority issues first for maximum impact."
+                        ),
+                    }
+                    self.result.next_steps = quality_feedback.get("next_steps", [])
+                    return self.result
+            else:
+                # Quality gate skipped - generate basic feedback for backward compatibility
+                quality_feedback = {
+                    "quality_score": None,
+                    "grade": None,
+                    "passes_threshold": True,
+                    "summary": "Quality gate skipped (skip_quality_gate=True)",
+                    "issues": [],
+                    "strengths": [],
+                    "recommendations": [],
+                    "next_steps": [],
+                }
+
+            # Quality passed threshold - proceed with ADR creation
+            # Step 4: Generate ADR ID
+            adr_id = self._execute_step("generate_adr_id", self._generate_adr_id)
+
+            # Step 5: Check conflicts
             related_adrs = self._execute_step(
                 "find_related_adrs", self._find_related_adrs, input_data
             )
@@ -86,12 +125,12 @@ class CreationWorkflow(BaseWorkflow):
                 "check_conflicts", self._detect_conflicts, input_data, related_adrs
             )
 
-            # Step 4: Create ADR content
+            # Step 6: Create ADR content
             adr = self._execute_step(
                 "create_adr_content", self._build_adr_structure, adr_id, input_data
             )
 
-            # Step 5: Write ADR file
+            # Step 7: Write ADR file (only happens if quality passed)
             file_path = self._execute_step(
                 "write_adr_file", self._generate_adr_file, adr
             )
@@ -120,15 +159,12 @@ class CreationWorkflow(BaseWorkflow):
             # Generate policy suggestions if no policy was provided (Task 2)
             policy_guidance = self._generate_policy_guidance(adr, input_data)
 
-            # Assess decision quality and provide feedback (Task 1)
-            quality_feedback = self._assess_decision_quality(adr, input_data)
-
             self._complete_workflow(
                 success=True, message=f"ADR {adr_id} created successfully"
             )
             self.result.data = {
                 "creation_result": result,
-                "quality_feedback": quality_feedback,  # Task 1: Decision quality feedback
+                "quality_feedback": quality_feedback,  # Task 1: Quality gate results
                 "policy_guidance": policy_guidance,  # Task 2: Policy construction guidance
             }
             self.result.guidance = next_steps
@@ -855,6 +891,253 @@ class CreationWorkflow(BaseWorkflow):
                     "Better performance for I/O operations",
                 ],
             },
+        }
+
+    def _quick_quality_gate(self, creation_input: CreationInput) -> dict[str, Any]:
+        """Quick quality gate that runs BEFORE ADR file creation.
+
+        This pre-validation check runs deterministic quality checks on the input
+        to ensure decision quality meets the minimum threshold BEFORE creating
+        any files. This enables a correction loop without file pollution.
+
+        Args:
+            creation_input: The input data for ADR creation
+
+        Returns:
+            Quality assessment with passes_threshold boolean and feedback
+        """
+        issues = []
+        strengths = []
+        score = 100  # Start perfect, deduct points for issues
+        QUALITY_THRESHOLD = 75  # B grade minimum (anything lower blocks creation)
+
+        context_text = creation_input.context.lower()
+        decision_text = creation_input.decision.lower()
+        consequences_text = creation_input.consequences.lower()
+
+        # Check 1: Specificity - detect generic/vague language
+        generic_terms = [
+            "modern",
+            "good",
+            "best",
+            "framework",
+            "library",
+            "tool",
+            "better",
+            "nice",
+        ]
+        vague_count = sum(
+            1 for term in generic_terms if term in decision_text or term in context_text
+        )
+
+        if vague_count >= 2:
+            score -= 15
+            issues.append(
+                {
+                    "category": "specificity",
+                    "severity": "medium",
+                    "issue": f"Decision uses {vague_count} generic terms ('{', '.join([t for t in generic_terms if t in decision_text or t in context_text][:3])}...')",
+                    "suggestion": "Replace generic terms with specific technology names and versions",
+                    "example_fix": "Instead of 'use a modern framework', write 'Use React 18 with TypeScript'",
+                }
+            )
+        else:
+            strengths.append("Decision uses specific, concrete terminology")
+
+        # Check 2: Balanced consequences - must have BOTH pros AND cons
+        positive_keywords = [
+            "benefit",
+            "advantage",
+            "positive",
+            "improve",
+            "better",
+            "gain",
+        ]
+        negative_keywords = [
+            "drawback",
+            "limitation",
+            "negative",
+            "cost",
+            "risk",
+            "challenge",
+        ]
+
+        has_positives = any(kw in consequences_text for kw in positive_keywords)
+        has_negatives = any(kw in consequences_text for kw in negative_keywords)
+
+        if not (has_positives and has_negatives):
+            score -= 25
+            issues.append(
+                {
+                    "category": "balance",
+                    "severity": "high",
+                    "issue": "Consequences are one-sided (only pros or only cons)",
+                    "suggestion": "Document BOTH positive and negative consequences - every technical decision has trade-offs",
+                    "example_fix": "Add '### Negative' section listing drawbacks, limitations, or risks",
+                    "why_it_matters": "Balanced trade-off analysis enables informed decision-making",
+                }
+            )
+        else:
+            strengths.append("Consequences show balanced trade-off analysis")
+
+        # Check 3: Context quality - sufficient detail
+        context_length = len(creation_input.context)
+
+        if context_length < 50:
+            score -= 20
+            issues.append(
+                {
+                    "category": "context",
+                    "severity": "high",
+                    "issue": f"Context is too brief ({context_length} characters)",
+                    "suggestion": "Expand context to explain WHY this decision is needed: current state, requirements, drivers",
+                    "example_fix": "Add: business requirements, technical constraints, user needs",
+                }
+            )
+        elif context_length >= 150:
+            strengths.append("Context provides detailed problem background")
+
+        # Check 4: Explicit constraints - policy-ready language
+        import re
+
+        constraint_patterns = [
+            r"\bdon[''']t\s+use\b",
+            r"\bmust\s+not\s+use\b",
+            r"\bavoid\b",
+            r"\bmust\s+(?:use|have|be)\b",
+            r"\ball\s+\w+\s+must\b",
+        ]
+
+        has_explicit_constraints = any(
+            re.search(pattern, decision_text, re.IGNORECASE)
+            for pattern in constraint_patterns
+        )
+
+        if not has_explicit_constraints:
+            score -= 15
+            issues.append(
+                {
+                    "category": "policy_readiness",
+                    "severity": "medium",
+                    "issue": "Decision lacks explicit constraints (enables policy extraction)",
+                    "suggestion": "Add explicit constraints using 'Don't use X', 'Must use Y', 'All Z must...'",
+                    "example_fix": "Use FastAPI for APIs. **Don't use Flask** or Django.",
+                    "why_it_matters": "Explicit constraints enable automated policy enforcement (Task 2)",
+                }
+            )
+        else:
+            strengths.append(
+                "Decision includes explicit constraints ready for policy extraction"
+            )
+
+        # Check 5: Alternatives - critical for 'disallow' policies
+        if not creation_input.alternatives or len(creation_input.alternatives) < 20:
+            score -= 15
+            issues.append(
+                {
+                    "category": "alternatives",
+                    "severity": "medium",
+                    "issue": "Missing or minimal alternatives section",
+                    "suggestion": "Document rejected alternatives with specific reasons",
+                    "example_fix": "### MySQL\\n**Rejected**: Weaker JSON support\\n\\n### MongoDB\\n**Rejected**: Conflicts with ACID requirements",
+                    "why_it_matters": "Alternatives section enables extraction of 'disallow' policies",
+                }
+            )
+        else:
+            strengths.append("Alternatives documented (enables disallow policies)")
+
+        # Check 6: Decision completeness
+        decision_length = len(creation_input.decision)
+
+        if decision_length < 30:
+            score -= 10
+            issues.append(
+                {
+                    "category": "completeness",
+                    "severity": "low",
+                    "issue": f"Decision is very brief ({decision_length} characters)",
+                    "suggestion": "Expand decision with: specific technology, scope, and constraints",
+                    "example_fix": "Use PostgreSQL 15 for all application data. Deploy on AWS RDS with Multi-AZ.",
+                }
+            )
+
+        # Clamp score to valid range
+        score = max(0, min(100, score))
+
+        # Determine grade (A=90+, B=75+, C=60+, D=40+, F=<40)
+        if score >= 90:
+            grade = "A"
+        elif score >= 75:
+            grade = "B"
+        elif score >= 60:
+            grade = "C"
+        elif score >= 40:
+            grade = "D"
+        else:
+            grade = "F"
+
+        passes_threshold = score >= QUALITY_THRESHOLD
+
+        # Generate summary
+        if passes_threshold:
+            summary = f"Decision quality is acceptable (Grade {grade}, {score}/100). {len(issues)} minor improvements suggested."
+        else:
+            summary = f"Decision quality is below threshold (Grade {grade}, {score}/100). {len(issues)} issues must be addressed before ADR creation."
+
+        # Generate prioritized recommendations
+        high_priority = [i for i in issues if i["severity"] == "high"]
+        medium_priority = [i for i in issues if i["severity"] == "medium"]
+
+        recommendations = []
+        if high_priority:
+            recommendations.append(
+                f"🔴 **High Priority**: Fix {len(high_priority)} critical issues first"
+            )
+            for issue in high_priority[:2]:  # Top 2 high priority
+                recommendations.append(
+                    f"  - {issue['category'].title()}: {issue['suggestion']}"
+                )
+
+        if medium_priority and score < QUALITY_THRESHOLD:
+            recommendations.append(
+                f"🟡 **Medium Priority**: Address {len(medium_priority)} quality issues"
+            )
+            for issue in medium_priority[:2]:  # Top 2 medium priority
+                recommendations.append(
+                    f"  - {issue['category'].title()}: {issue['suggestion']}"
+                )
+
+        # Next steps vary by quality score
+        next_steps = []
+        if not passes_threshold:
+            next_steps.append(
+                "⛔ **ADR Creation Blocked**: Quality score below threshold"
+            )
+            next_steps.append(
+                "📝 **Action Required**: Address the issues above and resubmit"
+            )
+            next_steps.append(
+                "💡 **Tip**: Focus on high-priority issues first for maximum impact"
+            )
+        else:
+            next_steps.append(
+                "✅ **Quality Gate Passed**: ADR will be created with this input"
+            )
+            if issues:
+                next_steps.append(
+                    f"💡 **Optional**: Consider addressing {len(issues)} suggestions for even higher quality"
+                )
+
+        return {
+            "quality_score": score,
+            "grade": grade,
+            "passes_threshold": passes_threshold,
+            "threshold": QUALITY_THRESHOLD,
+            "summary": summary,
+            "issues": issues,
+            "strengths": strengths,
+            "recommendations": recommendations,
+            "next_steps": next_steps,
         }
 
     def _assess_decision_quality(

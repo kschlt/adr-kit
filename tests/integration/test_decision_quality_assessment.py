@@ -79,8 +79,13 @@ class TestDecisionQualityAssessment:
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
         result = workflow.execute(input_data=input_data)
 
-        assert result.success is True
+        # Should be blocked due to low quality
+        assert result.success is False
+        assert result.status.value == "requires_action"
+        assert "quality_feedback" in result.data
+
         feedback = result.data["quality_feedback"]
+        assert not feedback["passes_threshold"]
 
         # Should flag specificity issue
         specificity_issues = [
@@ -108,8 +113,13 @@ class TestDecisionQualityAssessment:
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
         result = workflow.execute(input_data=input_data)
 
-        assert result.success is True
+        # Should be blocked due to low quality (one-sided consequences)
+        assert result.success is False
+        assert result.status.value == "requires_action"
+        assert "quality_feedback" in result.data
+
         feedback = result.data["quality_feedback"]
+        assert not feedback["passes_threshold"]
 
         # Should flag balance issue
         balance_issues = [
@@ -133,8 +143,13 @@ class TestDecisionQualityAssessment:
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
         result = workflow.execute(input_data=input_data)
 
-        assert result.success is True
+        # Should be blocked due to low quality (weak context)
+        assert result.success is False
+        assert result.status.value == "requires_action"
+        assert "quality_feedback" in result.data
+
         feedback = result.data["quality_feedback"]
+        assert not feedback["passes_threshold"]
 
         # Should flag context issue
         context_issues = [
@@ -160,8 +175,13 @@ class TestDecisionQualityAssessment:
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
         result = workflow.execute(input_data=input_data)
 
-        assert result.success is True
+        # Should be blocked due to low quality (missing constraints)
+        assert result.success is False
+        assert result.status.value == "requires_action"
+        assert "quality_feedback" in result.data
+
         feedback = result.data["quality_feedback"]
+        assert not feedback["passes_threshold"]
 
         # Should flag policy readiness issue
         policy_issues = [
@@ -190,8 +210,13 @@ class TestDecisionQualityAssessment:
         workflow = CreationWorkflow(adr_dir=temp_adr_dir)
         result = workflow.execute(input_data=input_data)
 
-        assert result.success is True
+        # Should be blocked due to low quality (missing alternatives)
+        assert result.success is False
+        assert result.status.value == "requires_action"
+        assert "quality_feedback" in result.data
+
         feedback = result.data["quality_feedback"]
+        assert not feedback["passes_threshold"]
 
         # Should flag alternatives issue
         alternatives_issues = [

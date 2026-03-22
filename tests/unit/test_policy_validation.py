@@ -24,6 +24,7 @@ class TestPolicyValidation:
                 decision="Use FastAPI for backend API development.",
                 consequences="Better performance and automatic documentation.",
                 alternatives="Rejected Flask due to lack of native async support.",
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
@@ -55,6 +56,7 @@ class TestPolicyValidation:
                 policy={
                     "imports": {"disallow": ["flask"], "prefer": ["fastapi"]},
                 },
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
@@ -80,6 +82,7 @@ class TestPolicyValidation:
                 context="Need async support",
                 decision="Use FastAPI. **Don't use Flask** as it lacks native async support.",
                 consequences="**Avoid** synchronous frameworks like Flask.",
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
@@ -187,6 +190,7 @@ Provides good performance.
                 decision="Use FastAPI as the framework",
                 consequences="Better performance",
                 alternatives="Rejected Flask and Django",
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)
@@ -215,6 +219,7 @@ Provides good performance.
                 context="Some context here",
                 decision="Make this decision",
                 consequences="Some consequences",
+                skip_quality_gate=True,  # Skip for test
             )
 
             result = workflow.execute(input_data=input_data)

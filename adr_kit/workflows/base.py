@@ -16,6 +16,9 @@ class WorkflowStatus(str, Enum):
     FAILED = "failed"
     VALIDATION_ERROR = "validation_error"
     CONFLICT_ERROR = "conflict_error"
+    REQUIRES_ACTION = (
+        "requires_action"  # Quality gate or other check requires user action
+    )
 
 
 @dataclass

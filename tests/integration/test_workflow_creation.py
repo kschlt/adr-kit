@@ -25,15 +25,37 @@ class TestCreationWorkflow:
 
     @pytest.fixture
     def sample_creation_input(self):
-        """Create sample creation input."""
+        """Create sample creation input (high quality to pass quality gate)."""
         return CreationInput(
-            title="Use PostgreSQL for primary database",
-            context="We need a reliable relational database for storing user data and application state.",
-            decision="Use PostgreSQL as our primary database management system.",
-            consequences="Better data integrity and ACID compliance, but requires more infrastructure setup than SQLite.",
+            title="Use PostgreSQL 15 for primary database",
+            context=(
+                "We need ACID transactions for financial data integrity. "
+                "Current SQLite setup doesn't support concurrent writes from multiple services. "
+                "Requires complex queries with joins and JSON document storage for flexible user metadata."
+            ),
+            decision=(
+                "Use PostgreSQL 15 as the primary database for all application data. "
+                "Don't use MySQL (weaker JSON support) or MongoDB (eventual consistency conflicts with requirements). "
+                "Deploy on AWS RDS with Multi-AZ for high availability."
+            ),
+            consequences=(
+                "### Positive\n"
+                "- ACID compliance guarantees data consistency\n"
+                "- Rich feature set: JSON, full-text search\n"
+                "- Excellent query planner\n\n"
+                "### Negative\n"
+                "- Higher resource usage than simpler databases\n"
+                "- Requires operational expertise\n"
+                "- Vertical scaling limits"
+            ),
             deciders=["backend-team", "tech-lead"],
             tags=["database", "backend", "infrastructure"],
-            alternatives="Considered MySQL, SQLite, and MongoDB as alternatives.",
+            alternatives=(
+                "### MySQL\n"
+                "**Rejected**: Weaker JSON support.\n\n"
+                "### MongoDB\n"
+                "**Rejected**: Eventual consistency conflicts with financial requirements."
+            ),
         )
 
     @pytest.fixture
