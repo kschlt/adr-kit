@@ -28,8 +28,11 @@ console = Console()
 stderr_console = Console(stderr=True)
 
 
-def check_for_updates_async() -> None:
-    """Check for updates in the background and show notification if available."""
+def check_for_updates_async() -> object:
+    """Check for updates in the background and show notification if available.
+
+    Returns the background thread so callers can join it if needed.
+    """
     import threading
 
     def _check() -> None:
@@ -86,6 +89,7 @@ def check_for_updates_async() -> None:
     # Run in background thread to avoid blocking
     thread = threading.Thread(target=_check, daemon=True)
     thread.start()
+    return thread
 
 
 def get_next_adr_id(adr_dir: Path = Path("docs/adr")) -> str:
@@ -241,10 +245,19 @@ def mcp_health() -> None:
     Verifies that MCP server dependencies are available and tools are accessible.
     Useful for troubleshooting Cursor/Claude Code integration.
     """
-    console.print("🔍 Checking ADR Kit MCP Server Health...")
+    import importlib.metadata
 
-    # Check for updates in background
-    check_for_updates_async()
+    try:
+        current_version = importlib.metadata.version("adr-kit")
+    except importlib.metadata.PackageNotFoundError:
+        from . import __version__
+
+        current_version = __version__
+
+    console.print(f"🔍 Checking ADR Kit MCP Server Health... (v{current_version})")
+
+    # Check for updates in background — join at the end so output is ordered
+    update_thread = check_for_updates_async()
 
     try:
         # Test FastMCP dependency
@@ -294,7 +307,10 @@ def mcp_health() -> None:
             console.print(f"   • {tool}() - Clean interface → Full workflow automation")
 
         console.print("📚 Available Resources:")
-        console.print("   • adr://index - Structured ADR index")
+        console.print("   • adr://index       - Structured ADR index (all ADRs)")
+        console.print(
+            "   • adr://{ADR-ID}    - Full content of a single ADR (e.g. adr://ADR-0001)"
+        )
 
         console.print("\n✅ MCP Features:")
         console.print("   • Agent-friendly interfaces with proper FastMCP patterns")
@@ -321,6 +337,9 @@ def mcp_health() -> None:
             console.print("   • Contextual guidance for agent task planning")
 
         console.print("\n✅ MCP Server is ready for AI agent integration!")
+
+        # Wait briefly for update check to complete so output is ordered
+        update_thread.join(timeout=6)
 
     except ImportError as e:
         console.print(f"❌ Missing dependencies: {e}")

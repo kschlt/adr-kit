@@ -95,19 +95,84 @@ class RelevanceRanker:
     def rank_adrs_for_task(
         self, adrs: list[ADR], task_context: TaskContext
     ) -> list[RelevanceScore]:
-        """Rank ADRs by relevance to a specific task context."""
+        """Rank ADRs by relevance to a specific task context.
+
+        Applies an importance boost so that among equally-relevant ADRs,
+        foundational ones (policy-rich, cross-domain, frequently referenced)
+        surface first.
+        """
         scores = []
 
         for adr in adrs:
             score = self._calculate_relevance_score(adr, task_context)
             # Increased threshold from 0.1 to 0.25 for better filtering (60-80% reduction)
             if score.score > 0.25:  # Only include ADRs with meaningful relevance
+                # Apply importance boost: foundational ADRs rank higher among equals
+                importance = self.calculate_importance_score(adr, adrs)
+                boosted = score.score * (1.0 + importance * 0.3)
+                score = score.model_copy(
+                    update={
+                        "score": min(boosted, 1.0),
+                        "factors": {**score.factors, "importance": importance},
+                    }
+                )
                 scores.append(score)
 
         # Sort by score (highest first)
         scores.sort(key=lambda x: x.score, reverse=True)
 
         return scores
+
+    def calculate_importance_score(self, adr: ADR, all_adrs: list[ADR]) -> float:
+        """Calculate the inherent importance of an ADR, independent of any task.
+
+        Importance reflects how foundational an ADR is across the whole project:
+        - **Centrality**: how many other ADRs reference this one by ID
+        - **Policy richness**: how many enforceable constraints are defined
+        - **Tag breadth**: how many domains are covered (cross-cutting ADRs are fundamental)
+        - **Status penalty**: superseded/deprecated ADRs are archival
+
+        Returns a score in [0.0, 1.0].
+        """
+        score = 0.0
+
+        # Centrality: count other ADRs that reference this ADR's ID in their content
+        reference_count = sum(
+            1 for other in all_adrs if other.id != adr.id and adr.id in other.content
+        )
+        score += min(reference_count * 0.15, 0.45)
+
+        # Policy richness: ADRs with more constraints are more architecturally significant
+        if adr.front_matter.policy:
+            policy = adr.front_matter.policy
+            policy_count = 0
+            if policy.imports:
+                policy_count += len(policy.imports.disallow or [])
+                policy_count += len(policy.imports.prefer or [])
+            if policy.python:
+                policy_count += len(policy.python.disallow_imports or [])
+            if policy.patterns and policy.patterns.patterns:
+                policy_count += len(policy.patterns.patterns)
+            if policy.architecture:
+                policy_count += len(policy.architecture.layer_boundaries or [])
+                policy_count += len(policy.architecture.required_structure or [])
+            score += min(policy_count * 0.05, 0.25)
+
+        # Tag breadth: cross-domain ADRs are more fundamental
+        tag_count = len(adr.front_matter.tags or [])
+        score += min(tag_count * 0.05, 0.20)
+
+        # Status modifier: penalise archival statuses
+        status = adr.front_matter.status
+        status_str = status.value if hasattr(status, "value") else str(status)
+        if status_str == ADRStatus.SUPERSEDED:
+            score *= 0.2
+        elif status_str == ADRStatus.DEPRECATED:
+            score *= 0.3
+        elif status_str == ADRStatus.REJECTED:
+            score *= 0.1
+
+        return min(score, 1.0)
 
     def _calculate_relevance_score(
         self, adr: ADR, task_context: TaskContext

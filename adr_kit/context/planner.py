@@ -166,6 +166,7 @@ class PlanningContext:
                 key_constraints=self._extract_key_constraints(adr),
                 related_technologies=self._extract_related_technologies(adr),
                 ai_warnings=self._extract_ai_warnings(adr),
+                resource_uri=f"adr://{adr.id}",
             )
             contextual_adrs.append(contextual_adr)
 

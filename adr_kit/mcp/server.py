@@ -482,6 +482,60 @@ def adr_index_resource() -> dict[str, Any]:
         }
 
 
+# Resource for individual ADRs — enables progressive disclosure
+# Agents receive lightweight summaries in planning context, then fetch
+# full content on demand via ReadMcpResourceTool("adr-kit", "adr://ADR-0001")
+@mcp.resource("adr://{adr_id}")
+def adr_individual_resource(adr_id: str) -> dict[str, Any]:
+    """
+    Full content of a single ADR by ID (e.g. adr://ADR-0001).
+
+    Use this to fetch complete ADR details after identifying relevant ADRs
+    from adr_planning_context. Each relevant ADR includes a resource_uri
+    field pointing here.
+    """
+    try:
+        from ..core.parse import find_adr_files, parse_adr_file
+
+        adr_dir = "docs/adr"
+        adr_files = find_adr_files(adr_dir)
+
+        for file_path in adr_files:
+            adr = parse_adr_file(file_path, strict=False)
+            if adr and adr.id == adr_id:
+                fm = adr.front_matter
+                return {
+                    "id": adr.id,
+                    "title": fm.title,
+                    "status": (
+                        fm.status.value
+                        if hasattr(fm.status, "value")
+                        else str(fm.status)
+                    ),
+                    "date": str(fm.date),
+                    "deciders": fm.deciders or [],
+                    "tags": fm.tags or [],
+                    "supersedes": fm.supersedes or [],
+                    "superseded_by": fm.superseded_by or [],
+                    "policy": (
+                        fm.policy.model_dump(exclude_none=True) if fm.policy else None
+                    ),
+                    "content": adr.content,
+                    "resource_uri": f"adr://{adr_id}",
+                }
+
+        return {
+            "error": f"ADR {adr_id!r} not found in docs/adr",
+            "hint": "Check that the ADR ID is correct (e.g. ADR-0001) and docs/adr exists",
+        }
+
+    except Exception as e:
+        logger.error(f"ADR individual resource failed for {adr_id}: {e}")
+        return {
+            "error": f"Failed to load ADR {adr_id}: {str(e)}",
+        }
+
+
 def run_stdio_server() -> None:
     """Run the MCP server over stdio for agent integration."""
     import sys
