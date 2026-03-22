@@ -7,7 +7,7 @@ Keep AI agents architecturally consistent.
 [![Tests](https://img.shields.io/badge/tests-comprehensive-green)](#reliability--testing)
 
 > **👥 For users:** Install ADR Kit in your project → [Quick Start](#quick-start)
-> **🔧 For contributors:** Develop on ADR Kit itself → [Development](#development)
+> **🔧 For contributors:** Develop on ADR Kit itself → [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## The Concept of Architectural Decision Records
 
@@ -737,7 +737,7 @@ A: **MCP tools** (6) are the AI interface—how agents interact with ADR Kit. **
 - AI warning extraction for task-specific guidance
 - Policy suggestion engine with auto-detection
 
-See [.agent/task-tracking.md](.agent/task-tracking.md) for detailed feature status and priority queue.
+See [GitHub Issues](https://github.com/kschlt/adr-kit/issues) and the project roadmap for detailed feature status.
 
 ## Learn More
 
@@ -749,38 +749,6 @@ See [.agent/task-tracking.md](.agent/task-tracking.md) for detailed feature stat
 - **Core Concepts**: [CONCEPTS.md](CONCEPTS.md) *(coming soon)*
 
 ---
-
-# Development
-
-**This section is for developers working on ADR Kit itself, not for users installing it.**
-
-If you're looking to **use** ADR Kit in your project, see [Quick Start](#quick-start) above.
-
-## Contributing to ADR Kit
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/adr-kit
-cd adr-kit
-
-# Install in editable mode with development dependencies
-uv pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Development commands (see Makefile for full list)
-make dev-setup     # Initial setup with guidance
-make test-all      # Run all tests including MCP server
-make quality       # Format + lint + test
-make reinstall     # Clean install (recommended when testing changes)
-```
-
-**Detailed developer documentation:** See [CLAUDE.md](CLAUDE.md) for comprehensive development instructions, including:
-- Understanding the three versions of ADR Kit (source, local install, system install)
-- Development workflow (Edit → Test → Verify)
-- Testing the MCP server with local changes
-- Project structure and what gets packaged vs what's dev-only
 
 ## License
 
