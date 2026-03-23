@@ -138,6 +138,29 @@ And for Python, updates `pyproject.toml` under `[tool.ruff]`.
 
 **The feedback loop:** Violations aren't dead ends. The error message tells the developer (or agent) which ADR is being violated — feeding back into lifecycle management. Either fix the code to comply, or supersede the ADR if the decision needs to evolve.
 
+### Staged Enforcement
+
+Beyond lint rules, ADR Kit enforces policies at three stages during the development workflow:
+
+| Stage | When | Budget | What Runs |
+|---|---|---|---|
+| **Pre-Commit** | `git commit` | <5s | Import restrictions, syntax patterns (staged files only) |
+| **Pre-Push** | `git push` | <15s | Architecture layer boundaries (changed files) |
+| **CI** | Pull request | <2min | All checks comprehensively (safety net) |
+
+Set up enforcement with `adr-kit init --with-enforcement` or `adr-kit setup-enforcement`. The hooks are idempotent and non-interfering — they append managed sections to existing hooks without overwriting.
+
+Use `adr-kit enforce <level> --format json` to get an AI-readable `EnforcementReport` with structured violation data for agents and CI pipelines.
+
+### Standalone Scripts and CI Generation
+
+For teams that want enforcement without a runtime dependency on ADR Kit:
+
+- **`adr-kit generate-scripts`** creates stdlib-only Python validation scripts from ADR policies. Scripts support `--quick` (pre-push) and `--full` (CI) modes and output `EnforcementReport` JSON.
+- **`adr-kit generate-ci`** creates a GitHub Actions workflow YAML that runs enforcement checks on pull requests.
+
+Both are generated automatically when an ADR is approved.
+
 ### What's Automatic on Approval
 
 When you call `adr_approve`, this happens without any manual steps:
@@ -148,6 +171,8 @@ When you call `adr_approve`, this happens without any manual steps:
 4. Ruff rules generated (if Python policy present)
 5. ADR index updated
 6. Codebase validated against new constraints
+7. Standalone validation scripts generated (if ADR has enforceable policies)
+8. Git hooks updated (if enforcement is configured)
 
 ---
 
@@ -159,8 +184,8 @@ The `policy` block in ADR front-matter supports five enforcement types:
 |------|-----------------|--------|
 | `imports` | Library restrictions (JS/TS) | Active |
 | `python` | Module restrictions (Python) | Active |
-| `patterns` | Code pattern rules with regex | Defined, not yet enforced |
-| `architecture` | Layer boundaries + required structure | Defined, not yet enforced |
+| `patterns` | Code pattern rules with regex | Enforced via generated scripts; no native linter rules yet |
+| `architecture` | Layer boundaries + required structure | Enforced at push level + generated scripts |
 | `config_enforcement` | Tool configuration (tsconfig, ruff, mypy) | Defined, not yet enforced |
 
 <details>
@@ -245,10 +270,24 @@ adr-kit validate --id ADR-0001  # Validate a specific ADR
 adr-kit contract-build          # Rebuild constraints contract
 adr-kit contract-status         # View current contract
 
-# Enforcement
+# Lint rule management
 adr-kit guardrail-apply         # Apply lint rules manually
 adr-kit guardrail-status        # Check guardrail status
 adr-kit preflight postgresql    # Manual preflight check
+
+# Staged enforcement
+adr-kit enforce commit          # Run commit-level checks (staged files)
+adr-kit enforce push            # Run push-level checks (changed files)
+adr-kit enforce ci              # Run CI-level checks (all files)
+adr-kit enforce ci --format json  # JSON output for agents/CI
+
+# Enforcement setup
+adr-kit setup-enforcement       # Configure git hooks
+adr-kit enforce-status          # Show enforcement configuration
+
+# Script & CI generation
+adr-kit generate-scripts        # Generate standalone validation scripts
+adr-kit generate-ci             # Generate GitHub Actions workflow
 
 # Maintenance
 adr-kit mcp-health              # Test MCP server connectivity
@@ -258,6 +297,17 @@ adr-kit update                  # Check for updates
 ---
 
 ## CI/CD Integration
+
+The fastest way to set up CI enforcement is to generate a workflow automatically:
+
+```bash
+adr-kit generate-ci    # Creates .github/workflows/adr-enforcement.yml
+```
+
+The generated workflow runs `adr-kit enforce ci --format json` on pull requests and fails on violations.
+
+<details>
+<summary><b>Manual CI setup (alternative)</b></summary>
 
 ```yaml
 # .github/workflows/adr.yml
@@ -282,9 +332,14 @@ jobs:
       - name: Validate ADRs
         run: adr-kit validate
 
+      - name: Enforce policies
+        run: adr-kit enforce ci --format json
+
       - name: Check lint rules are current
         run: git diff --exit-code .eslintrc.adrs.json
 ```
+
+</details>
 
 ---
 
@@ -306,6 +361,6 @@ Expected output:
 
 ## Project Status
 
-ADR Kit is under active development. Test coverage: 187 tests (144 unit + 43 integration) across the core workflows, MCP server integration, and quality assessment system.
+ADR Kit is under active development. Test coverage: 309 tests (220 unit + 66 integration + 23 other) across the core workflows, MCP server integration, quality assessment, and enforcement systems.
 
 See [ROADMAP.md](ROADMAP.md) for what's planned and [CONTRIBUTING.md](CONTRIBUTING.md) to contribute.

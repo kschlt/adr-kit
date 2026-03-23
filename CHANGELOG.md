@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SECURITY.md` with supported versions and vulnerability reporting
 - Release CI workflow (`.github/workflows/release.yml`) with PyPI Trusted Publishing and automated GitHub Release creation
 - "Releasing" section in `CLAUDE.md` documenting the tag-based release process
+- Staged enforcement pipeline: `adr-kit enforce <level>` validates ADR policies at commit, push, and CI stages
+- `adr-kit setup-enforcement` command for configuring git hooks
+- `adr-kit enforce-status` command for viewing enforcement configuration
+- `--with-enforcement` flag on `adr-kit init` for one-step git hook setup
+- Enforcement classifier maps ADR policy types to enforcement levels (commit/push/CI)
+- `StagedValidator` runs classified checks against staged, changed, or all files per enforcement level
+- `HookGenerator` creates pre-commit and pre-push git hooks with managed sections (idempotent, non-interfering)
+- JSON enforcement reporter (`--format json`) with AI-readable `EnforcementReport` schema
+- Architecture layer boundary enforcement at push level
+- Standalone validation script generator (`adr-kit generate-scripts`) — creates stdlib-only Python scripts from ADR policies with `--quick` and `--full` modes
+- CI workflow generator (`adr-kit generate-ci`) — creates GitHub Actions YAML for ADR enforcement on pull requests
+- Approval workflow auto-generates validation scripts for newly approved ADRs
+- Importance-weighted ranking in `adr_planning_context` — centrality, policy richness, tag breadth, and status penalties applied as multiplicative boost on relevance scores
+- Individual ADR MCP resources (`adr://{adr_id}`) for progressive disclosure — agents fetch full ADR content on demand via `resource_uri` field
 
 ### Changed
 - README rewritten for user focus: problem statement, quick start, tool reference, FAQ
@@ -23,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `pyproject.toml` project URLs updated from placeholder `your-org` to correct `kschlt`
 - Added Python 3.13 classifier to package metadata
+- `mcp-health` now shows detected version at startup and joins update thread for in-order notification
+
+### Removed
+- `PolicyPatternExtractor` and regex-based policy extraction — replaced by agent reasoning approach
 
 ---
 
