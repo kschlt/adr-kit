@@ -25,7 +25,7 @@ ADR Kit operates in three layers:
 
 **2. Context at the Right Time** — Before implementing a feature, ADR Kit surfaces only the relevant decisions. Out of 50 ADRs, 3–5 relevant ones reach the agent's context. Right information, right time, without flooding the context window.
 
-**3. Enforcement** — Approved ADRs automatically generate ESLint and Ruff lint rules. Violations are blocked with a clear reference to the decision they violate, triggering a choice: fix the code, or supersede the ADR if the decision needs to evolve.
+**3. Enforcement** — Approved ADRs generate ESLint and Ruff lint rules, standalone validation scripts, and CI workflow configurations. Enforcement runs at three stages: pre-commit (import checks on staged files), pre-push (architecture layer boundaries), and CI (comprehensive validation). Violations include a reference to the ADR they violate, triggering a choice: fix the code, or supersede the ADR if the decision needs to evolve.
 
 ## Quick Start
 
@@ -145,19 +145,32 @@ A: Yes. No external API calls. Semantic search uses local models. Your ADRs and 
 **Q: What if a decision can't be expressed as a lint rule?**
 A: Not all decisions map to lint rules — "use microservices" can't become an ESLint rule. These decisions still benefit from lifecycle management and context loading (layers 1 and 2). Enforcement only applies to decisions with concrete, checkable constraints: library choices, coding patterns, file structure.
 
+**Q: How does staged enforcement work?**
+A: ADR Kit installs git hooks that run policy checks at the right stage. Pre-commit checks import restrictions on staged files (<5s). Pre-push checks architecture boundaries on changed files (<15s). CI re-runs everything comprehensively. Set up with `adr-kit init --with-enforcement` or `adr-kit setup-enforcement`.
+
+**Q: Can I generate CI pipelines for ADR enforcement?**
+A: Yes. `adr-kit generate-ci` creates a GitHub Actions workflow that validates ADR policies on pull requests. `adr-kit generate-scripts` creates standalone validation scripts that work without ADR Kit installed — useful for CI environments or teams that don't want a runtime dependency.
+
 **Q: Does this replace code reviews?**
 A: No. ADR Kit catches architectural violations automatically, but code reviews catch logic errors, security issues, and design problems that lint rules can't detect.
 
 ## Current Status
 
 **Working today:**
-- Selective context loading by task relevance (`adr_planning_context`)
+- Selective context loading by task relevance with importance-weighted ranking (`adr_planning_context`)
+- Individual ADR MCP resources (`adr://{adr_id}`) for on-demand content fetch
 - Implicit decision discovery in existing codebases (`adr_analyze_project`)
 - ADR creation with quality gate — rejects vague decisions before file creation
 - ESLint and Ruff rule generation from import policies
+- Staged enforcement at commit, push, and CI levels (`adr-kit enforce`)
+- Architecture layer boundary enforcement at push level
+- Git hook setup via `adr-kit init --with-enforcement` or `adr-kit setup-enforcement`
+- Standalone validation script generation (`adr-kit generate-scripts`)
+- GitHub Actions CI workflow generation (`adr-kit generate-ci`)
 
 **Current limitations:**
-- Enforcement is linter-based only. Pattern policies, architecture boundaries, and config enforcement are modelled but not yet active.
+- Pattern enforcement generates standalone validation scripts but not native ESLint/Ruff rules yet.
+- Config enforcement (tsconfig, ruff, mypy settings) is modelled but not yet validated.
 - Language support: JavaScript/TypeScript (ESLint) and Python (Ruff). Other languages require manual policy application.
 
 See [ROADMAP.md](ROADMAP.md) for what's planned and why.

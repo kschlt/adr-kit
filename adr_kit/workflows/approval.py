@@ -355,6 +355,10 @@ class ApprovalWorkflow(BaseWorkflow):
                 ruff_result = self._generate_ruff_rules(adr)
                 results["ruff"] = ruff_result
 
+            # Generate standalone validation scripts
+            scripts_result = self._generate_validation_scripts(adr)
+            results["scripts"] = scripts_result
+
             # Always update git hooks so staged enforcement reflects new rules
             hooks_result = self._update_git_hooks()
             results["hooks"] = hooks_result
@@ -371,6 +375,33 @@ class ApprovalWorkflow(BaseWorkflow):
                 "success": False,
                 "error": str(e),
                 "message": "Failed to generate enforcement rules",
+            }
+
+    def _generate_validation_scripts(self, adr: ADR) -> dict[str, Any]:
+        """Generate standalone validation scripts for an ADR's policies."""
+        try:
+            from ..enforce.script_generator import ScriptGenerator
+
+            generator = ScriptGenerator(adr_dir=self.adr_dir)
+            output_dir = Path.cwd() / "scripts" / "adr"
+            path = generator.generate_for_adr(adr, output_dir)
+
+            if path:
+                return {
+                    "success": True,
+                    "script": str(path),
+                    "message": f"Validation script generated: {path.name}",
+                }
+            return {
+                "success": True,
+                "script": None,
+                "message": "No enforceable policies — no script generated",
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "message": "Failed to generate validation script",
             }
 
     def _update_git_hooks(self) -> dict[str, Any]:

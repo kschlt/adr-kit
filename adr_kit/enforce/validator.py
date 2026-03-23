@@ -10,6 +10,7 @@ Architecture and config checks are classified but not yet executed
 no violations today — this is intentional and documented.
 """
 
+import fnmatch
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -49,6 +50,8 @@ class Violation:
     level: EnforcementLevel
     severity: str = "error"
     line: int | None = None
+    adr_title: str | None = None
+    fix_suggestion: str | None = None
 
 
 @dataclass
@@ -205,7 +208,9 @@ class StagedValidator:
             return self._run_pattern_check(check, files, project_root)
         elif check.check_type == "required_structure":
             return self._run_structure_check(check, project_root)
-        # architecture and config: classified but not yet executed (ENF task)
+        elif check.check_type == "architecture":
+            return self._run_architecture_check(check, files, project_root)
+        # config: classified but not yet executed
         return []
 
     def _filter_files_for_check(
@@ -249,6 +254,8 @@ class StagedValidator:
                                     level=check.level,
                                     severity=check.severity,
                                     line=line_num,
+                                    adr_title=check.adr_title,
+                                    fix_suggestion=f"Remove or replace this import — see {check.adr_id}",
                                 )
                             )
                             break  # one violation per line
@@ -281,6 +288,7 @@ class StagedValidator:
                                 level=check.level,
                                 severity=check.severity,
                                 line=line_num,
+                                adr_title=check.adr_title,
                             )
                         )
             except Exception:
@@ -303,6 +311,104 @@ class StagedValidator:
                     message=check.message,
                     level=check.level,
                     severity=check.severity,
+                    adr_title=check.adr_title,
+                    fix_suggestion=f"Create the required path: {check.pattern} — see {check.adr_id}",
                 )
             ]
         return []
+
+    def _run_architecture_check(
+        self, check: StagedCheck, files: list[Path], project_root: Path
+    ) -> list[Violation]:
+        """Check that source-layer files don't import from the target layer.
+
+        Parses the rule string "source -> target" from check.pattern.
+        Uses metadata["check"] glob to identify source-layer files.
+        Scans those files for imports referencing the target layer.
+        """
+        # Parse "source -> target" from the rule string
+        parts = check.pattern.split("->")
+        if len(parts) != 2:
+            return []  # malformed rule — degrade gracefully
+        source_layer = parts[0].strip().lower()
+        target_layer = parts[1].strip().lower()
+        if not source_layer or not target_layer:
+            return []
+
+        # Filter files to source layer
+        check_glob = check.metadata.get("check")
+        source_files = self._filter_architecture_files(
+            files, project_root, check_glob, source_layer
+        )
+
+        # Build regex patterns for imports containing target layer
+        escaped = re.escape(target_layer)
+        target_patterns = [
+            # Python: from target_layer or from target_layer.sub
+            re.compile(rf"(from|import)\s+{escaped}(\.\w+)*(\s|$|;)", re.IGNORECASE),
+            # JS/TS: from '...target_layer...' or require('...target_layer...')
+            re.compile(
+                rf"""(import|from)\s+['"]([^'"]*[/\\])?{escaped}([/\\][^'"]*)?['"]""",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf"""require\s*\(\s*['"]([^'"]*[/\\])?{escaped}([/\\][^'"]*)?['"]\s*\)""",
+                re.IGNORECASE,
+            ),
+        ]
+
+        violations = []
+        for file_path in source_files:
+            try:
+                content = file_path.read_text(encoding="utf-8", errors="ignore")
+                rel_path = str(file_path.relative_to(project_root))
+                for line_num, line in enumerate(content.splitlines(), 1):
+                    for pattern in target_patterns:
+                        if pattern.search(line):
+                            violations.append(
+                                Violation(
+                                    file=rel_path,
+                                    adr_id=check.adr_id,
+                                    message=check.message,
+                                    level=check.level,
+                                    severity=check.severity,
+                                    line=line_num,
+                                    adr_title=check.adr_title,
+                                    fix_suggestion=(
+                                        f"Move this import out of {source_layer} code, "
+                                        f"or refactor to avoid direct {target_layer} "
+                                        f"dependency — see {check.adr_id}"
+                                    ),
+                                )
+                            )
+                            break  # one violation per line
+            except Exception:
+                continue
+
+        return violations
+
+    def _filter_architecture_files(
+        self,
+        files: list[Path],
+        project_root: Path,
+        check_glob: str | None,
+        source_layer: str,
+    ) -> list[Path]:
+        """Filter files to those belonging to the source layer.
+
+        Uses check_glob if provided, otherwise falls back to matching
+        source_layer as a directory segment in the file path.
+        """
+        if check_glob:
+            return [
+                f
+                for f in files
+                if fnmatch.fnmatch(str(f.relative_to(project_root)), check_glob)
+            ]
+
+        # Fallback: match source_layer as a directory segment
+        return [
+            f
+            for f in files
+            if source_layer in [p.lower() for p in f.relative_to(project_root).parts]
+        ]

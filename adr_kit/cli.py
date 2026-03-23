@@ -1253,6 +1253,9 @@ def enforce(
     project_root: Path = typer.Option(
         Path("."), "--root", help="Project root directory"
     ),
+    output_format: str = typer.Option(
+        "text", "--format", "-f", help="Output format: text or json"
+    ),
 ) -> None:
     """Run ADR policy enforcement checks at the given workflow stage.
 
@@ -1264,6 +1267,11 @@ def enforce(
       commit  Check staged files only (<5s). Run as pre-commit hook.
       push    Check changed files (<15s). Run as pre-push hook.
       ci      Check entire codebase (<2min). Run in CI pipelines.
+
+    \\b
+    Formats:
+      text    Human-readable output (default).
+      json    AI-readable JSON report for agents and CI pipelines.
 
     Exit codes: 0 = pass, 1 = violations found, 2 = warnings only, 3 = error
     """
@@ -1282,6 +1290,21 @@ def enforce(
         validator = StagedValidator(adr_dir=adr_dir)
         result = validator.validate(enforcement_level, project_root=project_root)
 
+        # JSON output mode — structured report for agents and CI
+        if output_format.lower() == "json":
+            from .enforce.reporter import build_report
+
+            report = build_report(result)
+            # Print to stdout (not via Rich console) so JSON is clean
+            print(report.model_dump_json(indent=2))
+
+            if result.passed:
+                raise typer.Exit(code=0)
+            elif result.error_count == 0:
+                raise typer.Exit(code=2)  # warnings only
+            raise typer.Exit(code=1)
+
+        # Text output mode — human-readable
         level_labels = {
             EnforcementLevel.COMMIT: "pre-commit (staged files)",
             EnforcementLevel.PUSH: "pre-push (changed files)",
@@ -1318,6 +1341,85 @@ def enforce(
         raise
     except Exception as e:
         stderr_console.print(f"❌ Enforcement check failed: {e}")
+        raise typer.Exit(code=3) from e
+
+
+@app.command()
+def generate_scripts(
+    adr_dir: Path = typer.Option(Path("docs/adr"), "--adr-dir", help="ADR directory"),
+    output: Path = typer.Option(
+        Path("scripts/adr"),
+        "--output",
+        "-o",
+        help="Output directory for generated scripts",
+    ),
+) -> None:
+    """Generate standalone validation scripts from accepted ADR policies.
+
+    Creates one Python script per ADR with enforceable policies, plus a
+    validate_all.py runner that aggregates results. Generated scripts use
+    only the Python stdlib — no adr-kit installation required at runtime.
+
+    \\b
+    Output:
+      scripts/adr/validate_adr_XXXX.py   Per-ADR validation scripts
+      scripts/adr/validate_all.py         Runner that invokes all scripts
+
+    Each script supports --quick (staged files) and --full (all files) modes
+    and outputs JSON matching the EnforcementReport schema.
+    """
+    from .enforce.script_generator import ScriptGenerator
+
+    try:
+        generator = ScriptGenerator(adr_dir=adr_dir)
+        paths = generator.generate_all(output)
+
+        scripts = [p for p in paths if p.name != "validate_all.py"]
+        console.print(f"✅ Generated {len(scripts)} validation script(s) in {output}/")
+        for path in scripts:
+            console.print(f"   {path.name}")
+        console.print("   validate_all.py (runner)")
+
+    except Exception as e:
+        stderr_console.print(f"❌ Script generation failed: {e}")
+        raise typer.Exit(code=3) from e
+
+
+@app.command()
+def generate_ci(
+    output: Path = typer.Option(
+        Path(".github/workflows/adr-validation.yml"),
+        "--output",
+        "-o",
+        help="Output path for the workflow file",
+    ),
+) -> None:
+    """Generate a GitHub Actions workflow for ADR enforcement on pull requests.
+
+    Creates a workflow that runs `adr-kit enforce ci --format json` and
+    posts structured PR comments with violations and fix suggestions.
+
+    \\b
+    The workflow will:
+      1. Install adr-kit
+      2. Run enforcement checks
+      3. Post a PR comment with violations (if any)
+      4. Fail the build on errors
+
+    Safe to re-run — only overwrites files it previously generated.
+    """
+    from .enforce.ci import CIWorkflowGenerator
+
+    try:
+        generator = CIWorkflowGenerator()
+        generator.generate(output_path=output)
+        console.print(f"✅ Generated CI workflow at {output}")
+
+    except FileExistsError as e:
+        stderr_console.print(f"⚠️  {e}")
+        raise typer.Exit(code=1) from e
+    except Exception as e:
+        stderr_console.print(f"❌ CI workflow generation failed: {e}")
         raise typer.Exit(code=3) from e
 
 
