@@ -524,3 +524,204 @@ class TestValidationResult:
         )
         assert result.error_count == 1
         assert result.warning_count == 1
+
+
+# ---------------------------------------------------------------------------
+# StagedValidator — architecture layer boundary checks
+# ---------------------------------------------------------------------------
+
+
+class TestStagedValidatorArchitectureCheck:
+    """Test layer boundary enforcement via architecture checks."""
+
+    def _run_arch_validate(
+        self,
+        files: dict[str, str],
+        boundaries: list[dict],
+        adr_id: str = "ADR-0001",
+        title: str = "Layer Architecture",
+    ) -> "ValidationResult":
+        """Helper: write files + ADR to temp dir, run CI-level validation."""
+        import yaml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            adr_dir = root / "docs" / "adr"
+            adr_dir.mkdir(parents=True)
+
+            for name, content in files.items():
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content)
+
+            # Build ADR with architecture policy
+            policy: dict = {"architecture": {"layer_boundaries": boundaries}}
+            front_matter = {
+                "id": adr_id,
+                "title": title,
+                "status": "accepted",
+                "date": "2026-01-01",
+                "policy": policy,
+            }
+            adr_content = f"---\n{yaml.dump(front_matter, default_flow_style=False)}---\n\n## Context\ntest\n"
+            (adr_dir / f"{adr_id}-test.md").write_text(adr_content)
+
+            validator = StagedValidator(adr_dir=adr_dir)
+            return validator.validate(EnforcementLevel.CI, project_root=root)
+
+    def test_detects_python_cross_layer_import(self):
+        result = self._run_arch_validate(
+            files={
+                "src/ui/views.py": "from database.models import User\n",
+            },
+            boundaries=[
+                {
+                    "rule": "ui -> database",
+                    "check": "src/ui/**",
+                    "action": "block",
+                    "message": "UI must not import database directly",
+                }
+            ],
+        )
+        assert not result.passed
+        assert result.error_count == 1
+        v = result.violations[0]
+        assert v.file == "src/ui/views.py"
+        assert v.line == 1
+        assert "UI must not import database directly" in v.message
+
+    def test_detects_js_cross_layer_import(self):
+        result = self._run_arch_validate(
+            files={
+                "src/ui/App.tsx": "import { query } from '../database/client'\n",
+            },
+            boundaries=[
+                {
+                    "rule": "ui -> database",
+                    "check": "src/ui/**",
+                    "action": "block",
+                }
+            ],
+        )
+        assert not result.passed
+        assert result.error_count == 1
+
+    def test_no_violation_when_import_in_allowed_direction(self):
+        """database importing from database is fine — only ui->database blocked."""
+        result = self._run_arch_validate(
+            files={
+                "src/database/repo.py": "from database.models import User\n",
+                "src/ui/views.py": "print('no imports here')\n",
+            },
+            boundaries=[
+                {
+                    "rule": "ui -> database",
+                    "check": "src/ui/**",
+                    "action": "block",
+                }
+            ],
+        )
+        assert result.passed
+
+    def test_check_glob_filters_source_files(self):
+        """Only files matching check glob are scanned, not all files."""
+        result = self._run_arch_validate(
+            files={
+                # This file imports database but is NOT in src/ui/
+                "src/api/handler.py": "from database.models import User\n",
+                # This file is in src/ui/ but doesn't import database
+                "src/ui/home.py": "print('clean')\n",
+            },
+            boundaries=[
+                {
+                    "rule": "ui -> database",
+                    "check": "src/ui/**",
+                    "action": "block",
+                }
+            ],
+        )
+        assert result.passed
+
+    def test_no_check_glob_falls_back_to_directory_matching(self):
+        """Without check glob, matches source_layer as a directory segment."""
+        result = self._run_arch_validate(
+            files={
+                "src/ui/views.py": "from database.models import User\n",
+            },
+            boundaries=[
+                {
+                    "rule": "ui -> database",
+                    "action": "block",
+                }
+            ],
+        )
+        assert not result.passed
+        assert result.error_count == 1
+
+    def test_warn_action_produces_warning_severity(self):
+        result = self._run_arch_validate(
+            files={
+                "src/ui/views.py": "from database.models import User\n",
+            },
+            boundaries=[
+                {
+                    "rule": "ui -> database",
+                    "check": "src/ui/**",
+                    "action": "warn",
+                }
+            ],
+        )
+        # Warnings don't fail the check
+        assert result.passed
+        assert result.warning_count == 1
+        assert result.violations[0].severity == "warning"
+
+    def test_violation_includes_line_number_and_fix_suggestion(self):
+        result = self._run_arch_validate(
+            files={
+                "src/ui/views.py": "# header\nfrom database.models import User\n",
+            },
+            boundaries=[
+                {
+                    "rule": "ui -> database",
+                    "check": "src/ui/**",
+                    "action": "block",
+                }
+            ],
+        )
+        assert result.error_count == 1
+        v = result.violations[0]
+        assert v.line == 2
+        assert v.fix_suggestion is not None
+        assert "database" in v.fix_suggestion
+        assert v.adr_title == "Layer Architecture"
+
+    def test_malformed_rule_degrades_gracefully(self):
+        """A rule without '->' should produce no violations, not crash."""
+        result = self._run_arch_validate(
+            files={
+                "src/ui/views.py": "from database.models import User\n",
+            },
+            boundaries=[
+                {
+                    "rule": "invalid rule format",
+                    "check": "src/ui/**",
+                    "action": "block",
+                }
+            ],
+        )
+        # No violations — malformed rule is skipped
+        assert result.violations == [] or result.passed
+
+    def test_multiple_boundary_rules(self):
+        result = self._run_arch_validate(
+            files={
+                "src/ui/views.py": "from database.models import User\nimport api.client\n",
+            },
+            boundaries=[
+                {"rule": "ui -> database", "check": "src/ui/**", "action": "block"},
+                {"rule": "ui -> api", "check": "src/ui/**", "action": "warn"},
+            ],
+        )
+        assert result.error_count == 1  # database -> error
+        assert result.warning_count == 1  # api -> warning

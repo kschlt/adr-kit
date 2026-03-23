@@ -1253,6 +1253,9 @@ def enforce(
     project_root: Path = typer.Option(
         Path("."), "--root", help="Project root directory"
     ),
+    output_format: str = typer.Option(
+        "text", "--format", "-f", help="Output format: text or json"
+    ),
 ) -> None:
     """Run ADR policy enforcement checks at the given workflow stage.
 
@@ -1264,6 +1267,11 @@ def enforce(
       commit  Check staged files only (<5s). Run as pre-commit hook.
       push    Check changed files (<15s). Run as pre-push hook.
       ci      Check entire codebase (<2min). Run in CI pipelines.
+
+    \\b
+    Formats:
+      text    Human-readable output (default).
+      json    AI-readable JSON report for agents and CI pipelines.
 
     Exit codes: 0 = pass, 1 = violations found, 2 = warnings only, 3 = error
     """
@@ -1282,6 +1290,21 @@ def enforce(
         validator = StagedValidator(adr_dir=adr_dir)
         result = validator.validate(enforcement_level, project_root=project_root)
 
+        # JSON output mode — structured report for agents and CI
+        if output_format.lower() == "json":
+            from .enforce.reporter import build_report
+
+            report = build_report(result)
+            # Print to stdout (not via Rich console) so JSON is clean
+            print(report.model_dump_json(indent=2))
+
+            if result.passed:
+                raise typer.Exit(code=0)
+            elif result.error_count == 0:
+                raise typer.Exit(code=2)  # warnings only
+            raise typer.Exit(code=1)
+
+        # Text output mode — human-readable
         level_labels = {
             EnforcementLevel.COMMIT: "pre-commit (staged files)",
             EnforcementLevel.PUSH: "pre-push (changed files)",
