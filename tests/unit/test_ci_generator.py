@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from adr_kit.enforce.ci import _MANAGED_HEADER, CIWorkflowGenerator
+from adr_kit.enforcement.generation.ci import _MANAGED_HEADER, CIWorkflowGenerator
 
 
 class TestCIWorkflowGenerator:

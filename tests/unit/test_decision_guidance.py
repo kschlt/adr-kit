@@ -1,6 +1,9 @@
 """Unit tests for decision quality guidance."""
 
-from adr_kit.workflows.decision_guidance import _build_examples, build_decision_guidance
+from adr_kit.decision.guidance.decision_guidance import (
+    _build_examples,
+    build_decision_guidance,
+)
 
 
 class TestDecisionGuidance:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from adr_kit.workflows.creation import CreationInput, CreationWorkflow
+from adr_kit.decision.workflows.creation import CreationInput, CreationWorkflow
 
 
 class TestDecisionQualityAssessment:

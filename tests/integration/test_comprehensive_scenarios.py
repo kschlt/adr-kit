@@ -8,10 +8,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from adr_kit.workflows.analyze import AnalyzeProjectWorkflow
-from adr_kit.workflows.base import WorkflowError, WorkflowStatus
-from adr_kit.workflows.creation import CreationInput, CreationWorkflow
-from adr_kit.workflows.preflight import PreflightInput, PreflightWorkflow
+from adr_kit.decision.workflows.analyze import AnalyzeProjectWorkflow
+from adr_kit.decision.workflows.base import WorkflowError, WorkflowStatus
+from adr_kit.decision.workflows.creation import CreationInput, CreationWorkflow
+from adr_kit.decision.workflows.preflight import PreflightInput, PreflightWorkflow
 
 
 class TestErrorScenarios:

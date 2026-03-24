@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from adr_kit.enforce.stages import (
+from adr_kit.enforcement.validation.staged import StagedValidator, ValidationResult
+from adr_kit.enforcement.validation.stages import (
     EnforcementLevel,
     StagedCheck,
     checks_for_level,
     classify_adr_checks,
 )
-from adr_kit.enforce.validator import StagedValidator, ValidationResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -440,8 +440,8 @@ policy:
 
     def test_invalid_regex_pattern_skipped_gracefully(self):
         """An invalid regex in an ADR policy should not crash the validator."""
-        from adr_kit.enforce.stages import StagedCheck
-        from adr_kit.enforce.validator import StagedValidator
+        from adr_kit.enforcement.validation.staged import StagedValidator
+        from adr_kit.enforcement.validation.stages import StagedCheck
 
         check = StagedCheck(
             adr_id="ADR-0001",
@@ -464,7 +464,7 @@ class TestValidationResult:
         assert result.passed
 
     def test_passed_false_when_error_violation_present(self):
-        from adr_kit.enforce.validator import Violation
+        from adr_kit.enforcement.validation.staged import Violation
 
         result = ValidationResult(
             level=EnforcementLevel.COMMIT, files_checked=5, checks_run=3
@@ -481,7 +481,7 @@ class TestValidationResult:
         assert not result.passed
 
     def test_passed_true_with_only_warnings(self):
-        from adr_kit.enforce.validator import Violation
+        from adr_kit.enforcement.validation.staged import Violation
 
         result = ValidationResult(
             level=EnforcementLevel.COMMIT, files_checked=5, checks_run=3
@@ -499,7 +499,7 @@ class TestValidationResult:
         assert result.has_warnings
 
     def test_error_and_warning_counts(self):
-        from adr_kit.enforce.validator import Violation
+        from adr_kit.enforcement.validation.staged import Violation
 
         result = ValidationResult(
             level=EnforcementLevel.CI, files_checked=10, checks_run=5

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from adr_kit.enforce.hooks import (
+from adr_kit.enforcement.generation.hooks import (
     MANAGED_END,
     MANAGED_START,
     HookGenerator,

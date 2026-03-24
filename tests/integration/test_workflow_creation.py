@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from adr_kit.core.model import ADRStatus
-from adr_kit.workflows.base import WorkflowStatus
-from adr_kit.workflows.creation import CreationInput, CreationWorkflow
+from adr_kit.decision.workflows.base import WorkflowStatus
+from adr_kit.decision.workflows.creation import CreationInput, CreationWorkflow
 
 
 class TestCreationWorkflow:
