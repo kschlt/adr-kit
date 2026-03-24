@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Individual ADR MCP resources (`adr://{adr_id}`) for progressive disclosure — agents fetch full ADR content on demand via `resource_uri` field
 
 ### Changed
+- Internal module structure reorganized into three planes: `decision/` (workflows, gate, guidance) and `enforcement/` (adapters, validation, generation, config, detection, reporter) — no public API changes
 - README rewritten for user focus: problem statement, quick start, tool reference, FAQ
 - `ROADMAP.md` "Recent Additions" section replaced with link to this changelog
 - CI workflow consolidated from 13 to 8 checks: dedicated lint job (blocks tests), trimmed test matrix to `(ubuntu + macOS) × (3.11–3.13) + ubuntu-only 3.10`
