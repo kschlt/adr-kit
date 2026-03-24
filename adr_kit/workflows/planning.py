@@ -4,10 +4,11 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from adr_kit.decision.workflows.base import BaseWorkflow, WorkflowResult
+
 from ..contract.builder import ConstraintsContractBuilder
 from ..contract.models import ConstraintsContract
 from ..core.model import ADR
-from .base import BaseWorkflow, WorkflowResult
 
 
 @dataclass

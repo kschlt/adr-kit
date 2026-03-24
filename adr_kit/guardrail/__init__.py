@@ -1,19 +1,18 @@
-"""Automatic Guardrail Management System.
+"""Guardrail package — shim for backward compatibility."""
 
-This module implements automatic application of configuration fragments
-when ADR policies change, providing the "Guardrail Manager" component
-from the architectural vision.
-"""
-
-from .config_writer import ConfigFragment, ConfigWriter, SentinelBlock
-from .file_monitor import ChangeEvent, ChangeType, FileMonitor
-from .manager import GuardrailManager
-from .models import (
+from adr_kit.enforcement.config.manager import GuardrailManager
+from adr_kit.enforcement.config.models import (
     ApplyResult,
     ConfigTemplate,
     FragmentTarget,
     FragmentType,
     GuardrailConfig,
+)
+from adr_kit.enforcement.config.monitor import ChangeEvent, ChangeType, FileMonitor
+from adr_kit.enforcement.config.writer import (
+    ConfigFragment,
+    ConfigWriter,
+    SentinelBlock,
 )
 
 __all__ = [
