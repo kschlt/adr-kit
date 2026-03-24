@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..contract import ConstraintsContractBuilder
+from ...contract import ConstraintsContractBuilder
 from .models import GateConfig, GateDecision
 from .technical_choice import ChoiceType, TechnicalChoice
 

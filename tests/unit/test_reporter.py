@@ -2,9 +2,9 @@
 
 import json
 
-from adr_kit.enforce.reporter import EnforcementReport, build_report
-from adr_kit.enforce.stages import EnforcementLevel
-from adr_kit.enforce.validator import ValidationResult, Violation
+from adr_kit.enforcement.reporter import EnforcementReport, build_report
+from adr_kit.enforcement.validation.staged import ValidationResult, Violation
+from adr_kit.enforcement.validation.stages import EnforcementLevel
 
 # ---------------------------------------------------------------------------
 # build_report

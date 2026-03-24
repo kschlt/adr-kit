@@ -6,10 +6,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from ..contract.builder import ConstraintsContractBuilder
-from ..core.model import ADR, ADRFrontMatter, ADRStatus, PolicyModel
-from ..core.parse import find_adr_files, parse_adr_file
-from ..core.validate import validate_adr
+from ...contract.builder import ConstraintsContractBuilder
+from ...core.model import ADR, ADRFrontMatter, ADRStatus, PolicyModel
+from ...core.parse import find_adr_files, parse_adr_file
+from ...core.validate import validate_adr
 from .base import BaseWorkflow, WorkflowError, WorkflowResult, WorkflowStatus
 
 
@@ -552,7 +552,7 @@ class CreationWorkflow(BaseWorkflow):
         Note: This is a lightweight check. Policy construction guidance is provided
         via the policy_guidance promptlet, which agents can use to construct policies.
         """
-        from ..core.policy_extractor import PolicyExtractor
+        from ...core.policy_extractor import PolicyExtractor
 
         extractor = PolicyExtractor()
         warnings = []

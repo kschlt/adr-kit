@@ -4,9 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ..contract import ConstraintsContractBuilder
-from .config_writer import ConfigWriter
-from .file_monitor import ChangeEvent, ChangeType, FileMonitor
+from ...contract import ConstraintsContractBuilder
 from .models import (
     ApplicationStatus,
     ApplyResult,
@@ -16,6 +14,8 @@ from .models import (
     FragmentType,
     GuardrailConfig,
 )
+from .monitor import ChangeEvent, ChangeType, FileMonitor
+from .writer import ConfigWriter
 
 
 class GuardrailManager:

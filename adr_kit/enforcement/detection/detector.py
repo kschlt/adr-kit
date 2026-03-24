@@ -13,10 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..core.model import ADR
-from ..core.parse import ParseError, find_adr_files, parse_adr_file
-from ..core.policy_extractor import PolicyExtractor
-from ..semantic.retriever import SemanticIndex, SemanticMatch
+from ...core.model import ADR
+from ...core.parse import ParseError, find_adr_files, parse_adr_file
+from ...core.policy_extractor import PolicyExtractor
+from ...semantic.retriever import SemanticIndex, SemanticMatch
 
 
 @dataclass

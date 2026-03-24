@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ..core.model import ADR
-from ..core.parse import find_adr_files, parse_adr_file
+from ...core.model import ADR
+from ...core.parse import find_adr_files, parse_adr_file
 from .approval import ApprovalInput, ApprovalWorkflow
 from .base import BaseWorkflow, WorkflowResult, WorkflowStatus
 from .creation import CreationInput, CreationWorkflow

@@ -7,14 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ..contract.builder import ConstraintsContractBuilder
-from ..core.model import ADR
-from ..core.parse import find_adr_files, parse_adr_file
-from ..core.validate import validate_adr
-from ..enforce.eslint import generate_eslint_config
-from ..enforce.ruff import generate_ruff_config
-from ..guardrail.manager import GuardrailManager
-from ..index.json_index import generate_adr_index
+from ...contract.builder import ConstraintsContractBuilder
+from ...core.model import ADR
+from ...core.parse import find_adr_files, parse_adr_file
+from ...core.validate import validate_adr
+from ...enforcement.adapters.eslint import generate_eslint_config
+from ...enforcement.adapters.ruff import generate_ruff_config
+from ...enforcement.config.manager import GuardrailManager
+from ...index.json_index import generate_adr_index
 from .base import BaseWorkflow, WorkflowResult
 
 
@@ -284,7 +284,7 @@ class ApprovalWorkflow(BaseWorkflow):
             f.write(new_content)
 
         # Return updated ADR object - create a new one with updated status
-        from ..core.model import ADRStatus
+        from ...core.model import ADRStatus
 
         updated_front_matter = adr.front_matter.model_copy(
             update={"status": ADRStatus.ACCEPTED}
@@ -380,7 +380,7 @@ class ApprovalWorkflow(BaseWorkflow):
     def _generate_validation_scripts(self, adr: ADR) -> dict[str, Any]:
         """Generate standalone validation scripts for an ADR's policies."""
         try:
-            from ..enforce.script_generator import ScriptGenerator
+            from ...enforcement.generation.scripts import ScriptGenerator
 
             generator = ScriptGenerator(adr_dir=self.adr_dir)
             output_dir = Path.cwd() / "scripts" / "adr"
@@ -407,7 +407,7 @@ class ApprovalWorkflow(BaseWorkflow):
     def _update_git_hooks(self) -> dict[str, Any]:
         """Update git hooks to run staged enforcement checks."""
         try:
-            from ..enforce.hooks import HookGenerator
+            from ...enforcement.generation.hooks import HookGenerator
 
             generator = HookGenerator()
             hook_results = generator.generate(project_root=Path.cwd())

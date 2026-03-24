@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from ..core.parse import find_adr_files
+from ...core.parse import find_adr_files
 from .base import BaseWorkflow, WorkflowError, WorkflowResult, WorkflowStatus
 
 

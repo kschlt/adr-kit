@@ -12,9 +12,9 @@ import re
 from pathlib import Path
 from typing import Any, TypedDict
 
-from ..core.model import ADR, ADRStatus
-from ..core.parse import ParseError, find_adr_files, parse_adr_file
-from ..core.policy_extractor import PolicyExtractor
+from ...core.model import ADR, ADRStatus
+from ...core.parse import ParseError, find_adr_files, parse_adr_file
+from ...core.policy_extractor import PolicyExtractor
 
 
 class ADRMetadata(TypedDict):

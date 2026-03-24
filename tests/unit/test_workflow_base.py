@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from adr_kit.workflows.base import (
+from adr_kit.decision.workflows.base import (
     BaseWorkflow,
     WorkflowError,
     WorkflowResult,

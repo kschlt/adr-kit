@@ -280,10 +280,10 @@ def mcp_health() -> None:
 
         # Test workflow system (the real business logic)
         try:
-            from .workflows.analyze import AnalyzeProjectWorkflow  # noqa: F401
-            from .workflows.approval import ApprovalWorkflow  # noqa: F401
-            from .workflows.creation import CreationWorkflow  # noqa: F401
-            from .workflows.preflight import PreflightWorkflow  # noqa: F401
+            from .decision.workflows.analyze import AnalyzeProjectWorkflow  # noqa: F401
+            from .decision.workflows.approval import ApprovalWorkflow  # noqa: F401
+            from .decision.workflows.creation import CreationWorkflow  # noqa: F401
+            from .decision.workflows.preflight import PreflightWorkflow  # noqa: F401
 
             console.print("✅ Workflow backend system: OK")
             workflow_available = True
@@ -652,7 +652,7 @@ def info() -> None:
 
 def _setup_enforcement_hooks() -> None:
     """Set up git hooks for staged ADR enforcement (called from init --with-enforcement)."""
-    from .enforce.hooks import HookGenerator
+    from .enforcement.generation.hooks import HookGenerator
 
     gen = HookGenerator()
     results = gen.generate()
@@ -744,7 +744,7 @@ def setup_enforcement(
     .git/hooks/pre-push. Safe on existing hooks — appends only.
     Re-running is idempotent.
     """
-    from .enforce.hooks import HookGenerator
+    from .enforcement.generation.hooks import HookGenerator
 
     try:
         gen = HookGenerator()
@@ -775,7 +775,7 @@ def enforce_status(
     ),
 ) -> None:
     """Show status of ADR enforcement hooks."""
-    from .enforce.hooks import HookGenerator
+    from .enforcement.generation.hooks import HookGenerator
 
     try:
         gen = HookGenerator()
@@ -1010,7 +1010,7 @@ def preflight(
     before implementation, helping enforce architectural governance.
     """
     try:
-        from .gate import PolicyGate, create_technical_choice
+        from .decision.gate import PolicyGate, create_technical_choice
 
         gate = PolicyGate(adr_dir)
 
@@ -1083,7 +1083,7 @@ def gate_status(
 ) -> None:
     """Show current preflight gate status and configuration."""
     try:
-        from .gate import PolicyGate
+        from .decision.gate import PolicyGate
 
         gate = PolicyGate(adr_dir)
         status = gate.get_gate_status()
@@ -1146,7 +1146,7 @@ def guardrail_apply(
     """Apply automatic guardrails based on ADR policies."""
 
     try:
-        from .guardrail import GuardrailManager
+        from .enforcement.config.manager import GuardrailManager
 
         adr_path = Path(adr_dir)
         manager = GuardrailManager(adr_path)
@@ -1188,7 +1188,7 @@ def guardrail_status(
     """Show status of the automatic guardrail system."""
 
     try:
-        from .guardrail import GuardrailManager
+        from .enforcement.config.manager import GuardrailManager
 
         adr_path = Path(adr_dir)
         manager = GuardrailManager(adr_path)
@@ -1275,8 +1275,8 @@ def enforce(
 
     Exit codes: 0 = pass, 1 = violations found, 2 = warnings only, 3 = error
     """
-    from .enforce.stages import EnforcementLevel
-    from .enforce.validator import StagedValidator
+    from .enforcement.validation.staged import StagedValidator
+    from .enforcement.validation.stages import EnforcementLevel
 
     try:
         try:
@@ -1292,7 +1292,7 @@ def enforce(
 
         # JSON output mode — structured report for agents and CI
         if output_format.lower() == "json":
-            from .enforce.reporter import build_report
+            from .enforcement.reporter import build_report
 
             report = build_report(result)
             # Print to stdout (not via Rich console) so JSON is clean
@@ -1368,7 +1368,7 @@ def generate_scripts(
     Each script supports --quick (staged files) and --full (all files) modes
     and outputs JSON matching the EnforcementReport schema.
     """
-    from .enforce.script_generator import ScriptGenerator
+    from .enforcement.generation.scripts import ScriptGenerator
 
     try:
         generator = ScriptGenerator(adr_dir=adr_dir)
@@ -1408,7 +1408,7 @@ def generate_ci(
 
     Safe to re-run — only overwrites files it previously generated.
     """
-    from .enforce.ci import CIWorkflowGenerator
+    from .enforcement.generation.ci import CIWorkflowGenerator
 
     try:
         generator = CIWorkflowGenerator()

@@ -7,7 +7,7 @@ import pytest
 
 from adr_kit.core.model import ADR, ADRFrontMatter, ADRStatus
 from adr_kit.core.policy_extractor import PolicyExtractor
-from adr_kit.workflows.creation import CreationInput, CreationWorkflow
+from adr_kit.decision.workflows.creation import CreationInput, CreationWorkflow
 
 
 class TestPolicyValidation:

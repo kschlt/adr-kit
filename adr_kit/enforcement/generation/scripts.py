@@ -12,9 +12,9 @@ Also generates a validate_all.py runner that aggregates results.
 import stat
 from pathlib import Path
 
-from ..core.model import ADR, ADRStatus
-from ..core.parse import ParseError, find_adr_files, parse_adr_file
-from .stages import StagedCheck, classify_adr_checks
+from ...core.model import ADR, ADRStatus
+from ...core.parse import ParseError, find_adr_files, parse_adr_file
+from ..validation.stages import StagedCheck, classify_adr_checks
 
 
 class ScriptGenerator:

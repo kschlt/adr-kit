@@ -6,8 +6,8 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
-from ..core.model import ADR
-from ..core.parse import ParseError, find_adr_files, parse_adr_file
+from ...core.model import ADR
+from ...core.parse import ParseError, find_adr_files, parse_adr_file
 
 
 class ChangeType(str, Enum):

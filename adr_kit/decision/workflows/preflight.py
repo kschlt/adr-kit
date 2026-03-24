@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from typing import Any
 
-from ..contract.builder import ConstraintsContractBuilder
-from ..contract.models import ConstraintsContract
+from ...contract.builder import ConstraintsContractBuilder
+from ...contract.models import ConstraintsContract
 from .base import BaseWorkflow, WorkflowResult
 
 
@@ -154,7 +154,7 @@ class PreflightWorkflow(BaseWorkflow):
             # If no contract exists, return empty contract
             from pathlib import Path
 
-            from ..contract.models import ConstraintsContract
+            from ...contract.models import ConstraintsContract
 
             # Use the proper create_empty method instead of incorrect constructor
             return ConstraintsContract.create_empty(Path("."))

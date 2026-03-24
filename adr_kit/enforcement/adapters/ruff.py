@@ -15,8 +15,8 @@ from typing import Any
 
 import toml
 
-from ..core.model import ADR, ADRStatus
-from ..core.parse import ParseError, find_adr_files, parse_adr_file
+from ...core.model import ADR, ADRStatus
+from ...core.parse import ParseError, find_adr_files, parse_adr_file
 
 
 class PythonRuleExtractor:

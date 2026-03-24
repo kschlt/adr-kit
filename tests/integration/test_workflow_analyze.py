@@ -7,8 +7,8 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from adr_kit.workflows.analyze import AnalyzeProjectWorkflow
-from adr_kit.workflows.base import WorkflowStatus
+from adr_kit.decision.workflows.analyze import AnalyzeProjectWorkflow
+from adr_kit.decision.workflows.base import WorkflowStatus
 
 
 class TestAnalyzeProjectWorkflow:

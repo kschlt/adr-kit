@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel
 
-from .validator import ValidationResult
+from .validation.staged import ValidationResult
 
 
 class ViolationEntry(BaseModel):

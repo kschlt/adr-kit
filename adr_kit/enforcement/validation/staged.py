@@ -16,8 +16,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..core.model import ADR, ADRStatus
-from ..core.parse import ParseError, find_adr_files, parse_adr_file
+from ...core.model import ADR, ADRStatus
+from ...core.parse import ParseError, find_adr_files, parse_adr_file
 from .stages import EnforcementLevel, StagedCheck, checks_for_level, classify_adr_checks
 
 # Source file extensions scanned during CI full-codebase pass

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from adr_kit.enforce.script_generator import ScriptGenerator
+from adr_kit.enforcement.generation.scripts import ScriptGenerator
 
 # Reuse the _make_adr helper from test_staged_enforcement
 from tests.unit.test_staged_enforcement import _make_adr
