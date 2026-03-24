@@ -10,12 +10,12 @@ from typing import Any
 from fastmcp import FastMCP
 
 # Import the full workflow system (this is where the real business logic lives)
-from ..workflows.analyze import AnalyzeProjectWorkflow
-from ..workflows.approval import ApprovalInput, ApprovalWorkflow
-from ..workflows.creation import CreationInput, CreationWorkflow
+from ..decision.workflows.analyze import AnalyzeProjectWorkflow
+from ..decision.workflows.approval import ApprovalInput, ApprovalWorkflow
+from ..decision.workflows.creation import CreationInput, CreationWorkflow
+from ..decision.workflows.preflight import PreflightInput, PreflightWorkflow
+from ..decision.workflows.supersede import SupersedeInput, SupersedeWorkflow
 from ..workflows.planning import PlanningInput, PlanningWorkflow
-from ..workflows.preflight import PreflightInput, PreflightWorkflow
-from ..workflows.supersede import SupersedeInput, SupersedeWorkflow
 from .middleware import StringifiedParameterFixMiddleware
 from .models import (
     AnalyzeProjectRequest,
