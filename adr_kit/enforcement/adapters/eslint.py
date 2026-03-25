@@ -348,6 +348,62 @@ def generate_eslint_config(adr_directory: Path | str = "docs/adr") -> str:
     return json.dumps(config, indent=2)
 
 
+def generate_eslint_config_from_contract(constraints: Any) -> ESLintConfig:
+    """Generate ESLint configuration from a compiled MergedConstraints object.
+
+    This is the canonical contract-driven path. It reads only from the
+    compiled contract and never touches raw ADR files.
+
+    Args:
+        constraints: MergedConstraints from the ConstraintsContract
+
+    Returns:
+        ESLint configuration dictionary
+    """
+    from datetime import datetime
+
+    config: ESLintConfig = {
+        "rules": {},
+        "settings": {},
+        "env": {},
+        "extends": [],
+        "__adr_metadata": {
+            "generated_by": "ADR Kit",
+            "source_adrs": [],
+            "generation_timestamp": datetime.now().isoformat(),
+            "preferred_libraries": None,
+        },
+    }
+
+    banned_imports: list[dict[str, str]] = []
+    preferred_mappings: dict[str, str] = {}
+
+    if constraints.imports:
+        if constraints.imports.disallow:
+            for lib in constraints.imports.disallow:
+                banned_imports.append(
+                    {
+                        "name": lib,
+                        "message": f"Import of '{lib}' is not allowed per architecture contract",
+                    }
+                )
+
+        if constraints.imports.prefer:
+            for lib in constraints.imports.prefer:
+                preferred_mappings[lib] = "preferred per architecture contract"
+
+    if banned_imports:
+        config["rules"]["no-restricted-imports"] = [
+            "error",
+            {"paths": banned_imports},
+        ]
+
+    if preferred_mappings:
+        config["__adr_metadata"]["preferred_libraries"] = preferred_mappings
+
+    return config
+
+
 def generate_eslint_overrides(
     adr_directory: Path | str = "docs/adr",
 ) -> dict[str, Any]:

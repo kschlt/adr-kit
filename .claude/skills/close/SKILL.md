@@ -270,9 +270,13 @@ grep "^Status:" .agent/backlog/<task-file>.md
 **Move** backlog file to `archive/` (e.g. `backlog/CRA-*.md` → `archive/CRA-*.md`)
 **task-tracking.md**:
   - Remove the row from the Priority Queue table
-  - Add entry to "Done" section with date and brief summary
+  - Add the task's ID + ✅ to the **Baseline** summary line in the header
   - Remove this task's ID from "Depends On" column of any tasks that depended on it
   - Update test count in header if tests were added
+**CHANGELOG.md** (source of truth for what changed):
+  - Add user-facing changes to the `[Unreleased]` section under the appropriate heading (Added/Changed/Fixed/Removed)
+  - Write from the user's perspective — what the feature does, not implementation details
+  - Skip purely internal changes (dev tooling, .agent/ updates, workflow tweaks) unless they affect the installed package
 
 ## 7. Smart Next-Step Suggestion (Final Step or Session Ending)
 

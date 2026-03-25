@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Canonical enforcement pipeline (`EnforcementPipeline`) — single entry point for all enforcement that reads exclusively from the compiled architecture contract, never from raw ADR files
+- `EnforcementResult` audit envelope produced on every ADR approval: tracks which config fragments were applied, which adapters were skipped and why, any conflicts detected, clause-level provenance, and an idempotency hash (same contract → identical hash)
+- Contract-driven ESLint adapter (`generate_eslint_config_from_contract`) — generates `no-restricted-imports` rules directly from compiled `MergedConstraints`
+- Contract-driven Ruff adapter (`generate_ruff_config_from_contract`) — generates `banned-from` rules from compiled Python and import constraints
+- `clause_id` field on every provenance entry — deterministic 12-char identifier (`sha256(adr_id:rule_path)[:12]`) enabling clause-level traceability from enforcement artifacts back to source ADRs
+- Topological sort in policy merger — ADRs are now ordered by supersession relationships (Kahn's algorithm) before merging, so superseding ADRs correctly override their predecessors; falls back to date sort when no supersession relationships exist
 - `CHANGELOG.md` with full version history
 - `TECHNICAL.md` with implementation details for each layer
 - `CONTRIBUTING.md` with development environment setup
@@ -30,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Individual ADR MCP resources (`adr://{adr_id}`) for progressive disclosure — agents fetch full ADR content on demand via `resource_uri` field
 
 ### Changed
+- Internal module structure reorganized into three planes: `decision/` (workflows, gate, guidance) and `enforcement/` (adapters, validation, generation, config, detection, reporter) — no public API changes
 - README rewritten for user focus: problem statement, quick start, tool reference, FAQ
 - `ROADMAP.md` "Recent Additions" section replaced with link to this changelog
 - CI workflow consolidated from 13 to 8 checks: dedicated lint job (blocks tests), trimmed test matrix to `(ubuntu + macOS) × (3.11–3.13) + ubuntu-only 3.10`

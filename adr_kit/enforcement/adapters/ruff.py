@@ -245,6 +245,46 @@ def generate_ruff_config(adr_directory: Path | str = "docs/adr") -> str:
     return toml.dumps(ruff_config)
 
 
+def generate_ruff_config_from_contract(constraints: Any) -> str:
+    """Generate Ruff configuration from a compiled MergedConstraints object.
+
+    This is the canonical contract-driven path. Reads only from the compiled
+    contract — never from raw ADR files.
+
+    Args:
+        constraints: MergedConstraints from the ConstraintsContract
+
+    Returns:
+        TOML string with Ruff configuration
+    """
+    banned_imports: set[str] = set()
+
+    # Python-specific disallow list
+    if constraints.python and constraints.python.disallow_imports:
+        banned_imports.update(constraints.python.disallow_imports)
+
+    # Generic import disallow (applies to Python too)
+    if constraints.imports and constraints.imports.disallow:
+        banned_imports.update(constraints.imports.disallow)
+
+    ruff_config: dict[str, Any] = {
+        "target-version": "py310",
+        "line-length": 88,
+        "select": ["E", "W", "F"],
+        "extend-ignore": [],
+    }
+
+    if banned_imports:
+        # Ruff's flake8-import-conventions banned-from list
+        ruff_config["lint"] = {
+            "flake8-import-conventions": {
+                "banned-from": sorted(banned_imports),
+            }
+        }
+
+    return toml.dumps({"tool": {"ruff": ruff_config}})
+
+
 def generate_import_linter_config(adr_directory: Path | str = "docs/adr") -> str:
     """Generate import-linter configuration from ADRs.
 
