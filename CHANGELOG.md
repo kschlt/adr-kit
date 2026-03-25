@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Canonical enforcement pipeline (`EnforcementPipeline`) — single entry point for all enforcement that reads exclusively from the compiled architecture contract, never from raw ADR files
+- `EnforcementResult` audit envelope produced on every ADR approval: tracks which config fragments were applied, which adapters were skipped and why, any conflicts detected, clause-level provenance, and an idempotency hash (same contract → identical hash)
+- Contract-driven ESLint adapter (`generate_eslint_config_from_contract`) — generates `no-restricted-imports` rules directly from compiled `MergedConstraints`
+- Contract-driven Ruff adapter (`generate_ruff_config_from_contract`) — generates `banned-from` rules from compiled Python and import constraints
+- `clause_id` field on every provenance entry — deterministic 12-char identifier (`sha256(adr_id:rule_path)[:12]`) enabling clause-level traceability from enforcement artifacts back to source ADRs
+- Topological sort in policy merger — ADRs are now ordered by supersession relationships (Kahn's algorithm) before merging, so superseding ADRs correctly override their predecessors; falls back to date sort when no supersession relationships exist
 - `CHANGELOG.md` with full version history
 - `TECHNICAL.md` with implementation details for each layer
 - `CONTRIBUTING.md` with development environment setup
