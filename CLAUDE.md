@@ -255,9 +255,24 @@ exclude = ["tests*", "scripts*", ".agent*"]
 - Type safety with Pydantic/FastMCP
 - Backward compatibility for public APIs
 
+## Python Executable
+
+Use `python3` (or the value from `.agent/config.json` → `python` key) for all script invocations. Never use bare `python` — it may resolve to Python 2 on some systems.
+
+## Task Workflow — Session Protocol
+
+**When starting work on a task** (e.g., "work on next task"), follow the session protocol in [`.agent/CLAUDE.md`](.agent/CLAUDE.md). That file is the authoritative reference for the task workflow system — read it first.
+
+**Quick summary** (details in `.agent/CLAUDE.md`):
+1. Run `python3 .agent/scripts/next_task.py` to get the next task
+2. Confirm with user, invoke `/branch`
+3. Research, plan, decompose into atomic steps
+4. Implement step by step, `/close` after each step
+5. Never work directly on main — always use a feature branch
+
+**Git workflow design**: [`.agent/workflows/git-workflow.md`](.agent/workflows/git-workflow.md) (human-readable, loaded only on request)
+
 ## Additional Documentation
 
-- **Development workflows**: See `guide/dev/` for task workflow and git workflow guides
-  - **CRITICAL**: When starting work on a task (e.g., "work on next task"), follow the full **conversational workflow** in [`guide/dev/task-workflow.md`](guide/dev/task-workflow.md#conversational-workflow--clean-start) - all 5 steps are mandatory, especially step 3 which invokes `/branch` to create a feature branch. Never work directly on main.
 - Performance targets, security requirements: `docs/requirements.md`
 - ADR format specification: Examples in `tests/fixtures/`
