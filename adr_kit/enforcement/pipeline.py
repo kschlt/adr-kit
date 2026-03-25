@@ -81,7 +81,8 @@ class EnforcementResult(BaseModel):
     fallback_promptlets: list[str] = Field(default_factory=list)
     provenance: list[ProvenanceEntry] = Field(default_factory=list)
     idempotency_hash: str = Field(
-        "", description="SHA-256 of all outputs — identical on re-run with same inputs"
+        default="",
+        description="SHA-256 of all outputs — identical on re-run with same inputs",
     )
 
     def compute_idempotency_hash(self) -> str:

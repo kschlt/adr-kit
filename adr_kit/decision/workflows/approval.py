@@ -458,7 +458,7 @@ class ApprovalWorkflow(BaseWorkflow):
         """Count total policy rules applied across all systems."""
         pipeline = automation_results.get("enforcement_pipeline", {})
         if pipeline.get("success"):
-            return pipeline.get("fragments_applied", 0)
+            return int(pipeline.get("fragments_applied", 0))
         return 0
 
     def _extract_updated_configurations(
