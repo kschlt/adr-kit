@@ -20,6 +20,22 @@ from ..core.model import (
 from .models import MergedConstraints, PolicyProvenance
 
 
+def _make_provenance(
+    adr_id: str,
+    adr_title: str,
+    rule_path: str,
+    effective_date: "datetime",
+) -> PolicyProvenance:
+    """Create a PolicyProvenance with a deterministic clause_id."""
+    return PolicyProvenance(
+        adr_id=adr_id,
+        adr_title=adr_title,
+        rule_path=rule_path,
+        effective_date=effective_date,
+        clause_id=PolicyProvenance.make_clause_id(adr_id, rule_path),
+    )
+
+
 @dataclass
 class PolicyConflict:
     """Represents a conflict between two ADR policies."""
@@ -174,10 +190,57 @@ class PolicyMerger:
         """Sort ADRs topologically based on supersede relationships.
 
         ADRs that supersede others come later in the list, so they can override.
+        Uses Kahn's algorithm. Falls back to date sort for ADRs with no
+        supersession relationships.
         """
-        # For now, simple sort by date (older first)
-        # TODO: Implement proper topological sort based on supersedes relationships
-        return sorted(adrs, key=lambda adr: adr.front_matter.date)
+        if not adrs:
+            return adrs
+
+        # Build index by ID for fast lookup
+        by_id = {adr.front_matter.id: adr for adr in adrs}
+
+        # Build adjacency: predecessor → set of successors
+        # If B supersedes A, then A must come before B (A → B edge)
+        successors: dict[str, set[str]] = {adr.front_matter.id: set() for adr in adrs}
+        in_degree: dict[str, int] = {adr.front_matter.id: 0 for adr in adrs}
+
+        for adr in adrs:
+            for superseded_id in adr.front_matter.supersedes or []:
+                if superseded_id in by_id:
+                    # adr supersedes superseded_id → superseded_id must come first
+                    successors[superseded_id].add(adr.front_matter.id)
+                    in_degree[adr.front_matter.id] += 1
+
+        # Kahn's algorithm — start with nodes that have no predecessors
+        # Tie-break with date sort for determinism
+        queue = sorted(
+            [adr for adr in adrs if in_degree[adr.front_matter.id] == 0],
+            key=lambda a: a.front_matter.date,
+        )
+        result: list[ADR] = []
+
+        while queue:
+            node = queue.pop(0)
+            result.append(node)
+            for succ_id in sorted(successors[node.front_matter.id]):
+                in_degree[succ_id] -= 1
+                if in_degree[succ_id] == 0:
+                    succ_adr = by_id[succ_id]
+                    # Insert in date order among ready nodes
+                    inserted = False
+                    for i, q in enumerate(queue):
+                        if succ_adr.front_matter.date < q.front_matter.date:
+                            queue.insert(i, succ_adr)
+                            inserted = True
+                            break
+                    if not inserted:
+                        queue.append(succ_adr)
+
+        # If cycle detected (result shorter than input), fall back to date sort
+        if len(result) < len(adrs):
+            return sorted(adrs, key=lambda adr: adr.front_matter.date)
+
+        return result
 
     def _merge_import_policy(
         self,
@@ -215,11 +278,8 @@ class PolicyMerger:
                     merged_prefer.discard(item)
 
                 merged_disallow.add(item)
-                provenance[f"imports.disallow.{item}"] = PolicyProvenance(
-                    adr_id=adr_id,
-                    adr_title=adr_title,
-                    rule_path=f"imports.disallow.{item}",
-                    effective_date=effective_date,
+                provenance[f"imports.disallow.{item}"] = _make_provenance(
+                    adr_id, adr_title, f"imports.disallow.{item}", effective_date
                 )
 
         # Add new prefer items
@@ -243,11 +303,8 @@ class PolicyMerger:
                     continue
 
                 merged_prefer.add(item)
-                provenance[f"imports.prefer.{item}"] = PolicyProvenance(
-                    adr_id=adr_id,
-                    adr_title=adr_title,
-                    rule_path=f"imports.prefer.{item}",
-                    effective_date=effective_date,
+                provenance[f"imports.prefer.{item}"] = _make_provenance(
+                    adr_id, adr_title, f"imports.prefer.{item}", effective_date
                 )
 
         return (
@@ -275,11 +332,8 @@ class PolicyMerger:
             merged_disallow.update(new.disallow_imports)
 
             for item in new.disallow_imports:
-                provenance[f"python.disallow_imports.{item}"] = PolicyProvenance(
-                    adr_id=adr_id,
-                    adr_title=adr_title,
-                    rule_path=f"python.disallow_imports.{item}",
-                    effective_date=effective_date,
+                provenance[f"python.disallow_imports.{item}"] = _make_provenance(
+                    adr_id, adr_title, f"python.disallow_imports.{item}", effective_date
                 )
 
         return (
@@ -307,11 +361,8 @@ class PolicyMerger:
         if new.patterns:
             for rule_name, rule in new.patterns.items():
                 merged_patterns[rule_name] = rule
-                provenance[f"patterns.{rule_name}"] = PolicyProvenance(
-                    adr_id=adr_id,
-                    adr_title=adr_title,
-                    rule_path=f"patterns.{rule_name}",
-                    effective_date=effective_date,
+                provenance[f"patterns.{rule_name}"] = _make_provenance(
+                    adr_id, adr_title, f"patterns.{rule_name}", effective_date
                 )
 
         return merged_patterns, provenance
@@ -333,11 +384,11 @@ class PolicyMerger:
             for boundary in new.layer_boundaries:
                 merged_boundaries.append(boundary)
                 provenance[f"architecture.boundaries.{boundary.rule}"] = (
-                    PolicyProvenance(
-                        adr_id=adr_id,
-                        adr_title=adr_title,
-                        rule_path=f"architecture.boundaries.{boundary.rule}",
-                        effective_date=effective_date,
+                    _make_provenance(
+                        adr_id,
+                        adr_title,
+                        f"architecture.boundaries.{boundary.rule}",
+                        effective_date,
                     )
                 )
 
@@ -347,11 +398,11 @@ class PolicyMerger:
             for structure in new.required_structure:
                 merged_structures.append(structure)
                 provenance[f"architecture.structure.{structure.path}"] = (
-                    PolicyProvenance(
-                        adr_id=adr_id,
-                        adr_title=adr_title,
-                        rule_path=f"architecture.structure.{structure.path}",
-                        effective_date=effective_date,
+                    _make_provenance(
+                        adr_id,
+                        adr_title,
+                        f"architecture.structure.{structure.path}",
+                        effective_date,
                     )
                 )
 
@@ -382,11 +433,8 @@ class PolicyMerger:
             merged_ts_config.update(existing.typescript.tsconfig)
         if new.typescript and new.typescript.tsconfig:
             merged_ts_config.update(new.typescript.tsconfig)
-            provenance["config.typescript"] = PolicyProvenance(
-                adr_id=adr_id,
-                adr_title=adr_title,
-                rule_path="config.typescript",
-                effective_date=effective_date,
+            provenance["config.typescript"] = _make_provenance(
+                adr_id, adr_title, "config.typescript", effective_date
             )
 
         # Merge Python config
@@ -402,19 +450,13 @@ class PolicyMerger:
         if new.python:
             if new.python.ruff:
                 merged_py_ruff.update(new.python.ruff)
-                provenance["config.python.ruff"] = PolicyProvenance(
-                    adr_id=adr_id,
-                    adr_title=adr_title,
-                    rule_path="config.python.ruff",
-                    effective_date=effective_date,
+                provenance["config.python.ruff"] = _make_provenance(
+                    adr_id, adr_title, "config.python.ruff", effective_date
                 )
             if new.python.mypy:
                 merged_py_mypy.update(new.python.mypy)
-                provenance["config.python.mypy"] = PolicyProvenance(
-                    adr_id=adr_id,
-                    adr_title=adr_title,
-                    rule_path="config.python.mypy",
-                    effective_date=effective_date,
+                provenance["config.python.mypy"] = _make_provenance(
+                    adr_id, adr_title, "config.python.mypy", effective_date
                 )
 
         # Create merged config models

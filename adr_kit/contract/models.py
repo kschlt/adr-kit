@@ -32,6 +32,15 @@ class PolicyProvenance(BaseModel):
         ..., description="Path to the specific rule (e.g., 'imports.disallow.axios')"
     )
     effective_date: datetime = Field(..., description="When this rule became active")
+    clause_id: str = Field(
+        "",
+        description="Deterministic 12-char identifier: sha256(adr_id:rule_path)[:12]",
+    )
+
+    @classmethod
+    def make_clause_id(cls, adr_id: str, rule_path: str) -> str:
+        """Generate a deterministic clause ID from adr_id and rule_path."""
+        return hashlib.sha256(f"{adr_id}:{rule_path}".encode()).hexdigest()[:12]
 
 
 class ContractMetadata(BaseModel):

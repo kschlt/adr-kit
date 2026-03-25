@@ -11,9 +11,7 @@ from ...contract.builder import ConstraintsContractBuilder
 from ...core.model import ADR
 from ...core.parse import find_adr_files, parse_adr_file
 from ...core.validate import validate_adr
-from ...enforcement.adapters.eslint import generate_eslint_config
-from ...enforcement.adapters.ruff import generate_ruff_config
-from ...enforcement.config.manager import GuardrailManager
+from ...enforcement.pipeline import EnforcementPipeline, EnforcementResult
 from ...index.json_index import generate_adr_index
 from .base import BaseWorkflow, WorkflowResult
 
@@ -41,6 +39,7 @@ class ApprovalResult:
     configurations_updated: list[str]  # List of config files updated
     warnings: list[str]  # Non-blocking warnings
     next_steps: str  # Guidance for what happens next
+    enforcement_result: EnforcementResult | None = None  # Canonical pipeline output
 
 
 class ApprovalWorkflow(BaseWorkflow):
@@ -106,20 +105,15 @@ class ApprovalWorkflow(BaseWorkflow):
             )
 
             # Step 4: Rebuild constraints contract
-            contract_result = self._execute_step(
+            contract, contract_result = self._execute_step(
                 "rebuild_constraints_contract", self._rebuild_constraints_contract
             )
 
-            # Step 5: Apply guardrails
-            guardrail_result = self._execute_step(
-                "apply_guardrails", self._apply_guardrails, updated_adr
-            )
-
-            # Step 6: Generate enforcement rules
-            enforcement_result = self._execute_step(
-                "generate_enforcement_rules",
-                self._generate_enforcement_rules,
-                updated_adr,
+            # Step 5: Run canonical enforcement pipeline (replaces guardrails + rule generation)
+            enforcement_result, enforcement_summary = self._execute_step(
+                "enforcement_pipeline",
+                self._run_enforcement_pipeline,
+                contract,
             )
 
             # Step 7: Update indexes
@@ -140,8 +134,7 @@ class ApprovalWorkflow(BaseWorkflow):
                     "new_status": "accepted",
                 },
                 "contract_rebuild": contract_result,
-                "guardrail_application": guardrail_result,
-                "enforcement_generation": enforcement_result,
+                "enforcement_pipeline": enforcement_summary,
                 "index_update": index_result,
                 "codebase_validation": validation_result,
             }
@@ -169,6 +162,7 @@ class ApprovalWorkflow(BaseWorkflow):
                 ),
                 warnings=approval_report.get("warnings", []),
                 next_steps=approval_report.get("next_steps", ""),
+                enforcement_result=enforcement_result,
             )
 
             self._complete_workflow(
@@ -296,240 +290,67 @@ class ApprovalWorkflow(BaseWorkflow):
         )
         return updated_adr
 
-    def _rebuild_constraints_contract(self) -> dict[str, Any]:
-        """Rebuild the constraints contract with all approved ADRs."""
+    def _rebuild_constraints_contract(
+        self,
+    ) -> tuple[Any, dict[str, Any]]:
+        """Rebuild the constraints contract with all approved ADRs.
+
+        Returns the contract object alongside a summary dict for reporting.
+        """
         try:
             builder = ConstraintsContractBuilder(adr_dir=self.adr_dir)
             contract = builder.build()
 
-            return {
+            summary = {
                 "success": True,
                 "approved_adrs": len(contract.approved_adrs),
                 "constraints_exist": not contract.constraints.is_empty(),
-                "constraints": 1 if not contract.constraints.is_empty() else 0,
                 "message": "Constraints contract rebuilt successfully",
             }
+            return contract, summary
 
         except Exception as e:
-            return {
+            summary = {
                 "success": False,
                 "error": str(e),
                 "message": "Failed to rebuild constraints contract",
             }
+            return None, summary
 
-    def _apply_guardrails(self, adr: ADR) -> dict[str, Any]:
-        """Apply guardrails based on the approved ADR."""
+    def _run_enforcement_pipeline(
+        self, contract: Any
+    ) -> tuple["EnforcementResult | None", dict[str, Any]]:
+        """Run the canonical enforcement pipeline against the compiled contract.
+
+        Returns the EnforcementResult envelope alongside a summary dict.
+        """
         try:
-            # Apply guardrails using GuardrailManager
-            GuardrailManager(adr_dir=Path(self.adr_dir))
+            pipeline = EnforcementPipeline(
+                adr_dir=Path(self.adr_dir), project_path=Path.cwd()
+            )
+            result = pipeline.compile(
+                contract=contract if contract is not None else None
+            )
 
-            # This is a simplified implementation - would need to be enhanced
-            # to fully integrate with the GuardrailManager's apply methods
-
-            return {
+            summary: dict[str, Any] = {
                 "success": True,
-                "guardrails_applied": 0,  # Simplified for now
-                "configurations_updated": [],
-                "message": "Guardrails system initialized (simplified implementation)",
+                "fragments_applied": len(result.fragments_applied),
+                "files_touched": result.files_touched,
+                "conflicts": len(result.conflicts),
+                "skipped_adapters": [s.adapter for s in result.skipped_adapters],
+                "idempotency_hash": result.idempotency_hash,
+                "provenance_entries": len(result.provenance),
+                "message": "Enforcement pipeline completed",
             }
+            return result, summary
 
         except Exception as e:
-            return {
+            summary = {
                 "success": False,
                 "error": str(e),
-                "message": "Failed to apply guardrails",
+                "message": "Enforcement pipeline failed",
             }
-
-    def _generate_enforcement_rules(self, adr: ADR) -> dict[str, Any]:
-        """Generate enforcement rules (ESLint, Ruff, git hooks) from ADR policies."""
-        results = {}
-
-        try:
-            # Generate ESLint rules if JavaScript/TypeScript policies exist
-            if self._has_javascript_policies(adr):
-                eslint_result = self._generate_eslint_rules(adr)
-                results["eslint"] = eslint_result
-
-            # Generate Ruff rules if Python policies exist
-            if self._has_python_policies(adr):
-                ruff_result = self._generate_ruff_rules(adr)
-                results["ruff"] = ruff_result
-
-            # Generate standalone validation scripts
-            scripts_result = self._generate_validation_scripts(adr)
-            results["scripts"] = scripts_result
-
-            # Always update git hooks so staged enforcement reflects new rules
-            hooks_result = self._update_git_hooks()
-            results["hooks"] = hooks_result
-
-            return {
-                "success": True,
-                "rule_generators": list(results.keys()),
-                "details": results,
-                "message": "Enforcement rules generated successfully",
-            }
-
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to generate enforcement rules",
-            }
-
-    def _generate_validation_scripts(self, adr: ADR) -> dict[str, Any]:
-        """Generate standalone validation scripts for an ADR's policies."""
-        try:
-            from ...enforcement.generation.scripts import ScriptGenerator
-
-            generator = ScriptGenerator(adr_dir=self.adr_dir)
-            output_dir = Path.cwd() / "scripts" / "adr"
-            path = generator.generate_for_adr(adr, output_dir)
-
-            if path:
-                return {
-                    "success": True,
-                    "script": str(path),
-                    "message": f"Validation script generated: {path.name}",
-                }
-            return {
-                "success": True,
-                "script": None,
-                "message": "No enforceable policies — no script generated",
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to generate validation script",
-            }
-
-    def _update_git_hooks(self) -> dict[str, Any]:
-        """Update git hooks to run staged enforcement checks."""
-        try:
-            from ...enforcement.generation.hooks import HookGenerator
-
-            generator = HookGenerator()
-            hook_results = generator.generate(project_root=Path.cwd())
-
-            updated = [
-                name
-                for name, action in hook_results.items()
-                if action not in ("unchanged", "skipped")
-            ]
-            skipped = [
-                name for name, action in hook_results.items() if "skipped" in action
-            ]
-
-            return {
-                "success": True,
-                "hooks_updated": updated,
-                "hooks_skipped": skipped,
-                "details": hook_results,
-                "message": f"Git hooks updated: {', '.join(updated) if updated else 'all unchanged'}",
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Failed to update git hooks (non-blocking)",
-            }
-
-    def _has_javascript_policies(self, adr: ADR) -> bool:
-        """Check if ADR has JavaScript/TypeScript related policies."""
-        if not adr.policy:
-            return False
-
-        # Check for import restrictions, frontend policies, etc.
-        js_indicators = []
-
-        # Check if it has imports policy
-        if adr.policy.imports:
-            js_indicators.append(True)
-
-        # Check for frontend-related terms in policy
-        policy_text = str(adr.policy.model_dump()).lower()
-        js_indicators.extend(
-            [
-                "javascript" in policy_text,
-                "typescript" in policy_text,
-                "frontend" in policy_text,
-                "react" in policy_text,
-                "vue" in policy_text,
-            ]
-        )
-
-        return any(js_indicators)
-
-    def _has_python_policies(self, adr: ADR) -> bool:
-        """Check if ADR has Python related policies."""
-        if not adr.policy:
-            return False
-
-        # Check for Python-specific policies
-        python_indicators = []
-
-        # Check for python-specific policy
-        if adr.policy.python:
-            python_indicators.append(True)
-
-        # Check for imports policy
-        if adr.policy.imports:
-            python_indicators.append(True)
-
-        # Check for Python-related terms in policy
-        policy_text = str(adr.policy.model_dump()).lower()
-        python_indicators.extend(
-            [
-                "django" in policy_text,
-                "flask" in policy_text,
-            ]
-        )
-
-        return any(python_indicators)
-
-    def _generate_eslint_rules(self, adr: ADR) -> dict[str, Any]:
-        """Generate ESLint rules from ADR policies."""
-        try:
-            config = generate_eslint_config(self.adr_dir)
-
-            # Write to .eslintrc.adrs.json
-            output_file = Path.cwd() / ".eslintrc.adrs.json"
-            with open(output_file, "w") as f:
-                f.write(config)
-            rules: list[dict[str, Any]] = []  # Simplified for now
-
-            return {
-                "success": True,
-                "rules_generated": len(rules),
-                "output_file": str(output_file),
-                "rules": rules,
-            }
-
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def _generate_ruff_rules(self, adr: ADR) -> dict[str, Any]:
-        """Generate Ruff configuration from ADR policies."""
-        try:
-            config_content = generate_ruff_config(self.adr_dir)
-
-            # Update pyproject.toml
-            output_file = Path.cwd() / "pyproject.toml"
-            # For now, just create a simple config file
-            with open(output_file, "a") as f:
-                f.write("\n" + config_content)
-            config: dict[str, Any] = {}  # Simplified for now
-
-            return {
-                "success": True,
-                "config_sections": len(config),
-                "output_file": str(output_file),
-                "config": config,
-            }
-
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+            return None, summary
 
     def _update_indexes(self) -> dict[str, Any]:
         """Update JSON and other indexes after ADR approval."""
@@ -635,17 +456,10 @@ class ApprovalWorkflow(BaseWorkflow):
 
     def _count_policy_rules_applied(self, automation_results: dict[str, Any]) -> int:
         """Count total policy rules applied across all systems."""
-        count = 0
-
-        if "enforcement_generation" in automation_results:
-            enforcement = automation_results["enforcement_generation"]
-            if enforcement.get("success"):
-                details = enforcement.get("details", {})
-                for _system, result in details.items():
-                    if result.get("success"):
-                        count += result.get("rules_generated", 0)
-
-        return count
+        pipeline = automation_results.get("enforcement_pipeline", {})
+        if pipeline.get("success"):
+            return pipeline.get("fragments_applied", 0)
+        return 0
 
     def _extract_updated_configurations(
         self, automation_results: dict[str, Any]
@@ -653,20 +467,10 @@ class ApprovalWorkflow(BaseWorkflow):
         """Extract list of configuration files that were updated."""
         updated_files = []
 
-        # From guardrail application
-        if "guardrail_application" in automation_results:
-            guardrails = automation_results["guardrail_application"]
-            if guardrails.get("success"):
-                updated_files.extend(guardrails.get("configurations_updated", []))
-
-        # From enforcement rule generation
-        if "enforcement_generation" in automation_results:
-            enforcement = automation_results["enforcement_generation"]
-            if enforcement.get("success"):
-                details = enforcement.get("details", {})
-                for _system, result in details.items():
-                    if result.get("success") and result.get("output_file"):
-                        updated_files.append(result["output_file"])
+        # From enforcement pipeline
+        pipeline = automation_results.get("enforcement_pipeline", {})
+        if pipeline.get("success"):
+            updated_files.extend(pipeline.get("files_touched", []))
 
         # From index updates
         if "index_update" in automation_results:
