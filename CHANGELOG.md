@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ConflictDetector` — detects two classes of enforcement conflicts: (1) policy-contract conflicts (new ADR policy contradicts existing contract, e.g. one ADR allows Flask while another bans it) and (2) fragment-config conflicts (adapter-generated fragment contradicts existing user config on disk). Policy conflict detection is reusable by decision-plane workflows for pre-approval validation
+- Guided fallback for unroutable policies — when no adapter can handle a policy key, the pipeline generates a structured promptlet instructing the agent to create a validation script, rather than silently dropping the policy. Scripts placed in `scripts/adr-validations/` are treated as first-class enforcement artifacts
+- Enforcement metadata in `_build_policy_reference()` — creation workflow now shows agents which policy keys have native adapter coverage (and which tool), which fall back to scripts, and which have no enforcement path yet. Metadata is derived live from the adapter registry so creation guidance stays in sync as adapters are added
+- Conflict pipeline wiring — `EnforcementPipeline.compile()` now collects all fragments before writing, runs conflict detection, writes only conflict-free fragments, and surfaces conflicting ones in `EnforcementResult.conflicts` with full context (adapter, description, implicated policy keys)
 - Canonical enforcement pipeline (`EnforcementPipeline`) — single entry point for all enforcement that reads exclusively from the compiled architecture contract, never from raw ADR files
 - `EnforcementResult` audit envelope produced on every ADR approval: tracks which config fragments were applied, which adapters were skipped and why, any conflicts detected, clause-level provenance, and an idempotency hash (same contract → identical hash)
 - Contract-driven ESLint adapter (`generate_eslint_config_from_contract`) — generates `no-restricted-imports` rules directly from compiled `MergedConstraints`

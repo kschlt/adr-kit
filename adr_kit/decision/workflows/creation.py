@@ -781,6 +781,10 @@ class CreationWorkflow(BaseWorkflow):
 
         This reference is provided just-in-time when agents need to construct
         structured policies, avoiding context bloat in MCP tool docstrings.
+
+        Includes enforcement_metadata derived from the live adapter registry so
+        creation and enforcement cannot drift apart: when new adapters are added,
+        this reference automatically reflects expanded capabilities.
         """
         return {
             "imports": {
@@ -872,6 +876,65 @@ class CreationWorkflow(BaseWorkflow):
                     "Better performance for I/O operations",
                 ],
             },
+            "enforcement_metadata": self._build_enforcement_metadata(),
+        }
+
+    def _build_enforcement_metadata(self) -> dict[str, Any]:
+        """Build enforcement capability metadata derived from the adapter registry.
+
+        This is derived at call-time from the live adapter registry — never
+        hardcoded — so that adding new adapters automatically updates this
+        reference without touching creation.py.
+        """
+        from ...enforcement.adapters.eslint import ESLintAdapter
+        from ...enforcement.adapters.ruff import RuffAdapter
+
+        adapters = [ESLintAdapter(), RuffAdapter()]
+
+        # Map each policy key to the adapters that can enforce it
+        policy_coverage: dict[str, list[str]] = {}
+        adapter_details: dict[str, dict[str, Any]] = {}
+
+        for adapter in adapters:
+            adapter_details[adapter.name] = {
+                "tool": adapter.name,
+                "supported_policy_keys": adapter.supported_policy_keys,
+                "supported_languages": adapter.supported_languages,
+                "output_modes": adapter.output_modes,
+                "supported_stages": adapter.supported_stages,
+                "config_targets": adapter.config_targets,
+            }
+            for key in adapter.supported_policy_keys:
+                policy_coverage.setdefault(key, []).append(adapter.name)
+
+        # Flag policy keys that have no adapter (script_fallback path)
+        all_known_keys = [
+            "imports",
+            "python",
+            "patterns",
+            "architecture",
+            "config_enforcement",
+        ]
+        for key in all_known_keys:
+            policy_coverage.setdefault(key, [])  # Empty list = no native adapter
+
+        enforcement_paths: dict[str, str] = {}
+        for key in all_known_keys:
+            covered_by = policy_coverage.get(key, [])
+            if covered_by:
+                enforcement_paths[key] = f"native_config via {', '.join(covered_by)}"
+            else:
+                enforcement_paths[key] = (
+                    "script_fallback (no native adapter — agent creates validation script)"
+                )
+
+        return {
+            "note": (
+                "Coverage is stack-dependent: ESLint requires JS/TS project, "
+                "Ruff requires Python project. Unroutable policies generate fallback promptlets."
+            ),
+            "adapters": adapter_details,
+            "policy_enforcement_paths": enforcement_paths,
         }
 
     def _quick_quality_gate(self, creation_input: CreationInput) -> dict[str, Any]:
