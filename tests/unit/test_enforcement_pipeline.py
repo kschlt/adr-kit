@@ -406,7 +406,8 @@ class TestEnforcementPipeline:
         )
 
         pipeline = EnforcementPipeline(adr_dir=tmp_path, project_path=tmp_path)
-        result = pipeline.compile(contract=contract)
+        # Provide detected_stack so the router selects ESLint (JS ecosystem)
+        result = pipeline.compile(contract=contract, detected_stack=["javascript"])
 
         eslint_fragments = [
             f for f in result.fragments_applied if f.adapter == "eslint"

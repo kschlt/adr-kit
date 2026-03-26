@@ -12,9 +12,11 @@ import re
 from pathlib import Path
 from typing import Any, TypedDict
 
+from ...contract.models import MergedConstraints
 from ...core.model import ADR, ADRStatus
 from ...core.parse import ParseError, find_adr_files, parse_adr_file
 from ...core.policy_extractor import PolicyExtractor
+from .base import BaseAdapter, ConfigFragment
 
 
 class ADRMetadata(TypedDict):
@@ -437,3 +439,62 @@ def generate_eslint_overrides(
     )
 
     return {"overrides": overrides}
+
+
+class ESLintAdapter(BaseAdapter):
+    """Enforcement adapter that generates ESLint configuration from contract constraints."""
+
+    @property
+    def name(self) -> str:
+        return "eslint"
+
+    @property
+    def supported_policy_keys(self) -> list[str]:
+        return ["imports"]
+
+    @property
+    def supported_languages(self) -> list[str]:
+        return ["javascript", "typescript"]
+
+    @property
+    def config_targets(self) -> list[str]:
+        return [".eslintrc.adrs.json"]
+
+    @property
+    def supported_clause_kinds(self) -> list[str]:
+        return ["forbidden_import", "preferred_import"]
+
+    @property
+    def output_modes(self) -> list[str]:
+        return ["native_config"]
+
+    @property
+    def supported_stages(self) -> list[str]:
+        return ["commit", "ci"]
+
+    def generate_fragments(
+        self, constraints: MergedConstraints
+    ) -> list[ConfigFragment]:
+        """Generate ESLint config fragment from merged constraints."""
+        config = generate_eslint_config_from_contract(constraints)
+        content = json.dumps(config, indent=2)
+
+        policy_keys: list[str] = []
+        if constraints.imports and constraints.imports.disallow:
+            policy_keys.extend(
+                [f"imports.disallow.{x}" for x in constraints.imports.disallow]
+            )
+        if constraints.imports and constraints.imports.prefer:
+            policy_keys.extend(
+                [f"imports.prefer.{x}" for x in constraints.imports.prefer]
+            )
+
+        return [
+            ConfigFragment(
+                adapter=self.name,
+                target_file=".eslintrc.adrs.json",
+                content=content,
+                fragment_type="json_file",
+                policy_keys=policy_keys,
+            )
+        ]
