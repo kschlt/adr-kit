@@ -79,7 +79,7 @@ docs/**                # Test ADRs and artifacts (project docs are in guide/ ins
 .mcp.json
 
 # IDE integration files
-.claude/settings.local.json
+.claude/
 .cursor/
 
 # Generated lint config examples (keep actual configs)
