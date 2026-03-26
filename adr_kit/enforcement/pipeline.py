@@ -6,12 +6,13 @@ audit artifact on every run.
 
 Pipeline stages:
   1. Read MergedConstraints from the contract
-  2. Generate native fragments (ESLint, Ruff)
-  3. Generate secondary artifacts (validation scripts, git hooks, CI workflow)
-  4. Return EnforcementResult envelope
+  2. Detect project technology stack
+  3. Route via PolicyRouter → select adapters for the detected stack
+  4. Run selected adapters → collect ConfigFragments, write to disk
+  5. Generate secondary artifacts (validation scripts, git hooks, CI workflow)
+  6. Return EnforcementResult envelope
 
-Conflict detection (CFD task) will slot between stages 2 and 3 once implemented.
-Router/adapter selection (RTR task) will replace the hard-coded adapter calls.
+Conflict detection (CFD task) will slot between stages 3 and 4 once implemented.
 """
 
 import hashlib
@@ -124,32 +125,76 @@ class EnforcementPipeline:
         self.adr_dir = adr_dir
         self.project_path = project_path or Path.cwd()
 
-    def compile(self, contract: ConstraintsContract | None = None) -> EnforcementResult:
+    def compile(
+        self,
+        contract: ConstraintsContract | None = None,
+        detected_stack: list[str] | None = None,
+    ) -> EnforcementResult:
         """Run the full enforcement pipeline and return a result envelope.
 
         Args:
             contract: Pre-built contract. If None, builds from adr_dir.
+            detected_stack: Override the auto-detected technology stack.
+                If None, StackDetector scans project_path automatically.
 
         Returns:
             EnforcementResult with fragments applied, conflicts, provenance, and hash.
         """
+        from .adapters.eslint import ESLintAdapter
+        from .adapters.ruff import RuffAdapter
+        from .detection.stack import StackDetector
+        from .router import PolicyRouter
+
         if contract is None:
             builder = ConstraintsContractBuilder(adr_dir=self.adr_dir)
             contract = builder.build()
 
         constraints = contract.constraints
-
         result = EnforcementResult()
 
         # Build provenance index from contract
         provenance_index = self._build_provenance_index(contract)
         result.provenance = list(provenance_index.values())
 
-        # Stage 1: Generate native fragments
-        self._run_eslint_adapter(constraints, result)
-        self._run_ruff_adapter(constraints, result)
+        # Stage 1: Detect project stack
+        if detected_stack is None:
+            detected_stack = StackDetector(self.project_path).detect()
 
-        # Stage 2: Generate secondary artifacts
+        # Stage 2: Route via PolicyRouter
+        router = PolicyRouter([ESLintAdapter(), RuffAdapter()])
+        decisions, unroutable_keys = router.route(contract, detected_stack)
+
+        # Record unroutable policy keys
+        for key in unroutable_keys:
+            result.skipped_adapters.append(
+                SkippedAdapter(
+                    adapter="none",
+                    reason=f"no adapter for policy key: {key}",
+                )
+            )
+
+        # Stage 3: Run selected adapters
+        for decision in decisions:
+            self._run_adapter(decision.adapter, constraints, result)
+
+        # Record adapters not selected (skipped due to stack mismatch or no matching keys)
+        selected_names = {d.adapter.name for d in decisions}
+        for adapter in router.adapters:
+            if adapter.name not in selected_names:
+                # Determine why it was skipped
+                stack_set = set(detected_stack)
+                if not set(adapter.supported_languages) & stack_set:
+                    reason = (
+                        f"stack mismatch: adapter supports {adapter.supported_languages}, "
+                        f"detected {detected_stack}"
+                    )
+                else:
+                    reason = "no matching policy keys"
+                result.skipped_adapters.append(
+                    SkippedAdapter(adapter=adapter.name, reason=reason)
+                )
+
+        # Stage 4: Generate secondary artifacts
         self._run_script_generator(result)
         self._run_hook_generator(result)
 
@@ -162,118 +207,50 @@ class EnforcementPipeline:
         return result
 
     # ------------------------------------------------------------------
-    # Internal adapter calls
+    # Internal adapter execution
     # ------------------------------------------------------------------
 
-    def _run_eslint_adapter(
-        self, constraints: object, result: EnforcementResult
+    def _run_adapter(
+        self,
+        adapter: object,
+        constraints: object,
+        result: EnforcementResult,
     ) -> None:
-        """Run the ESLint adapter if JS/TS constraints are present."""
+        """Call an adapter, write its fragments to disk, and record results."""
         from ..contract.models import MergedConstraints
+        from .adapters.base import BaseAdapter
 
+        if not isinstance(adapter, BaseAdapter):
+            return
         if not isinstance(constraints, MergedConstraints):
             result.skipped_adapters.append(
-                SkippedAdapter(adapter="eslint", reason="invalid constraints object")
-            )
-            return
-
-        has_js_constraints = bool(constraints.imports)
-        if not has_js_constraints:
-            result.skipped_adapters.append(
                 SkippedAdapter(
-                    adapter="eslint",
-                    reason="no matching policy keys (no imports policy)",
+                    adapter=getattr(adapter, "name", "unknown"),
+                    reason="invalid constraints object",
                 )
             )
             return
 
         try:
-            import json as _json
-
-            from .adapters.eslint import generate_eslint_config_from_contract
-
-            config = generate_eslint_config_from_contract(constraints)
-            output_file = self.project_path / ".eslintrc.adrs.json"
-            output_file.write_text(_json.dumps(config, indent=2))
-
-            policy_keys = []
-            if constraints.imports and constraints.imports.disallow:
-                policy_keys.extend(
-                    [f"imports.disallow.{x}" for x in constraints.imports.disallow]
+            fragments = adapter.generate_fragments(constraints)
+            for fragment in fragments:
+                output_file = self.project_path / fragment.target_file
+                output_file.write_text(fragment.content)
+                result.fragments_applied.append(
+                    AppliedFragment(
+                        adapter=fragment.adapter,
+                        target_file=str(output_file),
+                        policy_keys=fragment.policy_keys,
+                        fragment_type=fragment.fragment_type,
+                    )
                 )
-            if constraints.imports and constraints.imports.prefer:
-                policy_keys.extend(
-                    [f"imports.prefer.{x}" for x in constraints.imports.prefer]
-                )
-
-            result.fragments_applied.append(
-                AppliedFragment(
-                    adapter="eslint",
-                    target_file=str(output_file),
-                    policy_keys=policy_keys,
-                    fragment_type="json_file",
-                )
-            )
-            result.files_touched.append(str(output_file))
-
+                result.files_touched.append(str(output_file))
         except Exception as e:
-            result.skipped_adapters.append(
-                SkippedAdapter(adapter="eslint", reason=f"adapter error: {e}")
-            )
-
-    def _run_ruff_adapter(self, constraints: object, result: EnforcementResult) -> None:
-        """Run the Ruff adapter if Python constraints are present."""
-        from ..contract.models import MergedConstraints
-
-        if not isinstance(constraints, MergedConstraints):
-            result.skipped_adapters.append(
-                SkippedAdapter(adapter="ruff", reason="invalid constraints object")
-            )
-            return
-
-        has_python_constraints = bool(constraints.python or constraints.imports)
-        if not has_python_constraints:
             result.skipped_adapters.append(
                 SkippedAdapter(
-                    adapter="ruff",
-                    reason="no matching policy keys (no python or imports policy)",
+                    adapter=getattr(adapter, "name", "unknown"),
+                    reason=f"adapter error: {e}",
                 )
-            )
-            return
-
-        try:
-            from .adapters.ruff import generate_ruff_config_from_contract
-
-            config_toml = generate_ruff_config_from_contract(constraints)
-            output_file = self.project_path / ".ruff-adr.toml"
-            output_file.write_text(config_toml)
-
-            policy_keys = []
-            if constraints.python and constraints.python.disallow_imports:
-                policy_keys.extend(
-                    [
-                        f"python.disallow_imports.{x}"
-                        for x in constraints.python.disallow_imports
-                    ]
-                )
-            if constraints.imports and constraints.imports.disallow:
-                policy_keys.extend(
-                    [f"imports.disallow.{x}" for x in constraints.imports.disallow]
-                )
-
-            result.fragments_applied.append(
-                AppliedFragment(
-                    adapter="ruff",
-                    target_file=str(output_file),
-                    policy_keys=policy_keys,
-                    fragment_type="toml_file",
-                )
-            )
-            result.files_touched.append(str(output_file))
-
-        except Exception as e:
-            result.skipped_adapters.append(
-                SkippedAdapter(adapter="ruff", reason=f"adapter error: {e}")
             )
 
     def _run_script_generator(self, result: EnforcementResult) -> None:
