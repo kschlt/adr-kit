@@ -8,16 +8,17 @@ Pipeline stages:
   1. Read MergedConstraints from the contract
   2. Detect project technology stack
   3. Route via PolicyRouter → select adapters for the detected stack
-  4. Run selected adapters → collect ConfigFragments, write to disk
+  3.5 Collect all fragments (without writing); run ConflictDetector
+  4. Write conflict-free fragments to disk; skip conflicting ones
+  4.5 Generate fallback promptlets for unroutable policy keys
   5. Generate secondary artifacts (validation scripts, git hooks, CI workflow)
   6. Return EnforcementResult envelope
-
-Conflict detection (CFD task) will slot between stages 3 and 4 once implemented.
 """
 
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -142,6 +143,7 @@ class EnforcementPipeline:
         """
         from .adapters.eslint import ESLintAdapter
         from .adapters.ruff import RuffAdapter
+        from .conflict import ConflictDetector
         from .detection.stack import StackDetector
         from .router import PolicyRouter
 
@@ -164,24 +166,43 @@ class EnforcementPipeline:
         router = PolicyRouter([ESLintAdapter(), RuffAdapter()])
         decisions, unroutable_keys = router.route(contract, detected_stack)
 
-        # Record unroutable policy keys
-        for key in unroutable_keys:
-            result.skipped_adapters.append(
-                SkippedAdapter(
-                    adapter="none",
-                    reason=f"no adapter for policy key: {key}",
-                )
-            )
-
-        # Stage 3: Run selected adapters
+        # Stage 3: Collect all fragments from selected adapters (without writing)
+        all_fragments_by_adapter: dict[str, list[object]] = {}
+        selected_names: set[str] = set()
         for decision in decisions:
-            self._run_adapter(decision.adapter, constraints, result)
+            adapter = decision.adapter
+            selected_names.add(adapter.name)
+            frags = self._collect_fragments_from_adapter(adapter, constraints, result)
+            all_fragments_by_adapter[adapter.name] = frags
+
+        # Stage 3.5: Detect fragment-config conflicts before writing anything
+        all_fragments = [
+            f for frags in all_fragments_by_adapter.values() for f in frags
+        ]
+        conflict_detector = ConflictDetector()
+        config_conflicts = conflict_detector.detect_config_conflicts(
+            all_fragments, self.project_path  # type: ignore[arg-type]
+        )
+        result.conflicts.extend(config_conflicts)
+        conflicting_adapters = {c.adapter for c in config_conflicts}
+
+        # Stage 4: Write conflict-free fragments; skip adapters with conflicts
+        for adapter_name, fragments in all_fragments_by_adapter.items():
+            if adapter_name in conflicting_adapters:
+                n = sum(1 for c in config_conflicts if c.adapter == adapter_name)
+                result.skipped_adapters.append(
+                    SkippedAdapter(
+                        adapter=adapter_name,
+                        reason=f"skipped: {n} conflict(s) with existing config — see result.conflicts",
+                    )
+                )
+            else:
+                for fragment in fragments:
+                    self._write_fragment(fragment, result)  # type: ignore[arg-type]
 
         # Record adapters not selected (skipped due to stack mismatch or no matching keys)
-        selected_names = {d.adapter.name for d in decisions}
         for adapter in router.adapters:
             if adapter.name not in selected_names:
-                # Determine why it was skipped
                 stack_set = set(detected_stack)
                 if not set(adapter.supported_languages) & stack_set:
                     reason = (
@@ -194,7 +215,18 @@ class EnforcementPipeline:
                     SkippedAdapter(adapter=adapter.name, reason=reason)
                 )
 
-        # Stage 4: Generate secondary artifacts
+        # Stage 4.5: Generate fallback promptlets for unroutable policy keys
+        for key in unroutable_keys:
+            promptlet = self._build_fallback_promptlet(key, contract)
+            result.fallback_promptlets.append(promptlet)
+            result.skipped_adapters.append(
+                SkippedAdapter(
+                    adapter="none",
+                    reason=f"unroutable policy key '{key}': fallback promptlet generated",
+                )
+            )
+
+        # Stage 5: Generate secondary artifacts
         self._run_script_generator(result)
         self._run_hook_generator(result)
 
@@ -210,18 +242,22 @@ class EnforcementPipeline:
     # Internal adapter execution
     # ------------------------------------------------------------------
 
-    def _run_adapter(
+    def _collect_fragments_from_adapter(
         self,
         adapter: object,
         constraints: object,
         result: EnforcementResult,
-    ) -> None:
-        """Call an adapter, write its fragments to disk, and record results."""
+    ) -> list[object]:
+        """Generate fragments from an adapter without writing to disk.
+
+        Returns the list of ConfigFragment objects, or [] on error.
+        Errors are recorded in result.skipped_adapters.
+        """
         from ..contract.models import MergedConstraints
         from .adapters.base import BaseAdapter
 
         if not isinstance(adapter, BaseAdapter):
-            return
+            return []
         if not isinstance(constraints, MergedConstraints):
             result.skipped_adapters.append(
                 SkippedAdapter(
@@ -229,22 +265,10 @@ class EnforcementPipeline:
                     reason="invalid constraints object",
                 )
             )
-            return
+            return []
 
         try:
-            fragments = adapter.generate_fragments(constraints)
-            for fragment in fragments:
-                output_file = self.project_path / fragment.target_file
-                output_file.write_text(fragment.content)
-                result.fragments_applied.append(
-                    AppliedFragment(
-                        adapter=fragment.adapter,
-                        target_file=str(output_file),
-                        policy_keys=fragment.policy_keys,
-                        fragment_type=fragment.fragment_type,
-                    )
-                )
-                result.files_touched.append(str(output_file))
+            return list(adapter.generate_fragments(constraints))
         except Exception as e:
             result.skipped_adapters.append(
                 SkippedAdapter(
@@ -252,6 +276,84 @@ class EnforcementPipeline:
                     reason=f"adapter error: {e}",
                 )
             )
+            return []
+
+    def _write_fragment(
+        self,
+        fragment: object,
+        result: EnforcementResult,
+    ) -> None:
+        """Write a single ConfigFragment to disk and record it in the result."""
+        from .adapters.base import ConfigFragment
+
+        if not isinstance(fragment, ConfigFragment):
+            return
+
+        output_file = self.project_path / fragment.target_file
+        output_file.write_text(fragment.content)
+        result.fragments_applied.append(
+            AppliedFragment(
+                adapter=fragment.adapter,
+                target_file=str(output_file),
+                policy_keys=fragment.policy_keys,
+                fragment_type=fragment.fragment_type,
+            )
+        )
+        result.files_touched.append(str(output_file))
+
+    def _build_fallback_promptlet(
+        self,
+        policy_key: str,
+        contract: ConstraintsContract,
+    ) -> str:
+        """Build a JSON promptlet for an unroutable policy key.
+
+        The promptlet instructs the calling agent to create a validation script
+        that enforces the policy. Scripts placed in scripts/adr-validations/ are
+        treated as first-class enforcement artifacts by the pipeline.
+        """
+        # Collect constraint value and source ADRs for this policy key
+        constraints_dump = contract.constraints.model_dump(exclude_none=True)
+        constraint_value: Any = constraints_dump.get(policy_key)
+
+        source_adrs = sorted(
+            {
+                prov.adr_id
+                for rule_path, prov in contract.provenance.items()
+                if rule_path == policy_key or rule_path.startswith(policy_key + ".")
+            }
+        )
+
+        promptlet = {
+            "unenforceable_policy": {
+                "policy_key": policy_key,
+                "constraint": constraint_value,
+                "source_adrs": source_adrs,
+            },
+            "instruction": (
+                f"No enforcement adapter exists for policy key '{policy_key}'. "
+                "Create a validation script that checks for this policy constraint."
+            ),
+            "script_requirements": {
+                "input": "list of file paths to check",
+                "output": "EnforcementReport JSON (schema: {passed, violations: [{file, message, severity}]})",
+                "integration": (
+                    "Place in scripts/adr-validations/ — "
+                    "the enforcement pipeline picks up all scripts in that directory"
+                ),
+            },
+            "example_script_structure": (
+                "#!/usr/bin/env python3\n"
+                "import sys, json\n"
+                "violations = []\n"
+                "for path in sys.argv[1:]:\n"
+                "    # ... check constraint ...\n"
+                "    pass\n"
+                'print(json.dumps({"passed": not violations, "violations": violations}))'
+            ),
+        }
+
+        return json.dumps(promptlet, indent=2, default=str)
 
     def _run_script_generator(self, result: EnforcementResult) -> None:
         """Generate per-ADR validation scripts."""
