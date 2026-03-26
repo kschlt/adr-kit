@@ -14,7 +14,7 @@ Two types of conflicts are detected:
 import json
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import toml
 
@@ -229,13 +229,15 @@ class ConflictDetector:
         return level not in ("off", 0, "0")
 
     @staticmethod
-    def _get_ruff_lint(config: dict) -> dict:
+    def _get_ruff_lint(config: dict[str, Any]) -> dict[str, Any]:
         """Extract the ruff lint section regardless of nesting depth."""
         # [lint] at top level (adr-generated format)
         if "lint" in config:
-            return config["lint"]
+            lint: dict[str, Any] = config["lint"]
+            return lint
         # [tool.ruff.lint]
-        return config.get("tool", {}).get("ruff", {}).get("lint", {})
+        result: dict[str, Any] = config.get("tool", {}).get("ruff", {}).get("lint", {})
+        return result
 
     @staticmethod
     def _extract_adr_ids(text: str) -> list[str]:

@@ -198,7 +198,7 @@ class EnforcementPipeline:
                 )
             else:
                 for fragment in fragments:
-                    self._write_fragment(fragment, result)  # type: ignore[arg-type]
+                    self._write_fragment(fragment, result)
 
         # Record adapters not selected (skipped due to stack mismatch or no matching keys)
         for adapter in router.adapters:
