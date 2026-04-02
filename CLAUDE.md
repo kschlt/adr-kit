@@ -261,10 +261,10 @@ Use `python3` (or the value from `.agent/config.json` → `python` key) for all 
 
 ## Task Workflow — Session Protocol
 
-**When starting work on a task** (e.g., "work on next task"), follow the session protocol in [`.agent/CLAUDE.md`](.agent/CLAUDE.md). That file is the authoritative reference for the task workflow system — read it first.
+**When starting work on an item** (e.g., "work on next item"), follow the session protocol in [`.agent/CLAUDE.md`](.agent/CLAUDE.md). That file is the authoritative reference for the item workflow system — read it first.
 
 **Quick summary** (details in `.agent/CLAUDE.md`):
-1. Run `python3 .agent/scripts/next_task.py` to get the next task
+1. Run `python3 .agent/scripts/next_item.py` to get the next item
 2. Confirm with user, invoke `/branch`
 3. Research, plan, decompose into atomic steps
 4. Implement step by step, `/close` after each step
