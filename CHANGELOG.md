@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Mypy enforcement adapter — approving an ADR with `config_enforcement.python.mypy` constraints automatically generates a `.mypy-adr.ini` configuration file
+- TypeScript tsconfig enforcement adapter — approving an ADR with `config_enforcement.typescript.tsconfig` constraints automatically generates a `tsconfig.adr.json` file that can be extended via tsconfig's `extends`
+- Import-linter enforcement adapter — approving an ADR with `architecture.layer_boundaries` constraints automatically generates an `.importlinter-adr` configuration file for Python architectural boundary enforcement
+- INI conflict detection — `ConflictDetector` now detects contradictions between adapter-generated INI fragments and existing user config on disk (supports mypy and import-linter targets)
 - `ConflictDetector` — detects two classes of enforcement conflicts: (1) policy-contract conflicts (new ADR policy contradicts existing contract, e.g. one ADR allows Flask while another bans it) and (2) fragment-config conflicts (adapter-generated fragment contradicts existing user config on disk). Policy conflict detection is reusable by decision-plane workflows for pre-approval validation
 - Guided fallback for unroutable policies — when no adapter can handle a policy key, the pipeline generates a structured promptlet instructing the agent to create a validation script, rather than silently dropping the policy. Scripts placed in `scripts/adr-validations/` are treated as first-class enforcement artifacts
 - Enforcement metadata in `_build_policy_reference()` — creation workflow now shows agents which policy keys have native adapter coverage (and which tool), which fall back to scripts, and which have no enforcement path yet. Metadata is derived live from the adapter registry so creation guidance stays in sync as adapters are added
