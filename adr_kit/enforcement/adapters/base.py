@@ -86,8 +86,8 @@ class BaseAdapter(ABC):
     def supported_clause_kinds(self) -> list[str]:
         """Clause families this adapter can enforce, e.g. 'forbidden_import'.
 
-        Provisional — ENF-CLA will define the canonical vocabulary. Until then,
-        free-form strings are acceptable. Defaults to empty (adapter handles all).
+        Use ClauseKind enum values from enforcement.clause_kinds for the canonical
+        vocabulary. Defaults to empty (no clause-kind filtering applied by router).
         """
         return []
 

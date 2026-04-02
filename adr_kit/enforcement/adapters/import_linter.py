@@ -10,6 +10,7 @@ from io import StringIO
 
 from ...contract.models import MergedConstraints
 from ...core.model import LayerBoundaryRule
+from ..clause_kinds import ClauseKind
 from .base import BaseAdapter, ConfigFragment
 
 
@@ -107,7 +108,7 @@ class ImportLinterAdapter(BaseAdapter):
 
     @property
     def supported_clause_kinds(self) -> list[str]:
-        return ["layer_boundary"]
+        return [ClauseKind.LAYER_BOUNDARY]
 
     @property
     def output_modes(self) -> list[str]:

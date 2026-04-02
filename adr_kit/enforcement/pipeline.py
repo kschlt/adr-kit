@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from ..contract.builder import ConstraintsContractBuilder
 from ..contract.models import ConstraintsContract
+from .clause_kinds import classify_policy_rule
 
 
 class AppliedFragment(BaseModel):
@@ -70,6 +71,10 @@ class ProvenanceEntry(BaseModel):
     artifact_refs: list[str] = Field(
         default_factory=list,
         description="Files/fragments generated from this rule (populated by adapters)",
+    )
+    clause_kind: str | None = Field(
+        default=None,
+        description="Canonical ClauseKind for this rule, e.g. 'forbidden_import'",
     )
 
 
@@ -417,10 +422,12 @@ class EnforcementPipeline:
         """Convert contract provenance into ProvenanceEntry objects."""
         index: dict[str, ProvenanceEntry] = {}
         for rule_path, prov in contract.provenance.items():
+            kind = classify_policy_rule(rule_path)
             index[rule_path] = ProvenanceEntry(
                 rule=rule_path,
                 source_adr_id=prov.adr_id,
                 clause_id=prov.clause_id,
                 artifact_refs=[],
+                clause_kind=kind.value if kind is not None else None,
             )
         return index

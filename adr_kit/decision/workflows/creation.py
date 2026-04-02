@@ -889,9 +889,18 @@ class CreationWorkflow(BaseWorkflow):
         reference without touching creation.py.
         """
         from ...enforcement.adapters.eslint import ESLintAdapter
+        from ...enforcement.adapters.import_linter import ImportLinterAdapter
+        from ...enforcement.adapters.mypy import MypyAdapter
         from ...enforcement.adapters.ruff import RuffAdapter
+        from ...enforcement.adapters.tsconfig import TsconfigAdapter
 
-        adapters = [ESLintAdapter(), RuffAdapter()]
+        adapters = [
+            ESLintAdapter(),
+            RuffAdapter(),
+            MypyAdapter(),
+            TsconfigAdapter(),
+            ImportLinterAdapter(),
+        ]
 
         # Map each policy key to the adapters that can enforce it
         policy_coverage: dict[str, list[str]] = {}
@@ -902,6 +911,7 @@ class CreationWorkflow(BaseWorkflow):
                 "tool": adapter.name,
                 "supported_policy_keys": adapter.supported_policy_keys,
                 "supported_languages": adapter.supported_languages,
+                "supported_clause_kinds": list(adapter.supported_clause_kinds),
                 "output_modes": adapter.output_modes,
                 "supported_stages": adapter.supported_stages,
                 "config_targets": adapter.config_targets,

@@ -16,6 +16,7 @@ from ...contract.models import MergedConstraints
 from ...core.model import ADR, ADRStatus
 from ...core.parse import ParseError, find_adr_files, parse_adr_file
 from ...core.policy_extractor import PolicyExtractor
+from ..clause_kinds import ClauseKind
 from .base import BaseAdapter, ConfigFragment
 
 
@@ -462,7 +463,7 @@ class ESLintAdapter(BaseAdapter):
 
     @property
     def supported_clause_kinds(self) -> list[str]:
-        return ["forbidden_import", "preferred_import"]
+        return [ClauseKind.FORBIDDEN_IMPORT, ClauseKind.ALLOWED_IMPORT_SURFACE]
 
     @property
     def output_modes(self) -> list[str]:
