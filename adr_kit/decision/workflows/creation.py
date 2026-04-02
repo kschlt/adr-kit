@@ -485,6 +485,8 @@ class CreationWorkflow(BaseWorkflow):
             tags=input_data.tags or [],
             supersedes=[],
             superseded_by=[],
+            depends_on=[],
+            related_to=[],
             policy=(
                 PolicyModel.model_validate(input_data.policy)
                 if input_data.policy
