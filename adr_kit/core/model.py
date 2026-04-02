@@ -320,11 +320,25 @@ class ADRFrontMatter(BaseModel):
     superseded_by: list[str] | None = Field(
         None, description="List of ADR IDs that supersede this one"
     )
+    depends_on: list[str] | None = Field(
+        None, description="ADR IDs this decision depends on"
+    )
+    related_to: list[str] | None = Field(
+        None, description="ADR IDs with a non-hierarchical relationship to this one"
+    )
     policy: PolicyModel | None = Field(
         None, description="Structured policy for enforcement"
     )
 
-    @field_validator("deciders", "tags", "supersedes", "superseded_by", mode="before")
+    @field_validator(
+        "deciders",
+        "tags",
+        "supersedes",
+        "superseded_by",
+        "depends_on",
+        "related_to",
+        mode="before",
+    )
     @classmethod
     def ensure_list_or_none(cls, v: Any) -> list[str] | None:
         """Ensure array fields are lists or None, not empty lists."""

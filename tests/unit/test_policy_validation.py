@@ -377,5 +377,59 @@ Provides good performance.
         assert extractor.has_extractable_policy(adr_config) is True
 
 
+class TestRelationFields:
+    """Test depends_on and related_to fields on ADRFrontMatter."""
+
+    def _make_fm(self, **kwargs: object) -> ADRFrontMatter:
+        from datetime import date
+
+        return ADRFrontMatter(
+            id="ADR-0002",
+            title="Test ADR",
+            status=ADRStatus.ACCEPTED,
+            date=date(2024, 1, 1),
+            **kwargs,
+        )
+
+    def test_depends_on_accepted(self) -> None:
+        fm = self._make_fm(depends_on=["ADR-0001"])
+        assert fm.depends_on == ["ADR-0001"]
+
+    def test_related_to_accepted(self) -> None:
+        fm = self._make_fm(related_to=["ADR-0003"])
+        assert fm.related_to == ["ADR-0003"]
+
+    def test_empty_list_normalised_to_none(self) -> None:
+        fm = self._make_fm(depends_on=[], related_to=[])
+        assert fm.depends_on is None
+        assert fm.related_to is None
+
+    def test_omitted_fields_are_none(self) -> None:
+        fm = self._make_fm()
+        assert fm.depends_on is None
+        assert fm.related_to is None
+
+    def test_multiple_ids_accepted(self) -> None:
+        fm = self._make_fm(depends_on=["ADR-0001", "ADR-0003"])
+        assert len(fm.depends_on) == 2  # type: ignore[arg-type]
+
+    def test_both_fields_together(self) -> None:
+        fm = self._make_fm(depends_on=["ADR-0001"], related_to=["ADR-0003", "ADR-0004"])
+        assert fm.depends_on == ["ADR-0001"]
+        assert fm.related_to == ["ADR-0003", "ADR-0004"]
+
+    def test_relation_fields_excluded_from_dump_when_none(self) -> None:
+        fm = self._make_fm()
+        dumped = fm.model_dump(exclude_none=True)
+        assert "depends_on" not in dumped
+        assert "related_to" not in dumped
+
+    def test_relation_fields_in_dump_when_set(self) -> None:
+        fm = self._make_fm(depends_on=["ADR-0001"])
+        dumped = fm.model_dump(exclude_none=True)
+        assert "depends_on" in dumped
+        assert dumped["depends_on"] == ["ADR-0001"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
