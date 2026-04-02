@@ -125,6 +125,8 @@ class ConflictDetector:
                 conflicts.extend(self._check_json_conflict(fragment, existing_text))
             elif fragment.fragment_type in ("toml_file", "toml_section"):
                 conflicts.extend(self._check_toml_conflict(fragment, existing_text))
+            elif fragment.fragment_type == "ini_file":
+                conflicts.extend(self._check_ini_conflict(fragment, existing_text))
 
         return conflicts
 
@@ -213,6 +215,59 @@ class ConflictDetector:
                     source_adrs=list(fragment.policy_keys),
                 )
             )
+
+        return conflicts
+
+    # ------------------------------------------------------------------
+    # INI conflict check (mypy / import-linter style)
+    # ------------------------------------------------------------------
+
+    def _check_ini_conflict(
+        self,
+        fragment: "ConfigFragment",
+        existing_text: str,
+    ) -> list["EnforcementConflict"]:
+        """INI: detect settings the fragment wants to set that the user has set differently."""
+        import configparser
+
+        from .pipeline import EnforcementConflict
+
+        conflicts: list[EnforcementConflict] = []
+
+        try:
+            existing = configparser.ConfigParser()
+            existing.read_string(existing_text)
+
+            generated = configparser.ConfigParser()
+            # Strip header comments before parsing
+            ini_lines = [
+                line
+                for line in fragment.content.splitlines()
+                if not line.startswith("#")
+            ]
+            generated.read_string("\n".join(ini_lines))
+        except configparser.Error:
+            return []
+
+        for section in generated.sections():
+            if not existing.has_section(section):
+                continue
+            for key, gen_value in generated.items(section):
+                if existing.has_option(section, key):
+                    existing_value = existing.get(section, key)
+                    if existing_value.lower() != gen_value.lower():
+                        conflicts.append(
+                            EnforcementConflict(
+                                adapter=fragment.adapter,
+                                description=(
+                                    f"Fragment wants to set [{section}] {key} = {gen_value} "
+                                    f"in '{fragment.target_file}' but the existing config "
+                                    f"has {key} = {existing_value}. "
+                                    f"Resolve: update the existing config or the ADR policy."
+                                ),
+                                source_adrs=list(fragment.policy_keys),
+                            )
+                        )
 
         return conflicts
 
