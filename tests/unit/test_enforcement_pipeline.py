@@ -78,6 +78,21 @@ class TestClauseIdGeneration:
             assert len(prov.clause_id) == 12
             assert prov.clause_id != ""
 
+    def test_clause_id_survives_exclude_none_serialization(self):
+        """clause_id must survive model_dump(exclude_none=True) used by to_json_file."""
+        prov = PolicyProvenance(
+            adr_id="ADR-0001",
+            adr_title="Test",
+            rule_path="imports.disallow.axios",
+            effective_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            clause_id=PolicyProvenance.make_clause_id(
+                "ADR-0001", "imports.disallow.axios"
+            ),
+        )
+        dumped = prov.model_dump(exclude_none=True)
+        assert "clause_id" in dumped
+        assert len(dumped["clause_id"]) == 12
+
 
 # ---------------------------------------------------------------------------
 # Topological sort tests
