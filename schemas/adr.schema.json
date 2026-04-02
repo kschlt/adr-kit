@@ -53,6 +53,18 @@
         "type": "string"
       }
     },
+    "depends_on": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_to": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "policy": {
       "type": "object",
       "properties": {
