@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `depends_on` and `related_to` optional fields on ADR frontmatter — declare inter-ADR dependencies and relationships directly in the ADR file; the contract builder warns when referenced ADR IDs cannot be resolved
 - Mypy enforcement adapter — approving an ADR with `config_enforcement.python.mypy` constraints automatically generates a `.mypy-adr.ini` configuration file
 - TypeScript tsconfig enforcement adapter — approving an ADR with `config_enforcement.typescript.tsconfig` constraints automatically generates a `tsconfig.adr.json` file that can be extended via tsconfig's `extends`
 - Import-linter enforcement adapter — approving an ADR with `architecture.layer_boundaries` constraints automatically generates an `.importlinter-adr` configuration file for Python architectural boundary enforcement

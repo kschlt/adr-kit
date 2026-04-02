@@ -50,15 +50,23 @@ class ConstraintsContractBuilder:
             return empty_contract
 
         # Parse and filter to only accepted ADRs
+        all_adrs = []
         accepted_adrs = []
         for file_path in adr_files:
             try:
                 adr = parse_adr_file(file_path, strict=False)
-                if adr and adr.front_matter.status == ADRStatus.ACCEPTED:
-                    accepted_adrs.append(adr)
+                if adr:
+                    all_adrs.append(adr)
+                    if adr.front_matter.status == ADRStatus.ACCEPTED:
+                        accepted_adrs.append(adr)
             except ParseError as e:
                 print(f"Warning: Skipping malformed ADR {file_path}: {e}")
                 continue
+
+        # Warn on depends_on/related_to references that don't resolve
+        all_ids = {a.front_matter.id for a in all_adrs}
+        for warning in self._validate_relation_references(accepted_adrs, all_ids):
+            print(f"Warning: {warning}")
 
         if not accepted_adrs:
             # No accepted ADRs, return empty contract
@@ -99,6 +107,22 @@ class ConstraintsContractBuilder:
     def build(self, force_rebuild: bool = False) -> ConstraintsContract:
         """Alias for build_contract() for compatibility with existing workflows."""
         return self.build_contract(force_rebuild=force_rebuild)
+
+    def _validate_relation_references(self, adrs: list, all_ids: set) -> list:
+        """Return warning strings for depends_on/related_to refs to unknown ADR IDs."""
+        warnings = []
+        for adr in adrs:
+            fm = adr.front_matter
+            for field_name, refs in [
+                ("depends_on", fm.depends_on or []),
+                ("related_to", fm.related_to or []),
+            ]:
+                for ref in refs:
+                    if ref not in all_ids:
+                        warnings.append(
+                            f"{fm.id}: {field_name} references unknown ADR '{ref}'"
+                        )
+        return warnings
 
     def get_contract_summary(self) -> dict:
         """Get a summary of the current contract state."""
