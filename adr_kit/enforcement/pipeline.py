@@ -142,7 +142,10 @@ class EnforcementPipeline:
             EnforcementResult with fragments applied, conflicts, provenance, and hash.
         """
         from .adapters.eslint import ESLintAdapter
+        from .adapters.import_linter import ImportLinterAdapter
+        from .adapters.mypy import MypyAdapter
         from .adapters.ruff import RuffAdapter
+        from .adapters.tsconfig import TsconfigAdapter
         from .conflict import ConflictDetector
         from .detection.stack import StackDetector
         from .router import PolicyRouter
@@ -163,7 +166,15 @@ class EnforcementPipeline:
             detected_stack = StackDetector(self.project_path).detect()
 
         # Stage 2: Route via PolicyRouter
-        router = PolicyRouter([ESLintAdapter(), RuffAdapter()])
+        router = PolicyRouter(
+            [
+                ESLintAdapter(),
+                RuffAdapter(),
+                MypyAdapter(),
+                TsconfigAdapter(),
+                ImportLinterAdapter(),
+            ]
+        )
         decisions, unroutable_keys = router.route(contract, detected_stack)
 
         # Stage 3: Collect all fragments from selected adapters (without writing)
