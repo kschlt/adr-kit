@@ -39,6 +39,10 @@ class AppliedFragment(BaseModel):
     fragment_type: str = Field(
         ..., description="Fragment format, e.g. 'json_file', 'toml_section'"
     )
+    output_mode: str = Field(
+        default="native_config",
+        description="OutputMode value, e.g. 'native_config', 'script_fallback'",
+    )
 
 
 class EnforcementConflict(BaseModel):
@@ -313,6 +317,7 @@ class EnforcementPipeline:
                 target_file=str(output_file),
                 policy_keys=fragment.policy_keys,
                 fragment_type=fragment.fragment_type,
+                output_mode=fragment.output_mode.value,
             )
         )
         result.files_touched.append(str(output_file))

@@ -34,6 +34,9 @@ class ConfigFragment:
     policy_keys: list[str] = field(default_factory=list)
     """Contract policy keys covered by this fragment, e.g. ['imports.disallow.axios']."""
 
+    output_mode: OutputMode = field(default=OutputMode.NATIVE_CONFIG)
+    """Output mode this fragment represents."""
+
 
 class BaseAdapter(ABC):
     """Abstract base class for all enforcement adapters.

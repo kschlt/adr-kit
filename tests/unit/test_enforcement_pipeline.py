@@ -519,3 +519,64 @@ class TestEnforcementPipeline:
         assert entry.rule == rule_path
         assert entry.source_adr_id == "ADR-0001"
         assert len(entry.clause_id) == 12
+
+
+# ---------------------------------------------------------------------------
+# ENF-MODE: output_mode field on AppliedFragment and ConfigFragment
+# ---------------------------------------------------------------------------
+
+
+class TestAppliedFragmentOutputMode:
+    def test_default_output_mode(self):
+        frag = AppliedFragment(
+            adapter="eslint",
+            target_file="/p/.eslintrc.adrs.json",
+            fragment_type="json_file",
+        )
+        assert frag.output_mode == "native_config"
+
+    def test_explicit_output_mode(self):
+        frag = AppliedFragment(
+            adapter="import_linter",
+            target_file="/p/.importlinter-adr",
+            fragment_type="ini_file",
+            output_mode="native_rules",
+        )
+        assert frag.output_mode == "native_rules"
+
+    def test_script_fallback_output_mode(self):
+        frag = AppliedFragment(
+            adapter="fallback",
+            target_file="",
+            fragment_type="promptlet_json",
+            output_mode="script_fallback",
+        )
+        assert frag.output_mode == "script_fallback"
+
+
+class TestConfigFragmentOutputMode:
+    def test_default_output_mode(self):
+        from adr_kit.enforcement.adapters.base import ConfigFragment
+        from adr_kit.enforcement.clause_kinds import OutputMode
+
+        frag = ConfigFragment(
+            adapter="ruff",
+            target_file=".ruff.toml",
+            content="",
+            fragment_type="toml_file",
+        )
+        assert frag.output_mode == OutputMode.NATIVE_CONFIG
+
+    def test_explicit_output_mode(self):
+        from adr_kit.enforcement.adapters.base import ConfigFragment
+        from adr_kit.enforcement.clause_kinds import OutputMode
+
+        frag = ConfigFragment(
+            adapter="import_linter",
+            target_file=".importlinter-adr",
+            content="",
+            fragment_type="ini_file",
+            output_mode=OutputMode.NATIVE_RULES,
+        )
+        assert frag.output_mode == OutputMode.NATIVE_RULES
+        assert frag.output_mode == "native_rules"  # str,Enum compat
