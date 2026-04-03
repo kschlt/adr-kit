@@ -9,6 +9,7 @@ import json
 from typing import Any
 
 from ...contract.models import MergedConstraints
+from ..clause_kinds import ClauseKind
 from .base import BaseAdapter, ConfigFragment
 
 
@@ -66,7 +67,7 @@ class TsconfigAdapter(BaseAdapter):
 
     @property
     def supported_clause_kinds(self) -> list[str]:
-        return ["config_enforcement"]
+        return [ClauseKind.CONFIG_INVARIANT]
 
     @property
     def output_modes(self) -> list[str]:

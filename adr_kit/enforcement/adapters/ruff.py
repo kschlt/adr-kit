@@ -18,6 +18,7 @@ import toml
 from ...contract.models import MergedConstraints
 from ...core.model import ADR, ADRStatus
 from ...core.parse import ParseError, find_adr_files, parse_adr_file
+from ..clause_kinds import ClauseKind
 from .base import BaseAdapter, ConfigFragment
 
 
@@ -421,7 +422,7 @@ class RuffAdapter(BaseAdapter):
 
     @property
     def supported_clause_kinds(self) -> list[str]:
-        return ["forbidden_import"]
+        return [ClauseKind.FORBIDDEN_IMPORT]
 
     @property
     def output_modes(self) -> list[str]:

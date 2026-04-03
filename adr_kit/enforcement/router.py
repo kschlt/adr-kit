@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 
 from ..contract.models import ConstraintsContract, MergedConstraints
 from .adapters.base import BaseAdapter
+from .clause_kinds import classify_policy_rule
 
 
 @dataclass
@@ -85,11 +86,26 @@ class PolicyRouter:
             # Expand matched policy keys to granular rule paths from provenance
             granular_keys = self._expand_policy_keys(matched_keys, contract)
 
+            # Secondary filter: if adapter declares clause kinds, only keep granular
+            # keys whose classify_policy_rule result is in the declared set.
+            # Adapters with empty supported_clause_kinds skip this filter (backward-compatible).
+            clause_kinds = list(adapter.supported_clause_kinds)
+            if clause_kinds:
+                filtered = [
+                    k
+                    for k in granular_keys
+                    if (ck := classify_policy_rule(k)) is not None
+                    and ck.value in clause_kinds
+                ]
+                # Fall back to unfiltered if nothing matched (e.g. top-level key fallback)
+                if filtered:
+                    granular_keys = filtered
+
             decisions.append(
                 RoutingDecision(
                     adapter=adapter,
                     policy_keys=granular_keys,
-                    clause_kinds=list(adapter.supported_clause_kinds),
+                    clause_kinds=clause_kinds,
                     output_modes=list(adapter.output_modes),
                     supported_stages=list(adapter.supported_stages),
                 )

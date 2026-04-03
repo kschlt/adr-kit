@@ -30,6 +30,7 @@ from adr_kit.core.model import (
     TypeScriptConfig,
 )
 from adr_kit.enforcement.adapters.base import BaseAdapter, ConfigFragment
+from adr_kit.enforcement.adapters.eslint import ESLintAdapter
 from adr_kit.enforcement.adapters.import_linter import (
     ImportLinterAdapter,
     generate_import_linter_config_from_contract,
@@ -38,10 +39,12 @@ from adr_kit.enforcement.adapters.mypy import (
     MypyAdapter,
     generate_mypy_config_from_contract,
 )
+from adr_kit.enforcement.adapters.ruff import RuffAdapter
 from adr_kit.enforcement.adapters.tsconfig import (
     TsconfigAdapter,
     generate_tsconfig_from_contract,
 )
+from adr_kit.enforcement.clause_kinds import ClauseKind
 from adr_kit.enforcement.router import PolicyRouter
 
 # ---------------------------------------------------------------------------
@@ -698,3 +701,139 @@ class TestPipelineWithNewAdapters:
         assert "mypy" not in applied
         assert "tsconfig" not in applied
         assert "import_linter" not in applied
+
+
+# ---------------------------------------------------------------------------
+# ENF-CLA: Adapter supported_clause_kinds canonical vocabulary tests
+# ---------------------------------------------------------------------------
+
+
+class TestMypyAdapterClauseKinds:
+    def setup_method(self):
+        self.adapter = MypyAdapter()
+
+    def test_returns_config_invariant(self):
+        assert ClauseKind.CONFIG_INVARIANT in self.adapter.supported_clause_kinds
+
+    def test_all_values_are_clause_kind_instances(self):
+        for v in self.adapter.supported_clause_kinds:
+            assert isinstance(v, ClauseKind)
+
+    def test_no_stale_config_enforcement_string(self):
+        assert "config_enforcement" not in self.adapter.supported_clause_kinds
+
+
+class TestTsconfigAdapterClauseKinds:
+    def setup_method(self):
+        self.adapter = TsconfigAdapter()
+
+    def test_returns_config_invariant(self):
+        assert ClauseKind.CONFIG_INVARIANT in self.adapter.supported_clause_kinds
+
+    def test_all_values_are_clause_kind_instances(self):
+        for v in self.adapter.supported_clause_kinds:
+            assert isinstance(v, ClauseKind)
+
+    def test_no_stale_config_enforcement_string(self):
+        assert "config_enforcement" not in self.adapter.supported_clause_kinds
+
+
+class TestImportLinterAdapterClauseKinds:
+    def setup_method(self):
+        self.adapter = ImportLinterAdapter()
+
+    def test_returns_layer_boundary(self):
+        assert ClauseKind.LAYER_BOUNDARY in self.adapter.supported_clause_kinds
+
+    def test_all_values_are_clause_kind_instances(self):
+        for v in self.adapter.supported_clause_kinds:
+            assert isinstance(v, ClauseKind)
+
+
+class TestESLintAdapterClauseKinds:
+    def setup_method(self):
+        self.adapter = ESLintAdapter()
+
+    def test_returns_forbidden_import(self):
+        assert ClauseKind.FORBIDDEN_IMPORT in self.adapter.supported_clause_kinds
+
+    def test_returns_allowed_import_surface(self):
+        assert ClauseKind.ALLOWED_IMPORT_SURFACE in self.adapter.supported_clause_kinds
+
+    def test_no_stale_preferred_import_string(self):
+        assert "preferred_import" not in self.adapter.supported_clause_kinds
+
+    def test_all_values_are_clause_kind_instances(self):
+        for v in self.adapter.supported_clause_kinds:
+            assert isinstance(v, ClauseKind)
+
+
+class TestRuffAdapterClauseKinds:
+    def setup_method(self):
+        self.adapter = RuffAdapter()
+
+    def test_returns_forbidden_import(self):
+        assert ClauseKind.FORBIDDEN_IMPORT in self.adapter.supported_clause_kinds
+
+    def test_all_values_are_clause_kind_instances(self):
+        for v in self.adapter.supported_clause_kinds:
+            assert isinstance(v, ClauseKind)
+
+
+# ---------------------------------------------------------------------------
+# ENF-CLA: Creation workflow enforcement metadata tests
+# ---------------------------------------------------------------------------
+
+
+class TestEnforcementMetadataAllAdapters:
+    """Verify _build_enforcement_metadata includes all 5 adapters with clause_kinds."""
+
+    def setup_method(self):
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        # CreationWorkflow needs an adr_dir; use MagicMock to avoid filesystem setup
+        from adr_kit.decision.workflows.creation import CreationWorkflow
+
+        self.workflow = CreationWorkflow.__new__(CreationWorkflow)
+
+    def _get_metadata(self):
+        return self.workflow._build_enforcement_metadata()
+
+    def test_all_five_adapters_present(self):
+        meta = self._get_metadata()
+        adapters = meta["adapters"]
+        assert "eslint" in adapters
+        assert "ruff" in adapters
+        assert "mypy" in adapters
+        assert "tsconfig" in adapters
+        assert "import_linter" in adapters
+
+    def test_each_adapter_has_supported_clause_kinds_key(self):
+        meta = self._get_metadata()
+        for name, details in meta["adapters"].items():
+            assert (
+                "supported_clause_kinds" in details
+            ), f"{name} missing supported_clause_kinds"
+
+    def test_mypy_adapter_reports_config_invariant(self):
+        meta = self._get_metadata()
+        assert "config_invariant" in meta["adapters"]["mypy"]["supported_clause_kinds"]
+
+    def test_eslint_adapter_reports_forbidden_import(self):
+        meta = self._get_metadata()
+        assert (
+            "forbidden_import" in meta["adapters"]["eslint"]["supported_clause_kinds"]
+        )
+
+    def test_policy_enforcement_paths_covers_all_known_keys(self):
+        meta = self._get_metadata()
+        paths = meta["policy_enforcement_paths"]
+        for key in [
+            "imports",
+            "python",
+            "patterns",
+            "architecture",
+            "config_enforcement",
+        ]:
+            assert key in paths
