@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `OutputMode` enum (`native_config`, `native_rules`, `generated_checker`, `policy_file`, `script_fallback`) and `EnforcementStage` enum (`commit`, `push`, `ci`) — enforcement adapters now declare what kind of artifact they emit and at which gate it is evaluated, making the enforcement plane's output taxonomy explicit and inspectable
+- `FallbackAdapter` — unroutable policy keys now flow through a standard adapter interface rather than a pipeline side path; fallback promptlets appear in `EnforcementResult.fragments_applied` with `output_mode="script_fallback"` alongside native-config fragments, making the full enforcement picture visible in one place
+- `output_mode` field on `EnforcementResult.fragments_applied` entries — each applied fragment now reports its output mode, enabling callers to distinguish native enforcement artifacts from agent-authored validation scripts
 - `depends_on` and `related_to` optional fields on ADR frontmatter — declare inter-ADR dependencies and relationships directly in the ADR file; the contract builder warns when referenced ADR IDs cannot be resolved
 - Mypy enforcement adapter — approving an ADR with `config_enforcement.python.mypy` constraints automatically generates a `.mypy-adr.ini` configuration file
 - TypeScript tsconfig enforcement adapter — approving an ADR with `config_enforcement.typescript.tsconfig` constraints automatically generates a `tsconfig.adr.json` file that can be extended via tsconfig's `extends`
