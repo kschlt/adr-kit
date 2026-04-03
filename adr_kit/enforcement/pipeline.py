@@ -236,15 +236,34 @@ class EnforcementPipeline:
                 )
 
         # Stage 4.5: Generate fallback promptlets for unroutable policy keys
-        for key in unroutable_keys:
-            promptlet = self._build_fallback_promptlet(key, contract)
-            result.fallback_promptlets.append(promptlet)
-            result.skipped_adapters.append(
-                SkippedAdapter(
-                    adapter="none",
-                    reason=f"unroutable policy key '{key}': fallback promptlet generated",
-                )
+        # FallbackAdapter unifies this as OutputMode.SCRIPT_FALLBACK — same interface as
+        # all other adapters. fallback_promptlets is also populated for backward compat.
+        if unroutable_keys:
+            from .adapters.fallback import FallbackAdapter
+
+            fallback_adapter = FallbackAdapter()
+            fallback_frags = fallback_adapter.generate_fragments(
+                constraints,
+                policy_keys=list(unroutable_keys),
+                contract=contract,
             )
+            for frag in fallback_frags:
+                result.fallback_promptlets.append(frag.content)
+                result.fragments_applied.append(
+                    AppliedFragment(
+                        adapter=frag.adapter,
+                        target_file=frag.target_file,
+                        policy_keys=frag.policy_keys,
+                        fragment_type=frag.fragment_type,
+                        output_mode=frag.output_mode.value,
+                    )
+                )
+                result.skipped_adapters.append(
+                    SkippedAdapter(
+                        adapter="none",
+                        reason=f"unroutable policy key '{frag.policy_keys[0]}': fallback promptlet generated",
+                    )
+                )
 
         # Stage 5: Generate secondary artifacts
         self._run_script_generator(result)
