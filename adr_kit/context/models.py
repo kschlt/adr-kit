@@ -1,11 +1,208 @@
 """Data models for the Planning Context Service."""
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from ..core.model import ADRStatus
+
+# ---------------------------------------------------------------------------
+# Scenario taxonomy (SCN)
+# ---------------------------------------------------------------------------
+
+
+class ContextScenario(str, Enum):
+    """Supported context retrieval scenarios for v1."""
+
+    STRATEGIC_PLANNING = "strategic_planning"
+    """Feature planning, spec writing, architectural exploration."""
+
+    FOCUSED_IMPLEMENTATION = "focused_implementation"
+    """Coding in a specific area or bounded task."""
+
+    PRE_DECISION = "pre_decision"
+    """Before committing to a direction — evaluate whether a new ADR is needed."""
+
+    SUPERSESSION_IMPACT = "supersession_impact"
+    """When an existing decision may change — assess downstream implications."""
+
+
+class ChangeMode(str, Enum):
+    """How the caller intends to change the codebase."""
+
+    NONE = "none"
+    """Reading or exploring — no changes planned."""
+
+    ADDITIVE = "additive"
+    """Adding new code or features without changing existing behaviour."""
+
+    MODIFYING = "modifying"
+    """Changing existing code or behaviour."""
+
+    REPLACING = "replacing"
+    """Superseding or replacing a decision or component."""
+
+
+class DetailLevel(str, Enum):
+    """How much detail to include in the response packet."""
+
+    MINIMAL = "minimal"
+    """Constraints only, no explanations."""
+
+    STANDARD = "standard"
+    """Constraints with brief rationale (default)."""
+
+    DETAILED = "detailed"
+    """Full context including history and tradeoffs."""
+
+
+class ScopeHint(BaseModel):
+    """Typed scope signal so the kit doesn't have to guess what a string means."""
+
+    hint_type: str = Field(
+        ...,
+        description=("Signal type: 'file_path', 'module', 'domain', 'stack', or 'tag'"),
+    )
+    value: str = Field(
+        ...,
+        description="The signal value, e.g. 'src/auth/', 'authentication', 'backend'",
+    )
+
+
+class TargetRef(BaseModel):
+    """Typed reference to a known ADR or clause the caller wants included."""
+
+    ref_type: str = Field(
+        ...,
+        description="Reference type: 'adr_id' or 'clause_id'",
+    )
+    ref_id: str = Field(
+        ...,
+        description="The identifier, e.g. 'ADR-003' or a clause UUID",
+    )
+
+
+class ContextRequest(BaseModel):
+    """Structured request contract for adr_planning_context callers."""
+
+    scenario: ContextScenario = Field(
+        ContextScenario.STRATEGIC_PLANNING,
+        description="Which scenario this request falls under",
+    )
+    task_summary: str = Field(
+        ...,
+        description="What the caller is trying to accomplish",
+    )
+    scope_hints: list[ScopeHint] = Field(
+        default_factory=list,
+        description="Typed scope signals (file paths, domains, stack tags, etc.)",
+    )
+    change_mode: ChangeMode = Field(
+        ChangeMode.NONE,
+        description="How the caller intends to modify the codebase",
+    )
+    focus: str = Field(
+        "",
+        description="Specific area of concern (free text, feeds semantic retrieval)",
+    )
+    known_targets: list[TargetRef] = Field(
+        default_factory=list,
+        description="Typed references to ADRs or clauses to include unconditionally",
+    )
+    detail_level: DetailLevel = Field(
+        DetailLevel.STANDARD,
+        description="How much detail to include in the response",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Response-side models (SCN)
+# ---------------------------------------------------------------------------
+
+
+class ConstraintSummary(BaseModel):
+    """A single enforced constraint derived from an approved ADR."""
+
+    clause_id: str | None = Field(
+        None,
+        description="Clause identifier (None until clause IDs land in a future item)",
+    )
+    source_adr: str = Field(..., description="ADR that produced this constraint")
+    summary: str = Field(..., description="One-line constraint description")
+    relevance_score: float = Field(
+        ...,
+        description="How relevant this constraint is to the request (0.0-1.0)",
+    )
+    domain: str | None = Field(
+        None,
+        description="Architectural domain this constraint belongs to",
+    )
+
+
+class InspectReference(BaseModel):
+    """A reference returned so callers can inspect further detail on demand."""
+
+    ref_type: str = Field(
+        ...,
+        description="Reference type: 'adr', 'clause', or 'resource'",
+    )
+    ref_id: str = Field(
+        ...,
+        description="Identifier: ADR-003, clause UUID, or resource URI",
+    )
+    label: str = Field(..., description="Human-readable label for display")
+
+
+class PacketMetadata(BaseModel):
+    """Metadata describing how a ScenarioContextPacket was assembled."""
+
+    token_estimate: int = Field(
+        ...,
+        description="Rough token count for the full packet",
+    )
+    candidate_count: int = Field(
+        ...,
+        description="Number of candidates evaluated before ranking",
+    )
+    ranking_strategy: str = Field(
+        "",
+        description="Strategy used to rank candidates (e.g. 'semantic', 'exact')",
+    )
+
+
+class ScenarioContextPacket(BaseModel):
+    """Scenario-aware response packet (v2).
+
+    Coexists with the legacy ContextPacket.  New tool paths return this shape;
+    the legacy ContextPacket remains in place for existing callers.
+    """
+
+    scenario: ContextScenario = Field(
+        ...,
+        description="Scenario this packet was assembled for",
+    )
+    overview: str = Field(
+        ...,
+        description="1-3 sentence architectural orientation for the scenario",
+    )
+    constraints: list[ConstraintSummary] = Field(
+        default_factory=list,
+        description="Relevant constraints, ranked by relevance",
+    )
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="AI warnings and tradeoff notes",
+    )
+    inspect_deeper: list[InspectReference] = Field(
+        default_factory=list,
+        description="References to ADRs, clauses, or resources for further inspection",
+    )
+    metadata: PacketMetadata | None = Field(
+        None,
+        description="Assembly metadata (token estimate, candidate count, etc.)",
+    )
 
 
 class TaskHint(BaseModel):

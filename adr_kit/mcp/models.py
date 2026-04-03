@@ -5,6 +5,14 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ..context.models import (
+    ChangeMode,
+    ContextScenario,
+    DetailLevel,
+    ScopeHint,
+    TargetRef,
+)
+
 
 class MCPStatus(str, Enum):
     """Standard status codes for MCP responses."""
@@ -160,8 +168,14 @@ class SupersedeADRRequest(BaseModel):
 
 
 class PlanningContextRequest(BaseModel):
-    """Parameters for architectural context for agent tasks."""
+    """Parameters for architectural context for agent tasks.
 
+    Legacy fields (task_description, context_type, domain_hints, priority_level) are
+    preserved for backward compatibility.  New callers should also supply the scenario
+    fields — if omitted, scenario defaults to STRATEGIC_PLANNING.
+    """
+
+    # --- legacy fields (unchanged, all existing callers continue to work) ---
     task_description: str = Field(
         ..., description="Description of what the agent is trying to do"
     )
@@ -178,6 +192,30 @@ class PlanningContextRequest(BaseModel):
         description="Priority level (low, normal, high) - affects detail level",
     )
     adr_dir: str = Field("docs/adr", description="ADR directory path")
+
+    # --- scenario fields (all optional, backward-compat defaults) ---
+    scenario: ContextScenario = Field(
+        ContextScenario.STRATEGIC_PLANNING,
+        description=(
+            "Context scenario type; inferred as STRATEGIC_PLANNING when omitted"
+        ),
+    )
+    change_mode: ChangeMode | None = Field(
+        None,
+        description="How the caller intends to change the codebase (optional)",
+    )
+    detail_level: DetailLevel = Field(
+        DetailLevel.STANDARD,
+        description="How much detail to include in the response",
+    )
+    scope: ScopeHint | None = Field(
+        None,
+        description="Typed scope signal for narrowing retrieval (optional)",
+    )
+    target: TargetRef | None = Field(
+        None,
+        description="Typed reference to a specific ADR or clause to include (optional)",
+    )
 
 
 class DecisionGuidanceRequest(BaseModel):
