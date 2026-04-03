@@ -10,9 +10,58 @@ from adr_kit.contract.models import (
 )
 from adr_kit.core.model import ImportPolicy
 from adr_kit.enforcement.adapters.base import BaseAdapter, ConfigFragment
-from adr_kit.enforcement.clause_kinds import ClauseKind, classify_policy_rule
+from adr_kit.enforcement.clause_kinds import (
+    ClauseKind,
+    EnforcementStage,
+    OutputMode,
+    classify_policy_rule,
+)
 from adr_kit.enforcement.pipeline import EnforcementPipeline
 from adr_kit.enforcement.router import PolicyRouter
+
+
+class TestOutputModeEnum:
+    def test_all_five_members_exist(self):
+        modes = {m.value for m in OutputMode}
+        assert modes == {
+            "native_config",
+            "native_rules",
+            "generated_checker",
+            "policy_file",
+            "script_fallback",
+        }
+
+    def test_output_mode_is_string(self):
+        for mode in OutputMode:
+            assert isinstance(mode, str), f"{mode} should be a str subclass"
+
+    def test_round_trip(self):
+        assert OutputMode("native_config") is OutputMode.NATIVE_CONFIG
+        assert OutputMode("script_fallback") is OutputMode.SCRIPT_FALLBACK
+
+    def test_string_equality(self):
+        assert OutputMode.NATIVE_CONFIG == "native_config"
+        assert OutputMode.SCRIPT_FALLBACK == "script_fallback"
+        assert OutputMode.NATIVE_RULES == "native_rules"
+
+
+class TestEnforcementStageEnum:
+    def test_all_three_members_exist(self):
+        stages = {s.value for s in EnforcementStage}
+        assert stages == {"commit", "push", "ci"}
+
+    def test_enforcement_stage_is_string(self):
+        for stage in EnforcementStage:
+            assert isinstance(stage, str), f"{stage} should be a str subclass"
+
+    def test_round_trip(self):
+        assert EnforcementStage("commit") is EnforcementStage.COMMIT
+        assert EnforcementStage("ci") is EnforcementStage.CI
+
+    def test_string_equality(self):
+        assert EnforcementStage.COMMIT == "commit"
+        assert EnforcementStage.CI == "ci"
+        assert EnforcementStage.PUSH == "push"
 
 
 class TestClauseKindEnum:

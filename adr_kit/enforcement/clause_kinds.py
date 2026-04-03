@@ -10,6 +10,29 @@ from __future__ import annotations
 from enum import Enum
 
 
+class OutputMode(str, Enum):
+    """How an adapter emits its enforcement artifact.
+
+    Each value represents a distinct artifact family the enforcement plane
+    can produce. Adapters declare which modes they support; the pipeline
+    and reporting use these to distinguish native enforcement from fallbacks.
+    """
+
+    NATIVE_CONFIG = "native_config"
+    NATIVE_RULES = "native_rules"
+    GENERATED_CHECKER = "generated_checker"
+    POLICY_FILE = "policy_file"
+    SCRIPT_FALLBACK = "script_fallback"
+
+
+class EnforcementStage(str, Enum):
+    """Enforcement gate at which an adapter's output is evaluated."""
+
+    COMMIT = "commit"
+    PUSH = "push"
+    CI = "ci"
+
+
 class ClauseKind(str, Enum):
     """Canonical clause families for architectural enforcement.
 
