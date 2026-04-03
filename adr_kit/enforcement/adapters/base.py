@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from ...contract.models import MergedConstraints
+from ..clause_kinds import EnforcementStage, OutputMode
 
 
 @dataclass
@@ -92,21 +93,20 @@ class BaseAdapter(ABC):
         return []
 
     @property
-    def output_modes(self) -> list[str]:
+    def output_modes(self) -> list[OutputMode]:
         """Kinds of artifacts this adapter emits.
 
-        Values: native_config, native_rules, generated_checker, policy_file, script_fallback.
-        ENF-MODE will formalise these as a first-class enum. Defaults to native_config.
+        Defaults to [OutputMode.NATIVE_CONFIG].
         """
-        return ["native_config"]
+        return [OutputMode.NATIVE_CONFIG]
 
     @property
-    def supported_stages(self) -> list[str]:
-        """Enforcement stages this adapter targets (commit, push, ci).
+    def supported_stages(self) -> list[EnforcementStage]:
+        """Enforcement stages this adapter targets.
 
-        Defaults to ['ci'].
+        Defaults to [EnforcementStage.CI].
         """
-        return ["ci"]
+        return [EnforcementStage.CI]
 
     # ------------------------------------------------------------------
     # Core method
