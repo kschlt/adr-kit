@@ -338,3 +338,71 @@ class TestRouterClauseKindFiltering:
         keys = decisions[0].policy_keys
         assert "imports.disallow.axios" in keys
         assert "imports.prefer.fastapi" in keys
+
+
+# ---------------------------------------------------------------------------
+# ENF-MODE: RoutingDecision carries typed OutputMode and EnforcementStage
+# ---------------------------------------------------------------------------
+
+
+class TestRoutingDecisionTypedFields:
+    def _make_prov(self, rule_path: str) -> PolicyProvenance:
+        return PolicyProvenance(
+            adr_id="ADR-001",
+            adr_title="Test",
+            rule_path=rule_path,
+            effective_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            clause_id=PolicyProvenance.make_clause_id("ADR-001", rule_path),
+        )
+
+    def test_routing_decision_output_modes_is_typed(self):
+        from adr_kit.enforcement.adapters.eslint import ESLintAdapter
+
+        prov = {"imports.disallow.axios": self._make_prov("imports.disallow.axios")}
+        contract = _make_contract_with_prov(prov)
+        router = PolicyRouter([ESLintAdapter()])
+        decisions, _ = router.route(contract, ["javascript"])
+
+        assert len(decisions) == 1
+        decision = decisions[0]
+        assert OutputMode.NATIVE_CONFIG in decision.output_modes
+        assert all(isinstance(m, OutputMode) for m in decision.output_modes)
+
+    def test_routing_decision_supported_stages_is_typed(self):
+        from adr_kit.enforcement.adapters.eslint import ESLintAdapter
+
+        prov = {"imports.disallow.axios": self._make_prov("imports.disallow.axios")}
+        contract = _make_contract_with_prov(prov)
+        router = PolicyRouter([ESLintAdapter()])
+        decisions, _ = router.route(contract, ["javascript"])
+
+        decision = decisions[0]
+        assert EnforcementStage.COMMIT in decision.supported_stages
+        assert EnforcementStage.CI in decision.supported_stages
+        assert all(isinstance(s, EnforcementStage) for s in decision.supported_stages)
+
+    def test_import_linter_decision_output_mode_is_native_rules(self):
+        from adr_kit.contract.models import PolicyProvenance
+        from adr_kit.core.model import ArchitecturePolicy, LayerBoundaryRule
+        from adr_kit.enforcement.adapters.import_linter import ImportLinterAdapter
+
+        rule_path = "architecture.layer_boundaries.0"
+        prov = {rule_path: self._make_prov(rule_path)}
+        contract = ConstraintsContract(
+            metadata=ContractMetadata(hash="abc123", source_adrs=[], adr_directory="."),
+            constraints=MergedConstraints(
+                architecture=ArchitecturePolicy(
+                    layer_boundaries=[
+                        LayerBoundaryRule(
+                            rule="api->db", from_layer="api", to_layer="db"
+                        )
+                    ]
+                )
+            ),
+            provenance=prov,
+        )
+        router = PolicyRouter([ImportLinterAdapter()])
+        decisions, _ = router.route(contract, ["python"])
+
+        assert len(decisions) == 1
+        assert OutputMode.NATIVE_RULES in decisions[0].output_modes

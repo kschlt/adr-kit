@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from ..contract.models import ConstraintsContract, MergedConstraints
 from .adapters.base import BaseAdapter
-from .clause_kinds import classify_policy_rule
+from .clause_kinds import EnforcementStage, OutputMode, classify_policy_rule
 
 
 @dataclass
@@ -26,10 +26,10 @@ class RoutingDecision:
     clause_kinds: list[str] = field(default_factory=list)
     """Clause kinds the adapter supports (reflected from adapter.supported_clause_kinds)."""
 
-    output_modes: list[str] = field(default_factory=list)
+    output_modes: list[OutputMode] = field(default_factory=list)
     """Output modes the adapter emits (reflected from adapter.output_modes)."""
 
-    supported_stages: list[str] = field(default_factory=list)
+    supported_stages: list[EnforcementStage] = field(default_factory=list)
     """Enforcement stages the adapter targets (reflected from adapter.supported_stages)."""
 
 
