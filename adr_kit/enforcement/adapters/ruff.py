@@ -18,7 +18,7 @@ import toml
 from ...contract.models import MergedConstraints
 from ...core.model import ADR, ADRStatus
 from ...core.parse import ParseError, find_adr_files, parse_adr_file
-from ..clause_kinds import ClauseKind
+from ..clause_kinds import ClauseKind, EnforcementStage, OutputMode
 from .base import BaseAdapter, ConfigFragment
 
 
@@ -425,12 +425,12 @@ class RuffAdapter(BaseAdapter):
         return [ClauseKind.FORBIDDEN_IMPORT]
 
     @property
-    def output_modes(self) -> list[str]:
-        return ["native_config"]
+    def output_modes(self) -> list[OutputMode]:
+        return [OutputMode.NATIVE_CONFIG]
 
     @property
-    def supported_stages(self) -> list[str]:
-        return ["commit", "ci"]
+    def supported_stages(self) -> list[EnforcementStage]:
+        return [EnforcementStage.COMMIT, EnforcementStage.CI]
 
     def generate_fragments(
         self, constraints: MergedConstraints

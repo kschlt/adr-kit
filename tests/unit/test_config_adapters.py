@@ -44,7 +44,7 @@ from adr_kit.enforcement.adapters.tsconfig import (
     TsconfigAdapter,
     generate_tsconfig_from_contract,
 )
-from adr_kit.enforcement.clause_kinds import ClauseKind
+from adr_kit.enforcement.clause_kinds import ClauseKind, EnforcementStage, OutputMode
 from adr_kit.enforcement.router import PolicyRouter
 
 # ---------------------------------------------------------------------------
@@ -837,3 +837,79 @@ class TestEnforcementMetadataAllAdapters:
             "config_enforcement",
         ]:
             assert key in paths
+
+
+# ---------------------------------------------------------------------------
+# ENF-MODE: Typed OutputMode and EnforcementStage per adapter
+# ---------------------------------------------------------------------------
+
+
+class TestAdapterOutputModes:
+    def test_eslint_output_mode(self):
+        assert ESLintAdapter().output_modes == [OutputMode.NATIVE_CONFIG]
+
+    def test_ruff_output_mode(self):
+        assert RuffAdapter().output_modes == [OutputMode.NATIVE_CONFIG]
+
+    def test_mypy_output_mode(self):
+        assert MypyAdapter().output_modes == [OutputMode.NATIVE_CONFIG]
+
+    def test_tsconfig_output_mode(self):
+        assert TsconfigAdapter().output_modes == [OutputMode.NATIVE_CONFIG]
+
+    def test_import_linter_output_mode_is_native_rules(self):
+        assert ImportLinterAdapter().output_modes == [OutputMode.NATIVE_RULES]
+
+    def test_output_mode_values_are_strings(self):
+        for adapter in [
+            ESLintAdapter(),
+            RuffAdapter(),
+            MypyAdapter(),
+            TsconfigAdapter(),
+            ImportLinterAdapter(),
+        ]:
+            for mode in adapter.output_modes:
+                assert isinstance(mode, str), f"{adapter.name}: mode should be str"
+
+
+class TestAdapterEnforcementStages:
+    def test_eslint_stages(self):
+        assert ESLintAdapter().supported_stages == [
+            EnforcementStage.COMMIT,
+            EnforcementStage.CI,
+        ]
+
+    def test_ruff_stages(self):
+        assert RuffAdapter().supported_stages == [
+            EnforcementStage.COMMIT,
+            EnforcementStage.CI,
+        ]
+
+    def test_mypy_stages(self):
+        assert MypyAdapter().supported_stages == [
+            EnforcementStage.COMMIT,
+            EnforcementStage.CI,
+        ]
+
+    def test_tsconfig_stages(self):
+        assert TsconfigAdapter().supported_stages == [
+            EnforcementStage.COMMIT,
+            EnforcementStage.CI,
+        ]
+
+    def test_import_linter_stages(self):
+        assert ImportLinterAdapter().supported_stages == [
+            EnforcementStage.COMMIT,
+            EnforcementStage.CI,
+        ]
+
+    def test_stage_values_are_strings(self):
+        for adapter in [
+            ESLintAdapter(),
+            RuffAdapter(),
+            MypyAdapter(),
+            TsconfigAdapter(),
+            ImportLinterAdapter(),
+        ]:
+            for stage in adapter.supported_stages:
+                assert isinstance(stage, str), f"{adapter.name}: stage should be str"
