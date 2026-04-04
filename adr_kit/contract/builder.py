@@ -10,7 +10,7 @@ from ..core.model import ADRStatus
 from ..core.parse import ParseError, find_adr_files, parse_adr_file
 from .cache import ContractCache
 from .merger import PolicyMerger
-from .models import ConstraintsContract, ContractMetadata
+from .models import ConstraintsContract, ContractMetadata, ContractRelations
 
 
 class ConstraintsContractBuilder:
@@ -83,6 +83,9 @@ class ConstraintsContractBuilder:
                 f"{[c.description for c in merge_result.conflicts if c.resolution is None]}"
             )
 
+        # Compute relationship indexes from all parsed ADRs
+        relations = self._compute_relations(all_adrs, merge_result.provenance)
+
         # Create contract metadata
         metadata = ContractMetadata(
             version="1.0",  # Explicit default for mypy
@@ -97,6 +100,7 @@ class ConstraintsContractBuilder:
             constraints=merge_result.constraints,
             provenance=merge_result.provenance,
             approved_adrs=accepted_adrs,
+            relations=relations,
         )
 
         # Cache the contract
@@ -123,6 +127,115 @@ class ConstraintsContractBuilder:
                             f"{fm.id}: {field_name} references unknown ADR '{ref}'"
                         )
         return warnings
+
+    def _compute_relations(self, all_adrs: list, provenance: dict) -> ContractRelations:
+        """Compute forward and reverse relationship indexes from ADR frontmatter.
+
+        Uses all parsed ADRs (not only accepted) so that edges to proposed or
+        deprecated ADRs are still recorded. Unresolved references are silently
+        dropped — they have already been warned about by _validate_relation_references.
+
+        Also derives clause lookup tables from the contract provenance mapping.
+        """
+        all_ids: set[str] = {a.front_matter.id for a in all_adrs}
+
+        depends_on: dict[str, list[str]] = {}
+        related_to: dict[str, list[str]] = {}
+        supersedes_fwd: dict[str, list[str]] = {}
+        required_by: dict[str, list[str]] = {}
+        related_from: dict[str, list[str]] = {}
+        superseded_by_rev: dict[str, list[str]] = {}
+
+        for adr in all_adrs:
+            src = adr.front_matter.id
+            fm = adr.front_matter
+
+            # depends_on / required_by (reverse)
+            resolved_deps = [r for r in (fm.depends_on or []) if r in all_ids]
+            if resolved_deps:
+                depends_on[src] = resolved_deps
+                for dep in resolved_deps:
+                    if src not in required_by.setdefault(dep, []):
+                        required_by[dep].append(src)
+
+            # related_to / related_from (reverse, symmetric)
+            resolved_rel = [r for r in (fm.related_to or []) if r in all_ids]
+            if resolved_rel:
+                related_to[src] = resolved_rel
+                for rel in resolved_rel:
+                    if src not in related_from.setdefault(rel, []):
+                        related_from[rel].append(src)
+
+            # supersedes / superseded_by (reverse)
+            resolved_sup = [r for r in (fm.supersedes or []) if r in all_ids]
+            if resolved_sup:
+                supersedes_fwd[src] = resolved_sup
+                for old in resolved_sup:
+                    if src not in superseded_by_rev.setdefault(old, []):
+                        superseded_by_rev[old].append(src)
+
+        chains = self._build_supersession_chains(supersedes_fwd, superseded_by_rev)
+
+        # Build clause lookup tables from provenance
+        clause_to_adr: dict[str, str] = {}
+        adr_to_clauses: dict[str, list[str]] = {}
+        for prov in provenance.values():
+            clause_to_adr[prov.clause_id] = prov.adr_id
+            if prov.clause_id not in adr_to_clauses.setdefault(prov.adr_id, []):
+                adr_to_clauses[prov.adr_id].append(prov.clause_id)
+
+        return ContractRelations(
+            depends_on=depends_on,
+            related_to=related_to,
+            supersedes=supersedes_fwd,
+            required_by=required_by,
+            related_from=related_from,
+            superseded_by=superseded_by_rev,
+            supersession_chains=chains,
+            clause_to_adr=clause_to_adr,
+            adr_to_clauses=adr_to_clauses,
+        )
+
+    def _build_supersession_chains(
+        self,
+        supersedes_fwd: dict[str, list[str]],
+        superseded_by_rev: dict[str, list[str]],
+    ) -> list[list[str]]:
+        """Walk supersession edges to build full lineage chains (oldest → newest).
+
+        A chain starts at the newest ADR in a lineage (one that supersedes something
+        but is not itself superseded) and follows the supersedes edges backward to the
+        oldest. The chain is then reversed so it reads oldest-to-newest.
+
+        Circular references are broken by a visited set — nodes in a cycle produce
+        a truncated chain rather than an infinite loop.
+        """
+        # Roots: ADRs that supersede something but are not themselves superseded
+        all_superseding = set(supersedes_fwd.keys())
+        has_predecessor = set(superseded_by_rev.keys())
+        roots = all_superseding - has_predecessor
+
+        chains: list[list[str]] = []
+        for root in sorted(roots):
+            chain: list[str] = []
+            visited: set[str] = set()
+            current: str | None = root
+            while current and current not in visited:
+                visited.add(current)
+                chain.append(current)
+                nexts = supersedes_fwd.get(current, [])
+                if len(nexts) == 1:
+                    current = nexts[0]
+                else:
+                    # Fan-out: append all unvisited targets and stop
+                    chain.extend(n for n in nexts if n not in visited)
+                    break
+            # Reverse so chain reads oldest → newest
+            chain.reverse()
+            if len(chain) > 1:
+                chains.append(chain)
+
+        return chains
 
     def get_contract_summary(self) -> dict:
         """Get a summary of the current contract state."""

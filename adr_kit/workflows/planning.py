@@ -148,6 +148,7 @@ class PlanningWorkflow(BaseWorkflow):
             self.result.data = {
                 "architectural_context": context,
                 "task_analysis": task_analysis,
+                "contract_relations": contract.relations,
             }
             self.result.guidance = (
                 f"Architectural context generated for {input_data.context_type} task"
@@ -381,6 +382,7 @@ class PlanningWorkflow(BaseWorkflow):
                             if len(adr.decision) > 200
                             else adr.decision
                         ),
+                        "relations": self._get_adr_relations(adr.id, contract),
                     }
                 )
 
@@ -714,3 +716,21 @@ class PlanningWorkflow(BaseWorkflow):
             decisions.append(f"{adr_info['adr_id']}: {first_sentence}")
 
         return decisions
+
+    def _get_adr_relations(
+        self, adr_id: str, contract: ConstraintsContract
+    ) -> dict[str, Any]:
+        """Return a filtered relationship summary for a single ADR.
+
+        Pulls from the precomputed contract.relations indexes — no extra computation.
+        All lists default to empty when the ADR has no relationships of that type.
+        """
+        rel = contract.relations
+        return {
+            "depends_on": rel.depends_on.get(adr_id, []),
+            "required_by": rel.required_by.get(adr_id, []),
+            "related_to": rel.related_to.get(adr_id, []),
+            "related_from": rel.related_from.get(adr_id, []),
+            "supersedes": rel.supersedes.get(adr_id, []),
+            "superseded_by": rel.superseded_by.get(adr_id, []),
+        }

@@ -412,6 +412,10 @@ def adr_planning_context(request: PlanningContextRequest) -> dict[str, Any]:
 
         if result.success:
             context = result.data["architectural_context"]
+            contract_relations = result.data.get("contract_relations")
+            relations_summary = (
+                contract_relations.model_dump() if contract_relations else {}
+            )
             return success_response(
                 message=f"Planning context provided with {len(context.relevant_adrs)} relevant ADRs",
                 data={
@@ -427,6 +431,7 @@ def adr_planning_context(request: PlanningContextRequest) -> dict[str, Any]:
                     "patterns": context.architecture_patterns,
                     "checklist": context.compliance_checklist,
                     "related_decisions": context.related_decisions,
+                    "relations_summary": relations_summary,
                 },
                 next_steps=[
                     "Review relevant ADRs before implementation",

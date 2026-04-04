@@ -110,6 +110,65 @@ class MergedConstraints(BaseModel):
         )
 
 
+class ContractRelations(BaseModel):
+    """Computed relationship indexes derived from ADR frontmatter at build time.
+
+    All forward indexes are keyed by ADR ID. Reverse indexes are computed
+    automatically from forward declarations. Unresolved references (IDs not found
+    in the parsed corpus) are silently dropped — they have already been surfaced
+    as warnings during _validate_relation_references.
+
+    Not included in the contract content hash (computed state, not authored policy).
+    """
+
+    # Forward indexes
+    depends_on: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Maps ADR-ID → list of ADR-IDs it explicitly depends on",
+    )
+    related_to: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Maps ADR-ID → list of ADR-IDs it is related to",
+    )
+    supersedes: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Maps ADR-ID → list of (older) ADR-IDs it supersedes",
+    )
+
+    # Reverse indexes
+    required_by: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Reverse of depends_on: ADR-ID → list of ADRs that depend on it",
+    )
+    related_from: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Reverse of related_to: ADR-ID → list of ADRs that relate to it",
+    )
+    superseded_by: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Reverse of supersedes: ADR-ID → list of (newer) ADRs that supersede it",
+    )
+
+    # Derived supersession lineage
+    supersession_chains: list[list[str]] = Field(
+        default_factory=list,
+        description=(
+            "Each entry is a chronological chain [oldest, ..., newest] "
+            "tracing a complete supersession lineage"
+        ),
+    )
+
+    # Clause lookup tables (derived from contract provenance)
+    clause_to_adr: dict[str, str] = Field(
+        default_factory=dict,
+        description="Maps clause_id → adr_id for direct clause lookup",
+    )
+    adr_to_clauses: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Maps adr_id → [clause_ids] for all clauses from that ADR",
+    )
+
+
 class ConstraintsContract(BaseModel):
     """The complete constraints contract - the definitive source of truth for agents.
 
@@ -129,6 +188,13 @@ class ConstraintsContract(BaseModel):
     approved_adrs: list[ADR] = Field(
         default_factory=list,
         description="List of all approved ADRs that contributed to this contract",
+    )
+    relations: "ContractRelations" = Field(
+        default_factory=ContractRelations,
+        description=(
+            "Computed relationship indexes (not included in content hash). "
+            "Built at compile time from ADR frontmatter."
+        ),
     )
 
     @classmethod
