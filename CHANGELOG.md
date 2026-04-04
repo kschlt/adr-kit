@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Scenario taxonomy for `adr_planning_context` — four named scenarios (`strategic_planning`, `focused_implementation`, `pre_decision`, `supersession_impact`) replace the previous free-text `context_type` field; each scenario produces a different projection of the architecture contract
+- `ContextRequest` model — structured request contract with typed `scope_hints`, `change_mode`, `detail_level`, and `known_targets`; existing callers passing only `task_description` continue to work unchanged (defaults to `strategic_planning`)
+- `ScenarioContextPacket` response model — scenario-aware response shape with `overview`, ranked `constraints`, `warnings`, and `inspect_deeper` references to ADRs and clauses for progressive disclosure
 - `OutputMode` enum (`native_config`, `native_rules`, `generated_checker`, `policy_file`, `script_fallback`) and `EnforcementStage` enum (`commit`, `push`, `ci`) — enforcement adapters now declare what kind of artifact they emit and at which gate it is evaluated, making the enforcement plane's output taxonomy explicit and inspectable
 - `FallbackAdapter` — unroutable policy keys now flow through a standard adapter interface rather than a pipeline side path; fallback promptlets appear in `EnforcementResult.fragments_applied` with `output_mode="script_fallback"` alongside native-config fragments, making the full enforcement picture visible in one place
 - `output_mode` field on `EnforcementResult.fragments_applied` entries — each applied fragment now reports its output mode, enabling callers to distinguish native enforcement artifacts from agent-authored validation scripts

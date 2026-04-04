@@ -14,7 +14,22 @@ Key components:
 
 from .analyzer import TaskAnalyzer, TaskContext, TaskType
 from .guidance import ContextualPromptlet, GuidanceGenerator, GuidanceType
-from .models import ContextPacket, ContextualADR, PlanningGuidance, TaskHint
+from .models import (
+    ChangeMode,
+    ConstraintSummary,
+    ContextPacket,
+    ContextRequest,
+    ContextScenario,
+    ContextualADR,
+    DetailLevel,
+    InspectReference,
+    PacketMetadata,
+    PlanningGuidance,
+    ScenarioContextPacket,
+    ScopeHint,
+    TargetRef,
+    TaskHint,
+)
 from .planner import PlanningConfig, PlanningContext
 from .ranker import RankingStrategy, RelevanceRanker, RelevanceScore
 
@@ -34,4 +49,15 @@ __all__ = [
     "GuidanceGenerator",
     "GuidanceType",
     "ContextualPromptlet",
+    # SCN: scenario taxonomy
+    "ContextScenario",
+    "ChangeMode",
+    "DetailLevel",
+    "ScopeHint",
+    "TargetRef",
+    "ContextRequest",
+    "ConstraintSummary",
+    "InspectReference",
+    "PacketMetadata",
+    "ScenarioContextPacket",
 ]
