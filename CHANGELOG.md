@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ContractRelations` model — computed at contract build time from ADR frontmatter; provides forward indexes (`depends_on`, `related_to`, `supersedes`), reverse indexes (`required_by`, `related_from`, `superseded_by`), supersession chains (`[oldest → newest]`), and clause lookup tables (`clause_to_adr`, `adr_to_clauses`); attached as `relations` field on `ConstraintsContract` and excluded from the content hash
+- Relationship surfacing in `adr_planning_context` — each ADR in `relevant_adrs` now includes a `relations` dict with its per-ADR relationship context; the response also includes a top-level `relations_summary` with the full global relationship indexes for the contract
 - Scenario taxonomy for `adr_planning_context` — four named scenarios (`strategic_planning`, `focused_implementation`, `pre_decision`, `supersession_impact`) replace the previous free-text `context_type` field; each scenario produces a different projection of the architecture contract
 - `ContextRequest` model — structured request contract with typed `scope_hints`, `change_mode`, `detail_level`, and `known_targets`; existing callers passing only `task_description` continue to work unchanged (defaults to `strategic_planning`)
 - `ScenarioContextPacket` response model — scenario-aware response shape with `overview`, ranked `constraints`, `warnings`, and `inspect_deeper` references to ADRs and clauses for progressive disclosure
