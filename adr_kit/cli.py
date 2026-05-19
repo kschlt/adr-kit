@@ -840,8 +840,25 @@ def _setup_claude_impl() -> None:
     }
 
     claude_config_file = Path(".mcp.json")
+
+    # Load existing config if present to avoid clobbering other entries
+    existing_config = {}
+    if claude_config_file.exists():
+        try:
+            with open(claude_config_file) as f:
+                existing_config = json.load(f)
+        except json.JSONDecodeError:
+            # Treat invalid JSON as empty config
+            pass
+
+    # Merge configs: preserve existing keys, update mcpServers
+    if "mcpServers" in existing_config:
+        existing_config["mcpServers"].update(claude_config["mcpServers"])
+    else:
+        existing_config.update(claude_config)
+
     with open(claude_config_file, "w") as f:
-        json.dump(claude_config, f, indent=2)
+        json.dump(existing_config, f, indent=2)
 
     console.print(f"✅ Created {claude_config_file}")
 
