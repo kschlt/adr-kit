@@ -831,27 +831,15 @@ def _setup_claude_impl() -> None:
 
     # Create Claude Code config
     claude_config = {
-        "servers": {
+        "mcpServers": {
             "adr-kit": {
                 "command": adr_kit_command,
                 "args": ["mcp-server"],
-                "description": "AI-first Architectural Decision Records management",
-                "tools": [
-                    "adr_init",
-                    "adr_query_related",
-                    "adr_create",
-                    "adr_approve",
-                    "adr_supersede",
-                    "adr_validate",
-                    "adr_index",
-                    "adr_export_lint_config",
-                    "adr_render_site",
-                ],
             }
         }
     }
 
-    claude_config_file = Path(".claude-mcp-config.json")
+    claude_config_file = Path(".mcp.json")
     with open(claude_config_file, "w") as f:
         json.dump(claude_config, f, indent=2)
 
