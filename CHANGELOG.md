@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow consolidated from 13 to 8 checks: dedicated lint job (blocks tests), trimmed test matrix to `(ubuntu + macOS) × (3.11–3.13) + ubuntu-only 3.10`
 
 ### Fixed
+- `adr_approve` with `approval_notes` corrupted the ADR it approved — the `approval_date`/`approval_notes` keys were appended to the last front-matter field's value instead of starting on their own line (`status: acceptedapproval_date: ...`), so every later read of that file failed with `mapping values are not allowed here`. Approved ADRs now write valid YAML. An ADR already damaged by this needs a newline inserted before `approval_date:` to parse again
 - ADR validation on installed releases — the JSON schema was never included in the published wheel, so every pip-installed copy raised `Schema file not found` on any validation. The schema now ships inside the package (`adr_kit/schemas/`) and is resolved package-relatively
 - `setup-claude` now writes `.mcp.json` with the standard `mcpServers` key, instead of a `.claude-mcp-config.json` with a `servers` key that Claude Code ignored — so the generated config is actually picked up
 - `setup-claude` merges into an existing `.mcp.json` rather than overwriting it, preserving any other MCP servers already configured
