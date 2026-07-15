@@ -1,16 +1,24 @@
 ## Releasing
 
+Project-specific release values come from the `.agent/config.json` → `release` seam
+(`registry`, `repo_slug`, `workflow_file`, `publish_fallback_script`); read them there
+rather than assuming adr-kit's. For adr-kit those resolve to registry **PyPI**, repo
+**`kschlt/adr-kit`**, workflow **`release.yml`**, fallback **`scripts/publish.sh`**.
+
 1. Bump version in `pyproject.toml`
 2. Update `CHANGELOG.md` — move items from `[Unreleased]` to new `[X.Y.Z]` section with today's date
 3. Commit: `git commit -m "chore: bump version to X.Y.Z"`
 4. Tag: `git tag vX.Y.Z`
 5. Push tag: `git push origin vX.Y.Z`
-6. CI runs automatically: tests → build → PyPI publish → GitHub Release
+6. CI runs automatically: tests → build → `registry` publish → GitHub Release
 
-**PyPI Trusted Publishing** is configured (kschlt/adr-kit, workflow: `release.yml`).
-No tokens needed. If CI publish fails, fallback: `scripts/publish.sh` (requires `~/.pypirc`).
+**`registry` Trusted Publishing** is configured (`repo_slug`, workflow: `workflow_file`).
+No tokens needed. If CI publish fails, fallback: `publish_fallback_script` (requires `~/.pypirc`).
 
-> **One-time setup** (already done): pypi.org → adr-kit project → Manage → Publishing → add trusted publisher: owner `kschlt`, repo `adr-kit`, workflow `release.yml`.
+> **One-time setup** (done once per project): at the `registry`, add a trusted publisher for
+> `repo_slug` with workflow `workflow_file`. For adr-kit (already done): pypi.org → adr-kit
+> project → Manage → Publishing → add trusted publisher: owner `kschlt`, repo `adr-kit`,
+> workflow `release.yml`.
 
 ---
 
