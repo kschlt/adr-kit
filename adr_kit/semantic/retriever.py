@@ -380,7 +380,12 @@ class SemanticIndex:
     def _generate_embeddings(self, texts: list[str]) -> NDArray[Any]:
         """Generate embeddings for a list of texts."""
         print(f"🧠 Generating embeddings for {len(texts)} chunks...")
-        embeddings = self.model.encode(texts, show_progress_bar=True)
+        # convert_to_numpy is the runtime default, but passing it explicitly is
+        # load-bearing, not redundant: without it sentence-transformers >=5.6
+        # types encode() as returning Tensor, which has no .astype.
+        embeddings = self.model.encode(
+            texts, show_progress_bar=True, convert_to_numpy=True
+        )
         return embeddings.astype(np.float32)
 
     def _load_existing_index(self) -> bool:
@@ -472,8 +477,11 @@ class SemanticIndex:
         if not self._chunks or self._embeddings is None:
             return []
 
-        # Generate query embedding
-        query_embedding = self.model.encode([query]).astype(np.float32)
+        # Generate query embedding. convert_to_numpy is explicit for the same
+        # typing reason as in _generate_embeddings — see the note there.
+        query_embedding = self.model.encode([query], convert_to_numpy=True).astype(
+            np.float32
+        )
 
         # Compute cosine similarities
         similarities = np.dot(self._embeddings, query_embedding.T).flatten()
