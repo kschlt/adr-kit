@@ -6,7 +6,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-SCHEMA_PATH = Path(__file__).parents[2] / "schemas" / "adr.schema.json"
+SCHEMA_PATH = Path(__file__).parents[2] / "adr_kit" / "schemas" / "adr.schema.json"
 SCHEMA = json.loads(SCHEMA_PATH.read_text())
 
 

@@ -59,6 +59,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow consolidated from 13 to 8 checks: dedicated lint job (blocks tests), trimmed test matrix to `(ubuntu + macOS) × (3.11–3.13) + ubuntu-only 3.10`
 
 ### Fixed
+- ADR validation on installed releases — the JSON schema was never included in the published wheel, so every pip-installed copy raised `Schema file not found` on any validation. The schema now ships inside the package (`adr_kit/schemas/`) and is resolved package-relatively
+- `setup-claude` now writes `.mcp.json` with the standard `mcpServers` key, instead of a `.claude-mcp-config.json` with a `servers` key that Claude Code ignored — so the generated config is actually picked up
+- `setup-claude` merges into an existing `.mcp.json` rather than overwriting it, preserving any other MCP servers already configured
+- `setup-claude` no longer writes a hardcoded tool list into the config; it had drifted out of date and advertised tools the server no longer exposes
 - `pyproject.toml` project URLs updated from placeholder `your-org` to correct `kschlt`
 - Added Python 3.13 classifier to package metadata
 - `mcp-health` now shows detected version at startup and joins update thread for in-order notification
