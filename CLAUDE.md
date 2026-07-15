@@ -213,6 +213,7 @@ adr-kit/
 │   ├── index/        # JSON/SQLite generation
 │   ├── enforce/      # Lint rule generators
 │   ├── mcp/          # MCP server (primary interface)
+│   ├── schemas/      # 📦 JSON SCHEMAS (packaged — must live inside adr_kit/)
 │   └── cli.py        # Typer CLI (minimal)
 ├── tests/            # 🧪 TEST CODE (dev only, not packaged)
 │   ├── unit/         # Unit tests
@@ -221,7 +222,6 @@ adr-kit/
 ├── guide/            # 📚 PROJECT DOCUMENTATION (dev only, not packaged)
 │   └── WORKFLOWS.md  # Deep dive into workflows
 ├── docs/adr/         # ❌ TEST FIXTURES (gitignored, created by adr-kit init)
-├── schemas/          # 📦 JSON SCHEMAS (packaged)
 ├── scripts/          # 🔧 DEVELOPMENT TOOLS (dev only)
 ├── Makefile          # 🔧 DEVELOPMENT COMMANDS (dev only)
 ├── .agent/           # 📝 DEVELOPMENT NOTES (dev only)
@@ -232,7 +232,10 @@ adr-kit/
 **What gets packaged for distribution:**
 - ✅ `adr_kit/` - Runtime source code
 - ✅ `README.md`, `LICENSE` - Documentation
-- ✅ `schemas/` - JSON schemas
+- ✅ `adr_kit/schemas/` - JSON schemas. They must live **inside** the package: `packages.find`
+  only includes `adr_kit*`, so a top-level `schemas/` is silently dropped from the wheel and
+  `ADRValidator` then fails at runtime with "Schema file not found" for every pip-installed user.
+  Shipping them relies on `[tool.setuptools.package-data]` — do not remove it.
 - ✅ `pyproject.toml` - Package metadata
 
 **What stays local (dev only):**

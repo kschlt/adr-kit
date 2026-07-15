@@ -831,29 +831,34 @@ def _setup_claude_impl() -> None:
 
     # Create Claude Code config
     claude_config = {
-        "servers": {
+        "mcpServers": {
             "adr-kit": {
                 "command": adr_kit_command,
                 "args": ["mcp-server"],
-                "description": "AI-first Architectural Decision Records management",
-                "tools": [
-                    "adr_init",
-                    "adr_query_related",
-                    "adr_create",
-                    "adr_approve",
-                    "adr_supersede",
-                    "adr_validate",
-                    "adr_index",
-                    "adr_export_lint_config",
-                    "adr_render_site",
-                ],
             }
         }
     }
 
-    claude_config_file = Path(".claude-mcp-config.json")
+    claude_config_file = Path(".mcp.json")
+
+    # Load existing config if present to avoid clobbering other entries
+    existing_config = {}
+    if claude_config_file.exists():
+        try:
+            with open(claude_config_file) as f:
+                existing_config = json.load(f)
+        except json.JSONDecodeError:
+            # Treat invalid JSON as empty config
+            pass
+
+    # Merge configs: preserve existing keys, update mcpServers
+    if "mcpServers" in existing_config:
+        existing_config["mcpServers"].update(claude_config["mcpServers"])
+    else:
+        existing_config.update(claude_config)
+
     with open(claude_config_file, "w") as f:
-        json.dump(claude_config, f, indent=2)
+        json.dump(existing_config, f, indent=2)
 
     console.print(f"✅ Created {claude_config_file}")
 
