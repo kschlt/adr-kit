@@ -260,6 +260,11 @@ class ApprovalWorkflow(BaseWorkflow):
             # Find end of YAML front-matter
             yaml_end = new_content.find("\n---\n")
             if yaml_end != -1:
+                # find() returns the index OF the newline before the closing
+                # fence; step past it so the slice keeps that newline and the
+                # metadata starts on its own line instead of being appended to
+                # the last field's value.
+                yaml_end += 1
                 approval_metadata = (
                     f'approval_date: {datetime.now().strftime("%Y-%m-%d")}\n'
                 )

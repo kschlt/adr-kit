@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from adr_kit.core.parse import parse_adr_file
 from adr_kit.mcp.models import (
     AnalyzeProjectRequest,
     ApproveADRRequest,
@@ -212,11 +213,16 @@ class TestMCPWorkflowIntegration:
 
         result = approval_workflow.execute(input_data=approval_input)
 
-        # Should complete approval (success depends on implementation)
-        if result.success:
-            assert "approval_result" in result.data
-            approval_result = result.data["approval_result"]
-            assert approval_result.adr_id == created_adr_id
+        assert result.success is True, result.message
+        assert "approval_result" in result.data
+        approval_result = result.data["approval_result"]
+        assert approval_result.adr_id == created_adr_id
+
+        # The approved ADR must still parse. Asserting on the file itself and
+        # not just on the result envelope is what catches a workflow that
+        # reports success while writing a broken file.
+        approved_adr = parse_adr_file(next(Path(temp_adr_dir).glob("*.md")))
+        assert approved_adr.front_matter.status == "accepted"
 
     def test_mcp_supersede_integration(self, temp_adr_dir):
         """Test MCP supersede tool integration."""
