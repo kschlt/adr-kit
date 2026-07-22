@@ -281,7 +281,7 @@ Use `python3` (or the value from `.agent/config.json` → `python` key) for all 
 4. Implement step by step, `/close` after each step
 5. Never work directly on main — always use a feature branch
 
-**Git workflow design**: [`.agent/workflows/git-workflow.md`](.agent/workflows/git-workflow.md) (human-readable, loaded only on request)
+**Git workflow design**: [`.agent/metadoc/git-workflow.md`](.agent/metadoc/git-workflow.md) (human-readable, loaded only on request)
 
 ## Additional Documentation
 
