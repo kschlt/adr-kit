@@ -240,6 +240,10 @@ class SupersedeWorkflow(BaseWorkflow):
             # Add superseded_by before end of YAML front-matter
             yaml_end = content.find("\n---\n")
             if yaml_end != -1:
+                # find() points at the newline ending the last frontmatter
+                # field; advance past it so the insert lands on its own line
+                # instead of being welded onto that field's value.
+                yaml_end += 1
                 supersede_metadata = (
                     f"{superseded_by_line}\n"
                     f'supersede_date: {datetime.now().strftime("%Y-%m-%d")}\n'
@@ -279,6 +283,13 @@ class SupersedeWorkflow(BaseWorkflow):
                         # Add supersedes before end of YAML front-matter
                         yaml_end = content.find("\n---\n")
                         if yaml_end != -1:
+                            # find() points at the newline ending the last
+                            # frontmatter field; advance past it so the insert
+                            # lands on its own line instead of being welded
+                            # onto that field's value. The trailing "\n" then
+                            # separates the inserted line from the closing
+                            # fence.
+                            yaml_end += 1
                             content = (
                                 content[:yaml_end]
                                 + supersedes_line
