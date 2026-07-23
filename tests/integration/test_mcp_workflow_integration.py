@@ -276,6 +276,7 @@ class TestMCPWorkflowIntegration:
             deciders=supersede_request.new_deciders,
             tags=supersede_request.new_tags,
             alternatives=supersede_request.new_alternatives,
+            skip_quality_gate=True,  # Skip quality gate to test supersede workflow
         )
 
         supersede_input = SupersedeInput(
@@ -287,12 +288,26 @@ class TestMCPWorkflowIntegration:
 
         result = workflow.execute(input_data=supersede_input)
 
-        # Should handle supersession (success depends on implementation)
-        if result.success:
-            assert "supersede_result" in result.data
-            supersede_result = result.data["supersede_result"]
-            assert supersede_result.old_adr_id == old_adr_id
-            assert supersede_result.new_adr_id.startswith("ADR-")
+        assert result.success is True, result.message
+        assert "supersede_result" in result.data
+        supersede_result = result.data["supersede_result"]
+        assert supersede_result.old_adr_id == old_adr_id
+        assert supersede_result.new_adr_id.startswith("ADR-")
+
+        # Both written ADRs must still parse. Asserting on the files
+        # themselves and not just on the result envelope is what catches a
+        # workflow that reports success while writing a broken file.
+        adrs_by_id = {
+            adr.id: adr
+            for adr in (
+                parse_adr_file(path) for path in Path(temp_adr_dir).glob("*.md")
+            )
+        }
+        old_adr = adrs_by_id[old_adr_id]
+        assert old_adr.front_matter.status == "superseded"
+        assert old_adr.front_matter.superseded_by == [supersede_result.new_adr_id]
+        new_adr = adrs_by_id[supersede_result.new_adr_id]
+        assert new_adr.front_matter.supersedes == [old_adr_id]
 
     def test_mcp_planning_context_integration(self, temp_adr_dir):
         """Test MCP planning context tool integration."""
